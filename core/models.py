@@ -16,8 +16,8 @@ class Bot(models.Model):
     twitch_user_id = models.CharField(max_length=50, unique=True)
     twitch_username = models.CharField(max_length=100)
 
-    access_token = EncryptedTextField(blank=True, default="")
-    refresh_token = EncryptedTextField(blank=True, default="")
+    access_token = EncryptedTextField(null=True, blank=True)
+    refresh_token = EncryptedTextField(null=True, blank=True)
     token_expires_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(default=timezone.now)
@@ -41,8 +41,8 @@ class Channel(models.Model):
     twitch_channel_id = models.CharField(max_length=50)
     twitch_channel_name = models.CharField(max_length=100)
 
-    owner_access_token = EncryptedTextField(blank=True, default="")
-    owner_refresh_token = EncryptedTextField(blank=True, default="")
+    owner_access_token = EncryptedTextField(null=True, blank=True)
+    owner_refresh_token = EncryptedTextField(null=True, blank=True)
     owner_token_expires_at = models.DateTimeField(null=True, blank=True)
 
     is_active = models.BooleanField(default=True)
