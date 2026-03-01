@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 import twitchio
-from twitchio import eventsub
+from twitchio import eventsub, web
 from twitchio.ext import commands
 
 from .components.dynamic import DynamicCommands
@@ -29,15 +29,18 @@ class BotClient(commands.Bot):
         token: str,
         refresh_token: str,
         channels: list[dict],
+        port: int = 4343,
     ) -> None:
         self.bot_name = bot_name
         self._channel_map = {ch["name"]: ch for ch in channels}
 
+        adapter = web.AiohttpAdapter(port=port)
         super().__init__(
             client_id=client_id,
             client_secret=client_secret,
             bot_id=bot_id,
             prefix="!",
+            adapter=adapter,
         )
 
         self._initial_token = token

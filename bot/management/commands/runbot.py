@@ -76,7 +76,8 @@ class Command(BaseCommand):
 
         bot_instances = []
 
-        for cfg in configs:
+        base_port = 4343
+        for i, cfg in enumerate(configs):
             client = BotClient(
                 client_id=settings.TWITCH_CLIENT_ID,
                 client_secret=settings.TWITCH_CLIENT_SECRET,
@@ -85,6 +86,7 @@ class Command(BaseCommand):
                 token=cfg["token"],
                 refresh_token=cfg["refresh_token"],
                 channels=cfg["channels"],
+                port=base_port + i,
             )
             bot_instances.append(client)
             logger.info(

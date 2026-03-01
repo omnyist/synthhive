@@ -34,6 +34,7 @@ services:
     command: >
       sh -c "uv run python manage.py migrate &&
              uv run python manage.py seed &&
+             uv run python manage.py collectstatic --noinput &&
              uv run daphne -b 0.0.0.0 -p 7177 botbesties.asgi:application"
 
   bot:
