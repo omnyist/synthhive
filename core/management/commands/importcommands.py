@@ -83,7 +83,7 @@ class Command(BaseCommand):
                     name=name,
                     response=response,
                     mod_only=mod_only,
-                    created_by="import",
+                    created_by=channel.twitch_channel_name,
                 )
 
             created_count += 1
