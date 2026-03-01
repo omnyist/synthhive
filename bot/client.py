@@ -6,8 +6,8 @@ import twitchio
 from twitchio import eventsub, web
 from twitchio.ext import commands
 
-from .components.dynamic import DynamicCommands
 from .components.management import ManagementCommands
+from .router import CommandRouter
 
 logger = logging.getLogger("bot")
 
@@ -70,7 +70,7 @@ class BotClient(commands.Bot):
                 )
 
         await self.add_component(ManagementCommands(self))
-        await self.add_component(DynamicCommands(self))
+        await self.add_component(CommandRouter(self))
 
         logger.info("[%s] Setup complete.", self.bot_name)
 
