@@ -3,10 +3,55 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
 logger = logging.getLogger("bot")
+
+
+def _load_bot_configs():
+    """Load bot configurations from the database (sync context)."""
+    from core.models import Bot as BotModel
+
+    bots_qs = BotModel.objects.filter(
+        channels__is_active=True,
+    ).distinct()
+
+    configs = []
+
+    for bot_record in bots_qs:
+        if not bot_record.access_token:
+            logger.warning(
+                "Skipping %s — no access token. Run the setup flow first.",
+                bot_record.name,
+            )
+            continue
+
+        channels = []
+        for ch in bot_record.channels.filter(is_active=True):
+            channels.append(
+                {
+                    "name": ch.twitch_channel_name,
+                    "twitch_channel_id": ch.twitch_channel_id,
+                }
+            )
+
+        if not channels:
+            logger.warning("Skipping %s — no active channels.", bot_record.name)
+            continue
+
+        configs.append(
+            {
+                "bot_id": bot_record.twitch_user_id,
+                "bot_name": bot_record.name,
+                "token": bot_record.access_token,
+                "refresh_token": bot_record.refresh_token,
+                "channels": channels,
+            }
+        )
+
+    return configs
 
 
 class Command(BaseCommand):
@@ -25,51 +70,27 @@ class Command(BaseCommand):
             raise
 
     async def _run(self):
-        from core.models import Bot as BotModel
-
         from bot.client import BotClient
 
-        bots_qs = BotModel.objects.filter(
-            channels__is_active=True,
-        ).distinct()
+        configs = await sync_to_async(_load_bot_configs)()
 
         bot_instances = []
 
-        for bot_record in bots_qs:
-            if not bot_record.access_token:
-                logger.warning(
-                    "Skipping %s — no access token. Run the setup flow first.",
-                    bot_record.name,
-                )
-                continue
-
-            channels = []
-            for ch in bot_record.channels.filter(is_active=True):
-                channels.append(
-                    {
-                        "name": ch.twitch_channel_name,
-                        "twitch_channel_id": ch.twitch_channel_id,
-                    }
-                )
-
-            if not channels:
-                logger.warning("Skipping %s — no active channels.", bot_record.name)
-                continue
-
+        for cfg in configs:
             client = BotClient(
                 client_id=settings.TWITCH_CLIENT_ID,
                 client_secret=settings.TWITCH_CLIENT_SECRET,
-                bot_id=bot_record.twitch_user_id,
-                bot_name=bot_record.name,
-                token=bot_record.access_token,
-                refresh_token=bot_record.refresh_token,
-                channels=channels,
+                bot_id=cfg["bot_id"],
+                bot_name=cfg["bot_name"],
+                token=cfg["token"],
+                refresh_token=cfg["refresh_token"],
+                channels=cfg["channels"],
             )
             bot_instances.append(client)
             logger.info(
                 "Loaded %s (channels: %s)",
-                bot_record.name,
-                ", ".join(f"#{ch['name']}" for ch in channels),
+                cfg["bot_name"],
+                ", ".join(f"#{ch['name']}" for ch in cfg["channels"]),
             )
 
         if not bot_instances:
