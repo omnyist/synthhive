@@ -73,6 +73,10 @@ class DynamicCommands(commands.Component):
 
     @commands.Component.listener()
     async def event_message(self, payload: twitchio.ChatMessage) -> None:
+        # Ignore the bot's own messages to prevent command chaining
+        if payload.chatter and str(payload.chatter.id) == str(self.bot.bot_id):
+            return
+
         text = payload.text.strip()
         if not text.startswith("!"):
             return
