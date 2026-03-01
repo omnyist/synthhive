@@ -89,16 +89,16 @@ class Command(models.Model):
         return f"!{self.name} in #{self.channel.twitch_channel_name}"
 
 
-class CodedCommand(models.Model):
+class Skill(models.Model):
     """A Python-implemented command toggled per channel.
 
     The actual logic lives in bot/components/ as Python code.
-    This model controls whether the command is enabled for a channel
+    This model controls whether the skill is enabled for a channel
     and provides per-channel configuration via the config JSON field.
     """
 
     channel = models.ForeignKey(
-        Channel, on_delete=models.CASCADE, related_name="coded_commands"
+        Channel, on_delete=models.CASCADE, related_name="skills"
     )
     name = models.CharField(max_length=50)
     enabled = models.BooleanField(default=True)

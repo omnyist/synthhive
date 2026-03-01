@@ -4,7 +4,7 @@ from django.contrib import admin
 
 from .models import Bot
 from .models import Channel
-from .models import CodedCommand
+from .models import Skill
 from .models import Command
 
 
@@ -58,8 +58,8 @@ class CommandAdmin(admin.ModelAdmin):
     ordering = ["channel", "name"]
 
 
-@admin.register(CodedCommand)
-class CodedCommandAdmin(admin.ModelAdmin):
+@admin.register(Skill)
+class SkillAdmin(admin.ModelAdmin):
     list_display = ("name", "channel", "enabled")
     list_filter = ("channel", "enabled")
     search_fields = ("name",)
