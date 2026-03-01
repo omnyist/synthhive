@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import random
+import time
+from dataclasses import dataclass
 
 import twitchio
 from asgiref.sync import sync_to_async
@@ -14,6 +16,15 @@ from .variables import VariableContext
 from .variables import create_registry
 
 logger = logging.getLogger("bot")
+
+
+@dataclass
+class ResolvedResponse:
+    """Result from _resolve_response with metadata for the common pipeline."""
+
+    text: str | None
+    skip_use_count: bool = False
+
 
 # Commands handled by ManagementCommands — skip in the router
 BUILTIN_COMMANDS = frozenset(
@@ -48,6 +59,7 @@ class CommandRouter(commands.Component):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._registry = create_registry()
+        self._cooldowns: dict[tuple[str, str, str], float] = {}
         discover_skills()
 
     @commands.Component.listener()
@@ -108,13 +120,14 @@ class CommandRouter(commands.Component):
             cmd = None
 
         if cmd is not None:
-            response_text = await self._resolve_response(cmd, payload, broadcaster_id)
-            if response_text is None:
+            resolved = await self._resolve_response(cmd, payload, broadcaster_id)
+            if resolved.text is None:
                 return
 
             # Common pipeline: increment use_count → variables → /me → respond
-            cmd.use_count += 1
-            await sync_to_async(cmd.save)(update_fields=["use_count"])
+            if not resolved.skip_use_count:
+                cmd.use_count += 1
+                await sync_to_async(cmd.save)(update_fields=["use_count"])
 
             chatter_name = (
                 payload.chatter.display_name
@@ -140,7 +153,7 @@ class CommandRouter(commands.Component):
                 raw_args=raw_args,
             )
 
-            response = await self._registry.process(response_text, context)
+            response = await self._registry.process(resolved.text, context)
 
             # Handle /me action messages
             use_me = False
@@ -183,31 +196,47 @@ class CommandRouter(commands.Component):
         cmd,
         payload: twitchio.ChatMessage,
         broadcaster_id: str,
-    ) -> str | None:
+    ) -> ResolvedResponse:
         """Resolve response text based on command type.
 
-        Returns the response template string, or None to skip responding.
+        Returns a ResolvedResponse with the template string and metadata.
+        A text of None means skip responding entirely.
         """
         from core.models import Command
         from core.models import Counter
 
         if cmd.type == Command.Type.TEXT:
-            return cmd.response
+            return ResolvedResponse(text=cmd.response)
 
         if cmd.type == Command.Type.LOTTERY:
+            # Cooldown check — keyed by (channel, command, user)
+            cooldown_secs = cmd.config.get("cooldown", 0)
+            if cooldown_secs > 0 and payload.chatter:
+                key = (broadcaster_id, cmd.name, str(payload.chatter.id))
+                now = time.monotonic()
+                last_used = self._cooldowns.get(key)
+                if last_used and (now - last_used) < cooldown_secs:
+                    cooldown_response = cmd.config.get("cooldown_response")
+                    if cooldown_response:
+                        return ResolvedResponse(
+                            text=cooldown_response, skip_use_count=True
+                        )
+                    return ResolvedResponse(text=None)
+                self._cooldowns[key] = now
+
             odds = cmd.config.get("odds", 5)
             if random.randint(1, 100) <= odds:
                 template = cmd.config.get("success", "$(user) wins!")
             else:
                 template = cmd.config.get("failure", "Better luck next time!")
-            return template
+            return ResolvedResponse(text=template)
 
         if cmd.type == Command.Type.RANDOM_LIST:
             responses = cmd.config.get("responses", [])
             if not responses:
-                return cmd.response or None
+                return ResolvedResponse(text=cmd.response or None)
             prefix = cmd.config.get("prefix", "")
-            return f"{prefix}{random.choice(responses)}"
+            return ResolvedResponse(text=f"{prefix}{random.choice(responses)}")
 
         if cmd.type == Command.Type.COUNTER:
             counter_name = cmd.config.get("counter_name", cmd.name)
@@ -228,6 +257,6 @@ class CommandRouter(commands.Component):
                 Counter.objects.filter(pk=counter.pk).update
             )(value=F("value") + 1)
             await sync_to_async(counter.refresh_from_db)()
-            return cmd.response
+            return ResolvedResponse(text=cmd.response)
 
-        return cmd.response
+        return ResolvedResponse(text=cmd.response)

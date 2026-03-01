@@ -120,6 +120,197 @@ class TestLotteryType:
 
 
 @pytest.mark.django_db(transaction=True)
+class TestLotteryCooldown:
+    async def test_cooldown_blocks_second_attempt(self, make_command):
+        from bot.router import CommandRouter
+        from unittest.mock import MagicMock
+
+        make_command(
+            name="flask",
+            type="lottery",
+            config={
+                "odds": 100,
+                "success": "Win!",
+                "failure": "Lose!",
+                "cooldown": 300,
+                "cooldown_response": "$(user), wait!",
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+        router = CommandRouter(bot)
+
+        payload1 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload1)
+        payload1.respond.assert_called_once()
+        assert payload1.respond.call_args[0][0] == "Win!"
+
+        # Second attempt — should get cooldown response
+        payload2 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload2)
+        payload2.respond.assert_called_once()
+        assert payload2.respond.call_args[0][0] == "TestUser, wait!"
+
+    async def test_cooldown_does_not_increment_use_count(self, make_command):
+        from bot.router import CommandRouter
+        from core.models import Command
+        from unittest.mock import MagicMock
+
+        cmd = make_command(
+            name="flask",
+            type="lottery",
+            config={
+                "odds": 100,
+                "success": "Win!",
+                "failure": "Lose!",
+                "cooldown": 300,
+                "cooldown_response": "Wait!",
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+        router = CommandRouter(bot)
+
+        # First use — increments
+        payload1 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload1)
+        cmd.refresh_from_db()
+        assert cmd.use_count == 1
+
+        # Second use — cooldown, no increment
+        payload2 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload2)
+        cmd.refresh_from_db()
+        assert cmd.use_count == 1
+
+    async def test_cooldown_silent_when_no_response_configured(
+        self, make_command
+    ):
+        from bot.router import CommandRouter
+        from unittest.mock import MagicMock
+
+        make_command(
+            name="flask",
+            type="lottery",
+            config={
+                "odds": 100,
+                "success": "Win!",
+                "failure": "Lose!",
+                "cooldown": 300,
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+        router = CommandRouter(bot)
+
+        payload1 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload1)
+        payload1.respond.assert_called_once()
+
+        # Second attempt — no cooldown_response, so silent
+        payload2 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload2)
+        payload2.respond.assert_not_called()
+
+    async def test_different_users_have_separate_cooldowns(
+        self, make_command
+    ):
+        from bot.router import CommandRouter
+        from unittest.mock import MagicMock
+
+        make_command(
+            name="flask",
+            type="lottery",
+            config={
+                "odds": 100,
+                "success": "$(user) wins!",
+                "failure": "Lose!",
+                "cooldown": 300,
+                "cooldown_response": "Wait!",
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+        router = CommandRouter(bot)
+
+        # User A
+        payload_a = MockPayload(
+            text="!flask",
+            chatter=MockChatter(name="usera", display_name="UserA", id=111),
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload_a)
+        payload_a.respond.assert_called_once()
+        assert payload_a.respond.call_args[0][0] == "UserA wins!"
+
+        # User B — different user, no cooldown
+        payload_b = MockPayload(
+            text="!flask",
+            chatter=MockChatter(name="userb", display_name="UserB", id=222),
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload_b)
+        payload_b.respond.assert_called_once()
+        assert payload_b.respond.call_args[0][0] == "UserB wins!"
+
+    async def test_no_cooldown_when_zero(self, make_command):
+        from bot.router import CommandRouter
+        from unittest.mock import MagicMock
+
+        make_command(
+            name="flask",
+            type="lottery",
+            config={
+                "odds": 100,
+                "success": "Win!",
+                "failure": "Lose!",
+                "cooldown": 0,
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+        router = CommandRouter(bot)
+
+        payload1 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload1)
+        payload1.respond.assert_called_once()
+
+        # No cooldown — second attempt works normally
+        payload2 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload2)
+        payload2.respond.assert_called_once()
+
+
+@pytest.mark.django_db(transaction=True)
 class TestRandomListType:
     async def test_random_list_picks_from_responses(self, make_command):
         from bot.router import CommandRouter

@@ -202,6 +202,8 @@ class Command(BaseCommand):
                     "odds": 2,
                     "success": "$(user) - YOU GET YE FLASK! bardHype bardHype bardHype",
                     "failure": "You can't get ye flask, $(user)! bardPls",
+                    "cooldown": 3600,
+                    "cooldown_response": "$(user), you already tried! Wait a bit before trying again.",
                 },
             },
         ]

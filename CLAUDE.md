@@ -51,9 +51,9 @@ The `type` field on the Command model determines how the response is chosen and 
 
 **lottery:**
 ```json
-{"odds": 2, "success": "$(user) wins!", "failure": "Better luck next time!"}
+{"odds": 2, "success": "$(user) wins!", "failure": "Better luck next time!", "cooldown": 300, "cooldown_response": "$(user), wait!"}
 ```
-`odds` is a percentage (1-100). Success/failure templates support variables.
+`odds` is a percentage (1-100). Success/failure templates support variables. `cooldown` is optional seconds between attempts per user (0 or omitted = no cooldown). `cooldown_response` is the template shown when on cooldown (omit to silently ignore). Cooldowns are in-memory and reset on bot restart.
 
 **random_list:**
 ```json
