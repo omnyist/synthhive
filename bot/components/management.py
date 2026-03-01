@@ -36,6 +36,11 @@ class ManagementCommands(commands.Component):
         except Channel.DoesNotExist:
             return None
 
+    @commands.command(name="id")
+    async def bot_id(self, ctx: commands.Context) -> None:
+        """Return the bot's Twitch user ID."""
+        await ctx.send(f"My bot ID is {self.bot.bot_id}.")
+
     @commands.command(name="addcom")
     async def addcom(self, ctx: commands.Context, name: str, *, response: str) -> None:
         """Create a new text command."""
