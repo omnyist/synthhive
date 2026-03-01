@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: botbesties
+      POSTGRES_USER: botbesties
+      POSTGRES_PASSWORD: botbesties
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=postgresql://botbesties:botbesties@db:5432/botbesties
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - .:/app
+    ports:
+      - "7175:7175"
+    command: >
+      sh -c "uv run python manage.py migrate &&
+             uv run daphne -b 0.0.0.0 -p 7175 botbesties.asgi:application"
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+      - server
+    environment:
+      - DATABASE_URL=postgresql://botbesties:botbesties@db:5432/botbesties
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - .:/app
+    command: uv run python manage.py runbot
+
+volumes:
+  postgres_data:
+  redis_data:

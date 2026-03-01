@@ -1,0 +1,31 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          cat > .env << EOF
+          DEBUG=False
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          ALLOWED_HOSTS=${{ vars.ALLOWED_HOSTS }}
+          DATABASE_URL=postgresql://botbesties:botbesties@db:5432/botbesties
+          REDIS_URL=redis://redis:6379/0
+          TWITCH_CLIENT_ID=${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET=${{ secrets.TWITCH_CLIENT_SECRET }}
+          FERNET_KEY=${{ secrets.FERNET_KEY }}
+          EOF
+
+      - name: Deploy with Docker
+        run: |
+          docker compose down
+          docker compose up -d --build
+          docker image prune -f
