@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 
-import twitchio
 from asgiref.sync import sync_to_async
 from twitchio.ext import commands
 
@@ -21,13 +20,10 @@ class ManagementCommands(commands.Component):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    def _is_privileged(self, message: twitchio.ChatMessage) -> bool:
+    def _is_privileged(self, ctx: commands.Context) -> bool:
         """Check if the user is a moderator or broadcaster."""
-        badges = message.badges or []
-        badge_ids = [b.id if hasattr(b, "id") else str(b) for b in badges]
-        return any(
-            badge_id in ("broadcaster", "moderator") for badge_id in badge_ids
-        )
+        chatter = ctx.chatter
+        return chatter.broadcaster or chatter.moderator
 
     async def _get_channel(self, broadcaster_id: str):
         """Look up the Channel model for a broadcaster."""
@@ -43,7 +39,7 @@ class ManagementCommands(commands.Component):
     @commands.command(name="addcom")
     async def addcom(self, ctx: commands.Context, name: str, *, response: str) -> None:
         """Create a new text command."""
-        if not self._is_privileged(ctx.message):
+        if not self._is_privileged(ctx):
             return
 
         channel = await self._get_channel(str(ctx.broadcaster.id))
@@ -79,7 +75,7 @@ class ManagementCommands(commands.Component):
     @commands.command(name="editcom")
     async def editcom(self, ctx: commands.Context, name: str, *, response: str) -> None:
         """Edit an existing text command."""
-        if not self._is_privileged(ctx.message):
+        if not self._is_privileged(ctx):
             return
 
         channel = await self._get_channel(str(ctx.broadcaster.id))
@@ -112,7 +108,7 @@ class ManagementCommands(commands.Component):
     @commands.command(name="delcom")
     async def delcom(self, ctx: commands.Context, name: str) -> None:
         """Delete a text command."""
-        if not self._is_privileged(ctx.message):
+        if not self._is_privileged(ctx):
             return
 
         channel = await self._get_channel(str(ctx.broadcaster.id))
@@ -150,13 +146,13 @@ class ManagementCommands(commands.Component):
 
         from core.models import Command
 
-        cmd_names = []
-        async for cmd in sync_to_async(
-            lambda: Command.objects.filter(channel=channel, enabled=True)
-            .order_by("name")
-            .values_list("name", flat=True)
-        )():
-            cmd_names.append(cmd)
+        cmd_names = await sync_to_async(
+            lambda: list(
+                Command.objects.filter(channel=channel, enabled=True)
+                .order_by("name")
+                .values_list("name", flat=True)
+            )
+        )()
 
         if cmd_names:
             names_str = ", ".join(f"!{n}" for n in cmd_names)
