@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.db import models
 from django.utils import timezone
 from encrypted_fields import EncryptedTextField
@@ -12,6 +14,7 @@ class Bot(models.Model):
     in one or more channels.
     """
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     twitch_user_id = models.CharField(max_length=50, unique=True)
     twitch_username = models.CharField(max_length=100)
@@ -37,6 +40,7 @@ class Channel(models.Model):
     which are needed for moderation actions.
     """
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     bot = models.ForeignKey(Bot, on_delete=models.CASCADE, related_name="channels")
     twitch_channel_id = models.CharField(max_length=50)
     twitch_channel_name = models.CharField(max_length=100)
@@ -65,6 +69,7 @@ class Command(models.Model):
     Response text supports variables like $(user), $(channel), $(count).
     """
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     channel = models.ForeignKey(
         Channel, on_delete=models.CASCADE, related_name="commands"
     )
@@ -97,6 +102,7 @@ class Skill(models.Model):
     and provides per-channel configuration via the config JSON field.
     """
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     channel = models.ForeignKey(
         Channel, on_delete=models.CASCADE, related_name="skills"
     )

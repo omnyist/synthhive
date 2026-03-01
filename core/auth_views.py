@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
+import uuid
 from base64 import urlsafe_b64decode
 from base64 import urlsafe_b64encode
 from datetime import timedelta
@@ -44,7 +45,7 @@ CHANNEL_SCOPES = [
 ]
 
 
-def setup_page(request: HttpRequest, bot_id: int) -> HttpResponse:
+def setup_page(request: HttpRequest, bot_id: uuid.UUID) -> HttpResponse:
     """Simple setup page with connect buttons for a bot and its channels."""
     bot = get_object_or_404(Bot, id=bot_id)
     channels = bot.channels.all()

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from ninja import Router
 from ninja import Schema
 
@@ -7,7 +9,7 @@ router = Router(tags=["commands"])
 
 
 class CommandSchema(Schema):
-    id: int
+    id: uuid.UUID
     name: str
     response: str
     enabled: bool
@@ -24,7 +26,7 @@ class CommandCreateSchema(Schema):
 
 
 @router.get("/channels/{channel_id}/", response=list[CommandSchema])
-async def list_commands(request, channel_id: int):
+async def list_commands(request, channel_id: uuid.UUID):
     """List all commands for a channel."""
     from core.models import Command
 
