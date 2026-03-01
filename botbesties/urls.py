@@ -10,10 +10,16 @@ from django.urls import re_path
 from django.views.static import serve
 from ninja import NinjaAPI
 
-from core.api import router as core_router
+from core.api import aliases_router
+from core.api import commands_router
+from core.api import counters_router
+from core.api import variables_router
 
 api = NinjaAPI(urls_namespace="main")
-api.add_router("/commands/", core_router)
+api.add_router("/commands/", commands_router)
+api.add_router("/counters/", counters_router)
+api.add_router("/aliases/", aliases_router)
+api.add_router("/variables/", variables_router)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
