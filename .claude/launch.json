@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "django",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "python", "manage.py", "runserver", "0.0.0.0:7175"],
+      "port": 7175
+    },
+    {
+      "name": "bot",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "python", "manage.py", "runbot"],
+      "port": 0
+    }
+  ]
+}
