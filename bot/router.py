@@ -18,6 +18,22 @@ from .variables import create_registry
 logger = logging.getLogger("bot")
 
 
+async def send_reply(
+    payload: twitchio.ChatMessage,
+    content: str,
+    *,
+    bot_id: str | int,
+    me: bool = False,
+) -> None:
+    """Send a response as a threaded reply to the triggering message."""
+    message = (f"/me {content}" if me else content).strip()
+    await payload.broadcaster.send_message(
+        sender=bot_id,
+        message=message,
+        reply_to_message_id=str(payload.id),
+    )
+
+
 @dataclass
 class ResolvedResponse:
     """Result from _resolve_response with metadata for the common pipeline."""
@@ -151,7 +167,9 @@ class CommandRouter(commands.Component):
                     response = await self._registry.process(
                         cooldown_result, context
                     )
-                    await payload.respond(response)
+                    await send_reply(
+                        payload, response, bot_id=self.bot.bot_id
+                    )
                 return
 
             resolved = await self._resolve_response(cmd, payload, broadcaster_id)
@@ -200,7 +218,9 @@ class CommandRouter(commands.Component):
                 if response.startswith("- "):
                     response = response[2:]
 
-            await payload.respond(response, me=use_me)
+            await send_reply(
+                payload, response, bot_id=self.bot.bot_id, me=use_me
+            )
             return
 
         # 6. Skill handler fallback

@@ -67,9 +67,9 @@ class TestCommandRouterTextCommands:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "Hello TestUser!"
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "Hello TestUser!"
 
     async def test_increments_use_count(self, make_command):
         from core.models import Command
@@ -97,7 +97,7 @@ class TestCommandRouterTextCommands:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_ignores_unknown_command(self, channel):
         router = _make_router()
@@ -108,7 +108,7 @@ class TestCommandRouterTextCommands:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_me_action_message(self, make_command):
         make_command(name="lurk", response="/me $(user) lurks.")
@@ -120,7 +120,9 @@ class TestCommandRouterTextCommands:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once_with("TestUser lurks.", me=True)
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "/me TestUser lurks."
 
     async def test_me_action_with_dash_separator(self, make_command):
         make_command(
@@ -135,10 +137,9 @@ class TestCommandRouterTextCommands:
         )
         await router.event_message(payload)
 
-        response = payload.respond.call_args[0][0]
-        kwargs = payload.respond.call_args[1]
-        assert kwargs["me"] is True
-        assert response == "TestUser settles in for a cozy lurk."
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "/me TestUser settles in for a cozy lurk."
 
     async def test_target_variable_from_args(self, make_command):
         make_command(name="hug", response="$(user) hugs $(target)!")
@@ -150,7 +151,9 @@ class TestCommandRouterTextCommands:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once_with("TestUser hugs Bryan!", me=False)
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "TestUser hugs Bryan!"
 
     async def test_target_falls_back_to_user(self, make_command):
         make_command(name="hug", response="$(user) hugs $(target)!")
@@ -162,9 +165,9 @@ class TestCommandRouterTextCommands:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once_with(
-            "TestUser hugs TestUser!", me=False
-        )
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "TestUser hugs TestUser!"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -181,7 +184,7 @@ class TestCommandRouterGuards:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_ignores_non_command_messages(self, channel):
         router = _make_router()
@@ -192,7 +195,7 @@ class TestCommandRouterGuards:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_ignores_builtin_commands(self, channel):
         router = _make_router()
@@ -203,7 +206,7 @@ class TestCommandRouterGuards:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_ignores_count_builtin(self, channel):
         """!count is a builtin management command, not routed."""
@@ -215,7 +218,7 @@ class TestCommandRouterGuards:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_ignores_empty_command(self, channel):
         router = _make_router()
@@ -226,7 +229,7 @@ class TestCommandRouterGuards:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_command_name_is_case_insensitive(self, make_command):
         make_command(name="hello", response="Hi!")
@@ -238,7 +241,9 @@ class TestCommandRouterGuards:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once_with("Hi!", me=False)
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "Hi!"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -258,9 +263,9 @@ class TestCommandRouterAliases:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "Hi from TestUser!"
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "Hi from TestUser!"
 
     async def test_alias_resolves_to_typed_command(
         self, make_command, make_alias
@@ -280,9 +285,9 @@ class TestCommandRouterAliases:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "Yes."
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "Yes."
 
     async def test_alias_nonexistent_does_nothing(self, channel):
         """An alias pointing to a non-existent command silently does nothing."""
@@ -299,7 +304,7 @@ class TestCommandRouterAliases:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -361,7 +366,7 @@ class TestCommandRouterSkillFallback:
             )
             await router.event_message(payload)
 
-            response = payload.respond.call_args[0][0]
-            assert response == "Command response"
+            msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+            assert msg == "Command response"
         finally:
             SKILL_REGISTRY.pop("conflictcmd", None)

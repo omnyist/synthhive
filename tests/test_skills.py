@@ -73,9 +73,9 @@ class TestLotteryType:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "TestUser wins!"
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "TestUser wins!"
 
     async def test_lottery_failure_at_0_percent(self, make_command):
         from unittest.mock import MagicMock
@@ -103,9 +103,9 @@ class TestLotteryType:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "You can't get ye flask, TestUser!"
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "You can't get ye flask, TestUser!"
 
     async def test_lottery_increments_use_count(self, make_command):
         from unittest.mock import MagicMock
@@ -128,6 +128,7 @@ class TestLotteryType:
         )
         await router.event_message(payload)
 
+        payload.broadcaster.send_message.assert_called_once()
         cmd.refresh_from_db()
         assert cmd.use_count == 1
 
@@ -160,8 +161,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload1)
-        payload1.respond.assert_called_once()
-        assert payload1.respond.call_args[0][0] == "Win!"
+        payload1.broadcaster.send_message.assert_called_once()
+        assert payload1.broadcaster.send_message.call_args.kwargs["message"] == "Win!"
 
         # Second attempt — should get cooldown response
         payload2 = MockPayload(
@@ -169,8 +170,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload2)
-        payload2.respond.assert_called_once()
-        assert payload2.respond.call_args[0][0] == "TestUser, wait!"
+        payload2.broadcaster.send_message.assert_called_once()
+        assert payload2.broadcaster.send_message.call_args.kwargs["message"] == "TestUser, wait!"
 
     async def test_cooldown_does_not_increment_use_count(self, make_command):
         from unittest.mock import MagicMock
@@ -238,7 +239,7 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload1)
-        payload1.respond.assert_called_once()
+        payload1.broadcaster.send_message.assert_called_once()
 
         # Second attempt — no cooldown_response, so silent
         payload2 = MockPayload(
@@ -246,7 +247,7 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload2)
-        payload2.respond.assert_not_called()
+        payload2.broadcaster.send_message.assert_not_called()
 
     async def test_different_users_have_separate_cooldowns(
         self, make_command
@@ -278,8 +279,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload_a)
-        payload_a.respond.assert_called_once()
-        assert payload_a.respond.call_args[0][0] == "UserA wins!"
+        payload_a.broadcaster.send_message.assert_called_once()
+        assert payload_a.broadcaster.send_message.call_args.kwargs["message"] == "UserA wins!"
 
         # User B — different user, no cooldown
         payload_b = MockPayload(
@@ -288,8 +289,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload_b)
-        payload_b.respond.assert_called_once()
-        assert payload_b.respond.call_args[0][0] == "UserB wins!"
+        payload_b.broadcaster.send_message.assert_called_once()
+        assert payload_b.broadcaster.send_message.call_args.kwargs["message"] == "UserB wins!"
 
     async def test_no_cooldown_when_zero(self, make_command):
         from unittest.mock import MagicMock
@@ -315,7 +316,7 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload1)
-        payload1.respond.assert_called_once()
+        payload1.broadcaster.send_message.assert_called_once()
 
         # No cooldown — second attempt works normally
         payload2 = MockPayload(
@@ -323,7 +324,7 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload2)
-        payload2.respond.assert_called_once()
+        payload2.broadcaster.send_message.assert_called_once()
 
     async def test_remaining_time_in_cooldown_response(self, make_command):
         from unittest.mock import MagicMock
@@ -351,7 +352,7 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload1)
-        payload1.respond.assert_called_once()
+        payload1.broadcaster.send_message.assert_called_once()
 
         # Second attempt — should include remaining seconds
         payload2 = MockPayload(
@@ -359,8 +360,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload2)
-        payload2.respond.assert_called_once()
-        response = payload2.respond.call_args[0][0]
+        payload2.broadcaster.send_message.assert_called_once()
+        response = payload2.broadcaster.send_message.call_args.kwargs["message"]
         # Should contain user name and raw seconds (close to 3600)
         assert response.startswith("TestUser, you have ")
         assert response.endswith(" seconds left.")
@@ -392,8 +393,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload_a)
-        payload_a.respond.assert_called_once()
-        assert payload_a.respond.call_args[0][0] == "Hello!"
+        payload_a.broadcaster.send_message.assert_called_once()
+        assert payload_a.broadcaster.send_message.call_args.kwargs["message"] == "Hello!"
 
         # User B — blocked by global cooldown
         payload_b = MockPayload(
@@ -402,8 +403,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload_b)
-        payload_b.respond.assert_called_once()
-        assert payload_b.respond.call_args[0][0] == "Command on cooldown!"
+        payload_b.broadcaster.send_message.assert_called_once()
+        assert payload_b.broadcaster.send_message.call_args.kwargs["message"] == "Command on cooldown!"
 
     async def test_cooldown_works_on_text_commands(self, make_command):
         from unittest.mock import MagicMock
@@ -427,8 +428,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload1)
-        payload1.respond.assert_called_once()
-        assert payload1.respond.call_args[0][0] == "Hi TestUser!"
+        payload1.broadcaster.send_message.assert_called_once()
+        assert payload1.broadcaster.send_message.call_args.kwargs["message"] == "Hi TestUser!"
 
         # Second attempt — cooldown
         payload2 = MockPayload(
@@ -436,8 +437,8 @@ class TestCommandCooldown:
             broadcaster=MockBroadcaster(id=99999),
         )
         await router.event_message(payload2)
-        payload2.respond.assert_called_once()
-        assert payload2.respond.call_args[0][0] == "Slow down!"
+        payload2.broadcaster.send_message.assert_called_once()
+        assert payload2.broadcaster.send_message.call_args.kwargs["message"] == "Slow down!"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -464,9 +465,9 @@ class TestRandomListType:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response in responses
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg in responses
 
     async def test_random_list_with_prefix(self, make_command):
         from unittest.mock import MagicMock
@@ -489,9 +490,9 @@ class TestRandomListType:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "\U0001f41a Yes."
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "\U0001f41a Yes."
 
     async def test_random_list_empty_responses_uses_response_field(
         self, make_command
@@ -517,9 +518,9 @@ class TestRandomListType:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "No responses configured."
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "No responses configured."
 
     async def test_random_list_empty_responses_no_fallback(self, make_command):
         from unittest.mock import MagicMock
@@ -543,7 +544,7 @@ class TestRandomListType:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_random_list_processes_variables(self, make_command):
         from unittest.mock import MagicMock
@@ -566,9 +567,9 @@ class TestRandomListType:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "Hello TestUser!"
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "Hello TestUser!"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -597,9 +598,9 @@ class TestCounterType:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
-        assert response == "6 deaths so far."
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "6 deaths so far."
 
         # Verify counter was incremented
         counter = Counter.objects.get(channel=channel, name="death")
@@ -780,8 +781,8 @@ class TestFollowCheckHandler:
         with patch("bot.skills.followcheck.twitch_request", new_callable=AsyncMock, return_value=api_response):
             await router.event_message(payload)
 
-        payload.respond.assert_called_once()
-        response = payload.respond.call_args[0][0]
+        payload.broadcaster.send_message.assert_called_once()
+        response = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert response.startswith("@TestUser, you have been following for ")
         assert response.endswith("!")
         assert "3 months" in response
@@ -815,9 +816,9 @@ class TestFollowCheckHandler:
         with patch("bot.skills.followcheck.twitch_request", new_callable=AsyncMock, return_value=api_response):
             await router.event_message(payload)
 
-        payload.respond.assert_called_once()
+        payload.broadcaster.send_message.assert_called_once()
         assert (
-            payload.respond.call_args[0][0]
+            payload.broadcaster.send_message.call_args.kwargs["message"]
             == "@TestUser, you are not following this channel."
         )
 
@@ -850,9 +851,9 @@ class TestFollowCheckHandler:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
+        payload.broadcaster.send_message.assert_called_once()
         assert (
-            payload.respond.call_args[0][0]
+            payload.broadcaster.send_message.call_args.kwargs["message"]
             == "@TestChannel, you are the broadcaster!"
         )
 
@@ -876,9 +877,9 @@ class TestFollowCheckHandler:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_called_once()
+        payload.broadcaster.send_message.assert_called_once()
         assert (
-            payload.respond.call_args[0][0]
+            payload.broadcaster.send_message.call_args.kwargs["message"]
             == "@TestUser, follow check is not available right now."
         )
 
@@ -910,9 +911,9 @@ class TestFollowCheckHandler:
         with patch("bot.skills.followcheck.twitch_request", new_callable=AsyncMock, return_value=None):
             await router.event_message(payload)
 
-        payload.respond.assert_called_once()
+        payload.broadcaster.send_message.assert_called_once()
         assert (
-            payload.respond.call_args[0][0]
+            payload.broadcaster.send_message.call_args.kwargs["message"]
             == "@TestUser, follow check is not available right now."
         )
 
@@ -939,7 +940,7 @@ class TestFollowCheckHandler:
         )
         await router.event_message(payload)
 
-        payload.respond.assert_not_called()
+        payload.broadcaster.send_message.assert_not_called()
 
     async def test_api_called_with_correct_url_and_params(self, channel):
         channel.owner_access_token = "test_bearer_token"

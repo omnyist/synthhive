@@ -6,6 +6,7 @@ from datetime import datetime
 
 from asgiref.sync import sync_to_async
 
+from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
 from core.twitch import TWITCH_API_BASE
@@ -43,14 +44,18 @@ class FollowCheckHandler(SkillHandler):
 
         # Broadcaster can't follow themselves.
         if chatter_id == broadcaster_id:
-            await payload.respond(
-                f"@{chatter_name}, you are the broadcaster!"
+            await send_reply(
+                payload,
+                f"@{chatter_name}, you are the broadcaster!",
+                bot_id=bot.bot_id,
             )
             return
 
         if not channel.owner_access_token:
-            await payload.respond(
-                f"@{chatter_name}, follow check is not available right now."
+            await send_reply(
+                payload,
+                f"@{chatter_name}, follow check is not available right now.",
+                bot_id=bot.bot_id,
             )
             return
 
@@ -61,14 +66,18 @@ class FollowCheckHandler(SkillHandler):
         )
 
         if follow_data is False:
-            await payload.respond(
-                f"@{chatter_name}, follow check is not available right now."
+            await send_reply(
+                payload,
+                f"@{chatter_name}, follow check is not available right now.",
+                bot_id=bot.bot_id,
             )
             return
 
         if follow_data is None:
-            await payload.respond(
-                f"@{chatter_name}, you are not following this channel."
+            await send_reply(
+                payload,
+                f"@{chatter_name}, you are not following this channel.",
+                bot_id=bot.bot_id,
             )
             return
 
@@ -78,8 +87,10 @@ class FollowCheckHandler(SkillHandler):
         )
         timesince = format_timesince(followed_at)
 
-        await payload.respond(
-            f"@{chatter_name}, you have been following for {timesince}!"
+        await send_reply(
+            payload,
+            f"@{chatter_name}, you have been following for {timesince}!",
+            bot_id=bot.bot_id,
         )
 
     async def _fetch_follow(

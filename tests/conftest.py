@@ -37,6 +37,7 @@ class MockBroadcaster:
     name: str = "testchannel"
     display_name: str = "TestChannel"
     id: int = 99999
+    send_message: AsyncMock = field(default_factory=AsyncMock)
 
 
 @dataclass
@@ -44,6 +45,7 @@ class MockPayload:
     """Mocks twitchio.ChatMessage for tests."""
 
     text: str = ""
+    id: str = "mock-message-id"
     chatter: MockChatter = field(default_factory=MockChatter)
     broadcaster: MockBroadcaster = field(default_factory=MockBroadcaster)
     respond: AsyncMock = field(default_factory=AsyncMock)
