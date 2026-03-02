@@ -48,4 +48,4 @@ def discover_skills() -> None:
     handled inline by the router. This function registers only
     complex Python-coded skill handlers.
     """
-    pass
+    from bot.skills import followcheck  # noqa: F401

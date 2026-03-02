@@ -11,6 +11,7 @@ from core.models import Bot
 from core.models import Channel
 from core.models import Command as BotCommand
 from core.models import Counter
+from core.models import Skill
 
 SEED_DATA = {
     "users": [
@@ -125,6 +126,10 @@ class Command(BaseCommand):
 
         if spoonee_channel:
             self._seed_spoonee_commands(spoonee_channel)
+
+        # --- Seed skills for all active channels ---
+
+        self._seed_skills()
 
         self.stdout.write(self.style.SUCCESS("\nSeed complete."))
         self.stdout.write(
@@ -276,3 +281,28 @@ class Command(BaseCommand):
                     f"    {status} alias: !{alias.name} → !{alias.target}"
                 )
             )
+
+    def _seed_skills(self):
+        """Seed skill records for all active channels."""
+        skills_to_seed = [
+            {"name": "checkme"},
+        ]
+
+        for channel in Channel.objects.filter(is_active=True):
+            for skill_data in skills_to_seed:
+                skill, created = Skill.objects.get_or_create(
+                    channel=channel,
+                    name=skill_data["name"],
+                    defaults={
+                        "enabled": True,
+                        "config": skill_data.get("config", {}),
+                    },
+                )
+
+                status = "Created" if created else "Exists"
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"    {status} skill: !{skill.name}"
+                        f" in #{channel.twitch_channel_name}"
+                    )
+                )

@@ -80,9 +80,13 @@ Cooldowns are model fields on Command, applied in the common pipeline before typ
 
 ### Skill Handlers
 
-Skills are Python handler classes in `bot/skills/` for complex built-in behaviors that need real Python logic (future: shoutout, quotes, followage, API integrations). Each skill is a `SkillHandler` subclass registered in `SKILL_REGISTRY`. The router checks commands first, then falls back to skill handlers.
+Skills are Python handler classes in `bot/skills/` for complex built-in behaviors that need real Python logic. Each skill is a `SkillHandler` subclass registered in `SKILL_REGISTRY`. The router checks commands first, then falls back to skill handlers.
 
 Handler signature: `handle(self, payload, args, skill, bot)` — the `bot` parameter gives handlers access to the TwitchIO client for API calls (e.g., `bot.fetch_users()`).
+
+| Skill | Handler | Description |
+|---|---|---|
+| `checkme` | `FollowCheckHandler` | Checks if the chatter follows the channel and shows how long they've been following. Uses channel owner's OAuth token to call Twitch Helix API (`/channels/followers`). Requires `moderator:read:followers` scope on the channel owner token. |
 
 ## Message Processing Pipeline
 
@@ -179,8 +183,8 @@ For importing commands from DeepBot, these map to our system:
 | `addscare` | Counter alias → `count scare +` | ✅ Seeded as alias |
 | `scare` | Counter alias → `count scare` | ✅ Seeded as alias |
 | `caster` | Shoutout command | Needs Twitch API — future skill |
-| `checkme` | Follow check | Needs Twitch API — future skill |
-| `followcheck` | Follow check | Needs Twitch API — future skill |
+| `checkme` | Follow check | ✅ Skill handler (`FollowCheckHandler`) |
+| `followcheck` | Follow check | Alias to `checkme` (not yet seeded) |
 | `forreal` | Unknown | Ask Spoonee |
 
 ## Management Commands
@@ -188,7 +192,7 @@ For importing commands from DeepBot, these map to our system:
 | Command | Description |
 |---|---|
 | `manage.py runbot` | Start all active bot instances |
-| `manage.py seed` | Create initial users, bots, channels, Spoonee's commands, counters, and aliases |
+| `manage.py seed` | Create initial users, bots, channels, Spoonee's commands, counters, aliases, and skills |
 | `manage.py importcommands <json> --channel <name>` | Bulk import commands from JSON. Use `--dry-run` to preview. Sets `created_by` to channel owner name |
 
 ### Import JSON Format
@@ -219,6 +223,7 @@ For importing commands from DeepBot, these map to our system:
 | `!counters` | Everyone | List all counters |
 | `!conch [question]` | Everyone | Magic Conch Shell (random_list command) |
 | `!getyeflask` | Everyone | Random chance game (lottery command) |
+| `!checkme` | Everyone | Check follow status and duration (skill) |
 | `!id` | Everyone | Show the bot's Twitch user ID |
 
 ## Deployment

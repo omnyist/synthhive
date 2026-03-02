@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from datetime import UTC
+from datetime import datetime
+from datetime import timedelta
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
@@ -7,10 +12,11 @@ import pytest
 from bot.skills import SKILL_REGISTRY
 from bot.skills import SkillHandler
 from bot.skills import discover_skills
+from bot.skills.followcheck import FollowCheckHandler
+from bot.skills.followcheck import format_timesince
 from tests.conftest import MockBroadcaster
 from tests.conftest import MockChatter
 from tests.conftest import MockPayload
-
 
 # --- Skill registry tests ---
 
@@ -26,6 +32,11 @@ class TestSkillRegistry:
         handler = SkillHandler()
         assert handler.name == ""
 
+    def test_discover_skills_registers_checkme(self):
+        discover_skills()
+        assert "checkme" in SKILL_REGISTRY
+        assert isinstance(SKILL_REGISTRY["checkme"], FollowCheckHandler)
+
 
 # --- Command type dispatch tests ---
 # These test the router's _resolve_response method via full event_message flow.
@@ -35,10 +46,11 @@ class TestSkillRegistry:
 @pytest.mark.django_db(transaction=True)
 class TestLotteryType:
     async def test_lottery_success_at_100_percent(self, make_command):
+        from unittest.mock import MagicMock
+
         from bot.router import CommandRouter
         from tests.conftest import MockBroadcaster
         from tests.conftest import MockPayload
-        from unittest.mock import MagicMock
 
         make_command(
             name="flask",
@@ -66,8 +78,9 @@ class TestLotteryType:
         assert response == "TestUser wins!"
 
     async def test_lottery_failure_at_0_percent(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="flask",
@@ -95,9 +108,9 @@ class TestLotteryType:
         assert response == "You can't get ye flask, TestUser!"
 
     async def test_lottery_increments_use_count(self, make_command):
-        from bot.router import CommandRouter
-        from core.models import Command
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         cmd = make_command(
             name="flask",
@@ -122,8 +135,9 @@ class TestLotteryType:
 @pytest.mark.django_db(transaction=True)
 class TestCommandCooldown:
     async def test_user_cooldown_blocks_second_attempt(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="flask",
@@ -159,8 +173,9 @@ class TestCommandCooldown:
         assert payload2.respond.call_args[0][0] == "TestUser, wait!"
 
     async def test_cooldown_does_not_increment_use_count(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         cmd = make_command(
             name="flask",
@@ -199,8 +214,9 @@ class TestCommandCooldown:
     async def test_cooldown_silent_when_no_response_configured(
         self, make_command
     ):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="flask",
@@ -235,8 +251,9 @@ class TestCommandCooldown:
     async def test_different_users_have_separate_cooldowns(
         self, make_command
     ):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="flask",
@@ -275,8 +292,9 @@ class TestCommandCooldown:
         assert payload_b.respond.call_args[0][0] == "UserB wins!"
 
     async def test_no_cooldown_when_zero(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="flask",
@@ -308,8 +326,9 @@ class TestCommandCooldown:
         payload2.respond.assert_called_once()
 
     async def test_remaining_time_in_cooldown_response(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="flask",
@@ -350,8 +369,9 @@ class TestCommandCooldown:
         assert 3590 <= seconds <= 3600
 
     async def test_global_cooldown_blocks_all_users(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="shout",
@@ -386,8 +406,9 @@ class TestCommandCooldown:
         assert payload_b.respond.call_args[0][0] == "Command on cooldown!"
 
     async def test_cooldown_works_on_text_commands(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="greet",
@@ -422,8 +443,9 @@ class TestCommandCooldown:
 @pytest.mark.django_db(transaction=True)
 class TestRandomListType:
     async def test_random_list_picks_from_responses(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         responses = ["Yes.", "No.", "Maybe."]
         make_command(
@@ -447,8 +469,9 @@ class TestRandomListType:
         assert response in responses
 
     async def test_random_list_with_prefix(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="conch",
@@ -473,8 +496,9 @@ class TestRandomListType:
     async def test_random_list_empty_responses_uses_response_field(
         self, make_command
     ):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="conch",
@@ -498,8 +522,9 @@ class TestRandomListType:
         assert response == "No responses configured."
 
     async def test_random_list_empty_responses_no_fallback(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="conch",
@@ -521,8 +546,9 @@ class TestRandomListType:
         payload.respond.assert_not_called()
 
     async def test_random_list_processes_variables(self, make_command):
-        from bot.router import CommandRouter
         from unittest.mock import MagicMock
+
+        from bot.router import CommandRouter
 
         make_command(
             name="greet",
@@ -548,9 +574,10 @@ class TestRandomListType:
 @pytest.mark.django_db(transaction=True)
 class TestCounterType:
     async def test_counter_type_auto_increments(self, make_command, channel):
+        from unittest.mock import MagicMock
+
         from bot.router import CommandRouter
         from core.models import Counter
-        from unittest.mock import MagicMock
 
         Counter.objects.create(channel=channel, name="death", value=5)
         make_command(
@@ -581,9 +608,10 @@ class TestCounterType:
     async def test_counter_type_creates_counter_if_missing(
         self, make_command, channel
     ):
+        from unittest.mock import MagicMock
+
         from bot.router import CommandRouter
         from core.models import Counter
-        from unittest.mock import MagicMock
 
         make_command(
             name="gotcha",
@@ -609,9 +637,10 @@ class TestCounterType:
     async def test_counter_type_uses_command_name_as_default(
         self, make_command, channel
     ):
+        from unittest.mock import MagicMock
+
         from bot.router import CommandRouter
         from core.models import Counter
-        from unittest.mock import MagicMock
 
         make_command(
             name="death",
@@ -632,3 +661,316 @@ class TestCounterType:
 
         counter = Counter.objects.get(channel=channel, name="death")
         assert counter.value == 1
+
+
+# --- format_timesince tests ---
+
+
+class TestFormatTimesince:
+    def test_seconds(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(seconds=30)) == "30 seconds"
+
+    def test_one_second(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(seconds=1)) == "1 second"
+
+    def test_minutes(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(minutes=45)) == "45 minutes"
+
+    def test_one_minute(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(minutes=1)) == "1 minute"
+
+    def test_hours(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(hours=5)) == "5 hours"
+
+    def test_one_hour(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(hours=1)) == "1 hour"
+
+    def test_days(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(days=15)) == "15 days"
+
+    def test_one_day(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(days=1)) == "1 day"
+
+    def test_months(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(days=90)) == "3 months"
+
+    def test_one_month(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(days=30)) == "1 month"
+
+    def test_years_and_months(self):
+        now = datetime.now(UTC)
+        assert (
+            format_timesince(now - timedelta(days=450))
+            == "1 year, 3 months"
+        )
+
+    def test_exact_year(self):
+        now = datetime.now(UTC)
+        assert format_timesince(now - timedelta(days=365)) == "1 year"
+
+    def test_multiple_years(self):
+        now = datetime.now(UTC)
+        result = format_timesince(now - timedelta(days=730))
+        assert result.startswith("2 years")
+
+
+# --- FollowCheckHandler tests ---
+
+
+def _mock_httpx_response(status_code=200, json_data=None):
+    """Create a mock httpx response."""
+    response = MagicMock()
+    response.status_code = status_code
+    response.json.return_value = json_data or {}
+    response.raise_for_status = MagicMock()
+    return response
+
+
+@pytest.mark.django_db(transaction=True)
+class TestFollowCheckHandler:
+    async def test_following_user_gets_timesince(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel, name="checkme", enabled=True
+        )
+
+        followed_at = (
+            datetime.now(UTC) - timedelta(days=90)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        api_response = _mock_httpx_response(
+            json_data={
+                "total": 1,
+                "data": [
+                    {
+                        "user_id": "12345",
+                        "user_login": "testuser",
+                        "user_name": "TestUser",
+                        "followed_at": followed_at,
+                    }
+                ],
+            }
+        )
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = api_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!checkme",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch("bot.skills.followcheck.httpx.AsyncClient", return_value=mock_client):
+            await router.event_message(payload)
+
+        payload.respond.assert_called_once()
+        response = payload.respond.call_args[0][0]
+        assert response.startswith("@TestUser, you have been following for ")
+        assert response.endswith("!")
+        assert "3 months" in response
+
+    async def test_not_following_user(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel, name="checkme", enabled=True
+        )
+
+        api_response = _mock_httpx_response(
+            json_data={"total": 0, "data": []}
+        )
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = api_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!checkme",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch("bot.skills.followcheck.httpx.AsyncClient", return_value=mock_client):
+            await router.event_message(payload)
+
+        payload.respond.assert_called_once()
+        assert (
+            payload.respond.call_args[0][0]
+            == "@TestUser, you are not following this channel."
+        )
+
+    async def test_no_owner_token(self, channel):
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel, name="checkme", enabled=True
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!checkme",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        payload.respond.assert_called_once()
+        assert (
+            payload.respond.call_args[0][0]
+            == "@TestUser, follow check is not available right now."
+        )
+
+    async def test_expired_token_returns_not_available(self, channel):
+        channel.owner_access_token = "expired_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel, name="checkme", enabled=True
+        )
+
+        api_response = _mock_httpx_response(status_code=401)
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = api_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!checkme",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch("bot.skills.followcheck.httpx.AsyncClient", return_value=mock_client):
+            await router.event_message(payload)
+
+        payload.respond.assert_called_once()
+        assert (
+            payload.respond.call_args[0][0]
+            == "@TestUser, you are not following this channel."
+        )
+
+    async def test_skill_not_enabled_skips(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel, name="checkme", enabled=False
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!checkme",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        payload.respond.assert_not_called()
+
+    async def test_api_sends_correct_params(self, channel):
+        channel.owner_access_token = "test_bearer_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel, name="checkme", enabled=True
+        )
+
+        followed_at = datetime.now(UTC).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+
+        api_response = _mock_httpx_response(
+            json_data={
+                "total": 1,
+                "data": [
+                    {
+                        "user_id": "12345",
+                        "user_login": "testuser",
+                        "user_name": "TestUser",
+                        "followed_at": followed_at,
+                    }
+                ],
+            }
+        )
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = api_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!checkme",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch("bot.skills.followcheck.httpx.AsyncClient", return_value=mock_client):
+            await router.event_message(payload)
+
+        mock_client.get.assert_called_once()
+        call_kwargs = mock_client.get.call_args
+        assert call_kwargs[1]["headers"]["Authorization"] == "Bearer test_bearer_token"
+        assert call_kwargs[1]["params"]["broadcaster_id"] == "99999"
+        assert call_kwargs[1]["params"]["user_id"] == "12345"
