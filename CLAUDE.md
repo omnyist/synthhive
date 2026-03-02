@@ -205,6 +205,7 @@ For importing commands from DeepBot, these map to our system:
 | `manage.py runbot` | Start all active bot instances |
 | `manage.py seed` | Create initial users, bots, channels, Spoonee's commands, counters, aliases, and skills |
 | `manage.py importcommands <json> --channel <name>` | Bulk import commands from JSON. Use `--dry-run` to preview. Sets `created_by` to channel owner name |
+| `manage.py importmoobot <json> --channel <name>` | Import commands from a Moobot export. Use `--dry-run` to preview. Converts variables, creates counters and aliases |
 
 ### Import JSON Format
 
@@ -218,6 +219,29 @@ For importing commands from DeepBot, these map to our system:
   }
 }
 ```
+
+### Moobot Import
+
+The `importmoobot` command reads a Moobot export file (JSON with UTF-8 BOM) and converts commands to Botbesties format.
+
+**Variable conversion:**
+
+| Moobot | Botbesties | Notes |
+|---|---|---|
+| `<username>` | `$(user)` | |
+| `<args>` | `$(target)` | |
+| `<counter>` | `$(count.get <name>)` | Also creates a Counter model entry with the preserved Moobot value |
+| `<twitch.game>` | `$(game)` | |
+| `<twitch.uptime>` | `$(uptime)` | |
+| `<twitch.followed>` | — | Creates an alias to `!checkme` instead |
+| `<time>` | — | Skipped (unsupported) |
+
+**Special handling:**
+- Mod-editable commands (`mod_editable: true`) use `chat_text` as the response instead of `text`
+- Counter commands create both a Command and a Counter model entry
+- `use_count` is preserved from the Moobot `counter` field
+- Disabled commands are imported with `enabled=False`
+- Existing commands are skipped (not overwritten)
 
 ## Chat Commands
 

@@ -127,6 +127,16 @@ class Command(BaseCommand):
         if spoonee_channel:
             self._seed_spoonee_commands(spoonee_channel)
 
+        # --- Seed Avalonstar's channel-specific commands ---
+
+        try:
+            avalonstar_channel = Channel.objects.get(twitch_channel_name="avalonstar")
+        except Channel.DoesNotExist:
+            avalonstar_channel = None
+
+        if avalonstar_channel:
+            self._seed_avalonstar_commands(avalonstar_channel)
+
         # --- Seed skills for all active channels ---
 
         self._seed_skills()
@@ -280,6 +290,149 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f"    {status} alias: !{alias.name} → !{alias.target}"
+                )
+            )
+
+    def _seed_avalonstar_commands(self, channel):
+        """Seed Avalonstar's channel-specific commands (from Moobot export)."""
+        avalonstar_commands = [
+            {"name": "2turn", "response": "Bounce, Dig, Dive, Fly, Freeze Shock, Geomancy, Ice Burn, Phantom Force, Razor Wind, Shadow Force, Skull Bash, Sky Attack, Solar Beam, Solar Blade, Sky Drop, Meteor Beam, and Electro Shot. If you're including moves that take a turn to recharge after attacking, then also Blast Burn, Frenzy Plant, Giga Impact, Hydro Cannon, Hyper Beam, Prismatic Laser, Roar of Time, and Rock Wreaker."},
+            {"name": "anniversary", "response": "avalonSTARWHEE Avalonstar.com is 25 years old! (9/28) To celebrate starting on 9/23 we are selling out for SUBtember! All your wonderful gift subs and new subs can be put towards incentives that will get Bryan to do some fun and silly things. Just slap that GIFT SUB button or Sub for the first time to get your hands on some beautiful emotes and join the shenanigans today. avalonEUREKA Here's the list! avalonNOTE https://gist.github.com/bryanveloso/012102c7914f3d673d67e2c78ca83dab"},
+            {"name": "anthem", "response": "Go check out our very own anthem, Rise of the Crusaders! An Avalonstar and Tiasu production: [ riseofthecrusaders.tiasu.com ]", "use_count": 3},
+            {"name": "archive", "response": "View some of our old streams now preserved on YouTube! avalonDAISHOURI https://www.youtube.com/channel/UChmexIn8w3SVSzL_WlBQR1Q"},
+            {"name": "avln", "response": "AVLN is Avalonstar's Final Fantasy XIV Free Company whose membership is composed of members of this Twitch community. While membership is open, it is contingent on 1) your attitude and demeanor, 2) your time spent as a member of the community, 3) common sense rules of respect.", "enabled": False, "use_count": 6},
+            {"name": "balls", "response": "we have the ball avalonSMUG ~ ball dropped avalonBLANK ~ we have the ball avalonSMUG ~ ball dropped avalonBLANK", "use_count": 5},
+            {"name": "birds", "response": "avalonSPOOK BIRDS!? WHY DID IT HAVE TO BE BIRDS!? avalonWHY", "use_count": 1},
+            {"name": "blank", "response": "I'm in avalonBLANK doing avalonBLANK with avalonBLANK so I can avalonBLANK but then avalonBLANK came with avalonBLANK and avalonBLANK went down and it was just super avalonBLANK avalonBLANK"},
+            {"name": "blind", "response": "would like to remind you that this is a blind run! avalonBLIND . So please no tips or spoilers unless Bryan explicitly asks for them. Thank you! avalonHUG", "use_count": 29},
+            {"name": "bosses", "response": "SKONG BOSSES DOWNED avalonFITE : Moss Mother (2), Bell Beast (3), Lace (4), Fourth Chorus (1), Moorwing (30), Splinter Sister (11), Skull Tyrant #2 (4), Widow (20), Great Conchflies (1), Skull Tyrant #1 (1), Last Judge (43/51), Clockwork Dancers (3), Signis & Gron (6), Savage Beastfly (3), Phantom (5), Beastfly 2 Electric Boogaloo (5), Lace #2 (31), Great Conchfly (3), Groal the Great (9), Broodmother (4), Disgraced Chef Lugoli (4), Moss Mother x2 (1), First Sinner (17), Father of Flame (3)..."},
+            {"name": "bosses2", "response": "SKONG BOSSES CONTINUED: Second Sentinel (4), Grand Mother Silk (4), Seth (16), Nyleth (12), The Unraveled (3), Palestag (1), Lost Garmond (4), Gronn(?, 2), Plasmafied Zango (2), Khaan (1), Karmelita (35?), Tormented Trobbio (11), Clover Dancers (5). Pinstress (6), Voltwyrm (1), Lost Lace (21)"},
+            {"name": "brainpower", "response": "\u2200\u2200\u2200\u2200-\u2200\u2200\u2200-\u2200-O\u018e\u018e\u018e\u018e oo-oo-oo-ooo-O\u017f-\u2200-\u018e-I-\u018e-\u2200-\u018e\u2200\u2200\u2200\u2200 \u01dd\u01dd\u01dd-\u01dd\u01dd-\u01dd\u01dd\u01dd-\u018e -\u2200-\u2229-\u2229-\u2200-\u2200-O-\u018e\u2200\u2200 oooooooooooo-O\u017f -\u2229-\u2200-I-\u2200-\u2200-\u018e\u2200\u2200\u2200\u2200 oooooooooo-O avalonOMG", "use_count": 14},
+            {"name": "break", "response": "Hey Bryan, it's time to take a break. avalonSIP"},
+            {"name": "coworking", "response": "I am doing a professional. avalonARTSY"},
+            {"name": "design", "response": "I used to be a professional designer, here's my portfolio on Dribbble [ https://dribbble.com/bryan ] ."},
+            {"name": "destiny", "response": "Join AVLN and the Crusaders of Avalonstar clan in Destiny 2! [ https://www.bungie.net/en/ClanV2/Index?groupId=2096845 ]", "use_count": 19},
+            {"name": "discord", "response": "Gather with us in our Discord! If you're a subscriber, in the desktop application, go to \"Settings\" > \"Connections\", sync, and join the server! Otherwise, enter here: [ https://discord.gg/avalonstar ] \u2014 Please remember that ALL chat rules apply to the Discord. Don't be a dick.", "use_count": 124},
+            {"name": "fav3", "response": "Bryan's 3 favorites are: Umbreon, Vaporeon, and Espeon", "enabled": False},
+            {"name": "ffbot", "response": "Wanna play!? Type !join to participate in the stream! You don't have to be on screen to gain experience. Make sure you !hire chars you want. And check your !stats (Elsydeon will share with you your stats in chat) !freehires are every 50 wins and a !reset (or ascend) is every 100 wins. avalonEUREKA Generally we do this during Bryan's coworking streams or when he's afk for meetings. For more info use !ffdoc|!ffcards|"},
+            {"name": "ffcards", "response": "FFBot Card Reference: https://gist.github.com/bryanveloso/e1209bb527037cd1b702116f22bd8d0c"},
+            {"name": "ffdoc", "response": "avalonEUREKA You'll find all the info you need on the Seasons and Character's here. Remember to type !ffbot for all the other info you might be looking for! https://docs.google.com/spreadsheets/d/1abh6YTNTMdqdXdSIc0u8vutpzkcRQIoNAL2sO5K9QKY/edit?gid=1799328441#gid=1799328441 / S4 JOBS: https://docs.google.com/spreadsheets/d/1p2SZAHVN_xpxudqkTt3xcbsKILle7GEe7rluDQM1Zcw/edit?gid=0#gid=0"},
+            {"name": "ffxiv", "response": "Bryan plays Final Fantasy XIV on \"Famfrit\" which is in the \"Primal\" data center, as \"Elsydeon Detis\" and \"Ava Liang\" He mains Dark Knight and is a member of the Free Company, <<AVLN>>.", "use_count": 13},
+            {"name": "first", "response": "This is Bryan's first time playing. Please be respectful of that fact and ask before giving any hints or tips. Unsolicited advice will be purged. Further breaking of this rule will result in a timeout and possible ban."},
+            {"name": "hammers", "response": "Before I visited Avalonstar, my village did not know of the wonders of hammers. We often used sticks, bricks, or cousin William's thick forehead to drive nails. Avalonstar came through with lightning-fast delivery of hammers to me and to all of my friends and loved ones. Thank you Avalonstar."},
+            {"name": "helloteam", "response": "This is the Hello! Team Cast [ http://twitch.tv/helloteamcast ] Aftercast! All of the games we'll be playing tonight will be between the people you see on screen. Have fun with memes you won't get and check out the cast every other Saturday! ^-^", "use_count": 19},
+            {"name": "holy", "response": "https://clips.twitch.tv/HomelySucculentEndiveFloof"},
+            {"name": "hug", "response": "$(user) gives $(target) a big hug. avalonHUG", "use_count": 6},
+            {"name": "hydrate", "response": "avalonEUREKA make sure you stay hydrated, Bryan and chat! avalonSIP avalonKANPAI"},
+            {"name": "ironmon", "response": "avalonEUREKA Looking to check out the rules for this Ironmon? Check them out here https://gist.github.com/valiant-code/adb18d248fa0fae7da6b639e2ee8f9c1#kaizo-ironmon-ruleset"},
+            {"name": "kaizo", "response": "Bryan is playing Kaizomon. Where everything you knew about Pokemon was turned upside down and randomized. Enjoy the wild ride. You can find the rules here. avalonEUREKA https://gist.github.com/valiant-code/adb18d248fa0fae7da6b639e2ee8f9c1"},
+            {"name": "lastrun", "response": "https://clips.twitch.tv/EnthusiasticFaithfulGarageMikeHogu-COQsp9_2a3seKMBr"},
+            {"name": "lurk", "response": "Looks like somebody wants to get cozy. Enjoy your lurk, $(user)! avalonCOZY"},
+            {"name": "machinima", "response": "Not sure what's going on right now? Neither do we. avalonDERP Welcome to live machinima recording on Avalonstar! On days like today, Bryan will be mostly interacting in chat, as to not mess up the audio for the footage. avalonSHY Here's what we've made in the past: [ https://www.youtube.com/watch?v=RZeL76U36p8&list=PL8AEA9t0nugPolkqhI6rbwx9mcbUWGXp4 ]", "use_count": 5},
+            {"name": "mastery", "response": "FFBot Mastery Levels: 5, 12, 20, 28, 36, 50"},
+            {"name": "miq", "response": "GOTCHA BITCH. ($(count.get miq) bitches have been gotcha'ed.) avalonSMUG", "use_count": 255},
+            {"name": "modlist", "response": "avalonEUREKA you can find all the mods I'm using in Terraria here. (minus the MP mods) https://steamcommunity.com/sharedfiles/filedetails/?id=3005040658"},
+            {"name": "monhun", "response": "Bryan's Hunter ID: C57A59J9 // Crusaders Squad ID: XF9434XP"},
+            {"name": "nakama", "response": "Bryan is a part of Nakama, a Twitch team that focuses on camaraderie and collaboration, aka Twitch's Multitap. These broadcasters are good friends and great people, so check them out! [ http://twitch.tv/team/nakamateam ]", "use_count": 58},
+            {"name": "pet", "response": "avalonRAGE P E T avalonRAGE T H E avalonRAGE L A L A avalonRAGE (The lala has been pet $(count.get pet) times.) avalonRAGE P E T avalonRAGE T H E avalonRAGE L A L A avalonRAGE", "enabled": False, "use_count": 222},
+            {"name": "platforms", "response": "Want to play? Steam: Avalonstar \u2022 PSN: AvalonstarTV \u2022 Switch: SW-2833-7397-3889", "use_count": 7},
+            {"name": "rainwave", "response": "The music you're listening to is from [ https://rainwave.cc/game/ ]! Go there if you'd like to request a track to be played on stream!"},
+            {"name": "rpgs", "response": "A list of all the RPGs I've beaten in my lifetime. Also rankings: https://gist.github.com/bryanveloso/4244350 ( read: Don't @ me. avalonBAKA )", "use_count": 1},
+            {"name": "rules", "response": "Rule #3 - We reserve the right to purge you for being a dick. Don't be a dick. Arguing with us about being purged counts as being a dick. Don't be a dick. Seriously.", "use_count": 8},
+            {"name": "salt", "response": "The salt stocks have risen $(count.get salt) times.", "use_count": 6},
+            {"name": "sellout", "response": "avalonEUREKA Did you know that if you have Amazon Prime you can link your Twitch and get a free sub? avalonPOG Why not use that sub here to get 60 of the best damn emotes on twitch. Just go to twitch.tv/products/avalonstar_3000 now.", "use_count": 8},
+            {"name": "silentmode", "response": "Bryan's playing this game as if he were on his couch in front of the TV, the focus being more on the game than the streamer. But talk to Bryan and he'll talk to you! Otherwise sit back and enjoy $(game).", "use_count": 7},
+            {"name": "spoilers", "response": "Please do not spoil the game's story, content, or mechanics. More importantly, please do not lead me on (as in: telling me what's coming up, etc.). React WITH us, not BEFORE us. By reading this message and choosing to ignore it, you agree to welcome the subsequent takedown with open arms.", "use_count": 2},
+            {"name": "spoonee", "response": "avalonBLANK I avalonBLANK WANT avalonBLANK TO avalonBLANK RIDE avalonBLANK MY avalonBLANK CHOCOBO avalonBLANK ALL avalonBLANK DAY avalonBLANK", "use_count": 1},
+            {"name": "steamid", "response": "76561198009545200"},
+            {"name": "sub", "response": "avalonARTSY Do avalonOWO it avalonV for avalonCOZY her avalonBLESS"},
+            {"name": "tomthefuck", "response": "Times we haven't questioned what Tom said: $(count.get tomthefuck) avalonUH", "use_count": 65},
+            {"name": "trial", "response": "Wanna try out Final Fantasy XIV? Follow this link for a trial! You can play until level 70 with no limitations on game time! Now with the award winning expansion Stormblood! (We're on the \"Famfrit\" server which is in the \"Primal\" data center.) [ http://freetrial.finalfantasyxiv.com/gb/ ]", "use_count": 14},
+            {"name": "uma", "response": "Umamusume Trainer ID: 765 712 584 985"},
+            {"name": "waah", "response": "avalonWAAH WAAH ($(user) looks at you in surprise.) avalonWAAH WAAH ($(user) looks at you in surprise.) avalonWAAH WAAH ($(user) looks at you in surprise.) avalonWAAH WAAH ($(user) looks at you in surprise.) avalonWAAH WAAH ($(user) looks at you in surprise.) avalonWAAH WAAH ($(user) looks at you in surprise.)", "use_count": 79},
+            {"name": "wheel", "response": "Let's take a spin on the DAISHOUWHEEL. Long-time community members have chosen games for Bryan to play and when the wheel chooses a game, he has to play it. Our current game is: Cat Quest"},
+            {"name": "willthefuck", "response": "Will has uttered $(count.get willthefuck) Willisms.", "use_count": 117},
+            {"name": "woah", "response": "avalonWAAH WOAH (@herdyderp looks at you in surprise.)"},
+            {"name": "youtube", "response": "Bryan vlogs and makes UI-related Final Fantasy XIV videos on YouTube! Go to [ http://youtube.com/avalonstar ] and make sure to like and subscribe! :3"},
+        ]
+
+        self.stdout.write(
+            self.style.MIGRATE_HEADING(
+                f"\n  Seeding Avalonstar commands ({len(avalonstar_commands)})..."
+            )
+        )
+
+        for cmd_data in avalonstar_commands:
+            defaults = {
+                "response": cmd_data["response"],
+                "created_by": "avalonstar",
+            }
+            if "enabled" in cmd_data:
+                defaults["enabled"] = cmd_data["enabled"]
+            if "use_count" in cmd_data:
+                defaults["use_count"] = cmd_data["use_count"]
+
+            cmd, created = BotCommand.objects.get_or_create(
+                channel=channel,
+                name=cmd_data["name"],
+                defaults=defaults,
+            )
+
+            if created:
+                status = "Created"
+                if not cmd_data.get("enabled", True):
+                    status = "Created (disabled)"
+            else:
+                status = "Exists"
+            self.stdout.write(
+                self.style.SUCCESS(f"    {status} command: !{cmd.name}")
+            )
+
+        # --- Counters ---
+
+        avalonstar_counters = [
+            {"name": "miq", "value": 255, "label": "Miq"},
+            {"name": "pet", "value": 222, "label": "Pet"},
+            {"name": "salt", "value": 6, "label": "Salt"},
+            {"name": "tomthefuck", "value": 65, "label": "Tomthefuck"},
+            {"name": "willthefuck", "value": 117, "label": "Willthefuck"},
+        ]
+
+        for counter_data in avalonstar_counters:
+            counter, created = Counter.objects.get_or_create(
+                channel=channel,
+                name=counter_data["name"],
+                defaults={
+                    "value": counter_data["value"],
+                    "label": counter_data["label"],
+                },
+            )
+
+            status = "Created" if created else "Exists"
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"    {status} counter: {counter.name}"
+                    f" (value={counter_data['value']})"
+                )
+            )
+
+        # --- Aliases ---
+
+        avalonstar_aliases = [
+            {"name": "followage", "target": "checkme"},
+        ]
+
+        for alias_data in avalonstar_aliases:
+            alias, created = Alias.objects.get_or_create(
+                channel=channel,
+                name=alias_data["name"],
+                defaults={"target": alias_data["target"]},
+            )
+
+            status = "Created" if created else "Exists"
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"    {status} alias: !{alias.name} \u2192 !{alias.target}"
                 )
             )
 
