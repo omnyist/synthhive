@@ -27,7 +27,7 @@ Two Docker containers share the same codebase and PostgreSQL database:
 
 - **Bot** — A Twitch bot identity (e.g., Elsydeon, WorldFriendshipBot). Holds encrypted OAuth tokens.
 - **Channel** — A channel where a bot is active. FK to Bot. Also stores the channel owner's OAuth tokens for moderation.
-- **Command** — A chat command (e.g., `!lurk`) defined per channel. The `type` field determines how the response is chosen (text, lottery, random_list, counter). The `config` JSONField stores type-specific settings. Response text supports variables. `created_by` tracks who created it (Twitch username from `!addcom`, or channel owner name from imports).
+- **Command** — A chat command (e.g., `!lurk`) defined per channel. The `type` field determines how the response is chosen (text, lottery, random_list, counter). The `config` JSONField stores type-specific settings. Response text supports variables. `created_by` tracks who created it (Twitch username from `!addcom`, or channel owner name from imports). `cooldown_seconds` (global) and `user_cooldown_seconds` (per-user) control cooldown timing; `config["cooldown_response"]` is the template shown when on cooldown.
 - **Skill** — A Python-coded command toggled per channel. Used for complex built-in behaviors that need real Python logic (future: quotes, followage, API integrations). Logic lives in `bot/skills/` as handler classes, the model controls enable/disable and stores JSON config.
 - **Counter** — A named counter per channel (e.g., death count, scare count). Dedicated model with `IntegerField` for atomic `F()` updates. Readable in command responses via `$(count.get name)`.
 - **Alias** — A type-agnostic command alias per channel. Resolved early in the message pipeline to rewrite triggers before routing (e.g., `!ct` → `!count death`). Works for all command types and skills.
@@ -51,9 +51,9 @@ The `type` field on the Command model determines how the response is chosen and 
 
 **lottery:**
 ```json
-{"odds": 2, "success": "$(user) wins!", "failure": "Better luck next time!", "cooldown": 3600, "cooldown_response": "$(user), you have $(remaining) seconds left."}
+{"odds": 2, "success": "$(user) wins!", "failure": "Better luck next time!", "cooldown_response": "$(user), you have $(remaining) seconds left."}
 ```
-`odds` is a percentage (1-100). Success/failure templates support variables. `cooldown` is optional seconds between attempts per user (0 or omitted = no cooldown). `cooldown_response` is the template shown when on cooldown (omit to silently ignore). Supports `$(remaining)` for remaining seconds as a raw number. Cooldowns are in-memory and reset on bot restart.
+`odds` is a percentage (1-100). Success/failure templates support variables.
 
 **random_list:**
 ```json
@@ -66,6 +66,17 @@ The `type` field on the Command model determines how the response is chosen and 
 {"counter_name": "death"}
 ```
 `counter_name` defaults to the command name if omitted. The counter is auto-incremented before variable processing so `$(count.get name)` returns the updated value.
+
+### Cooldowns
+
+Cooldowns are model fields on Command, applied in the common pipeline before type-specific dispatch. Both types can be set on the same command.
+
+| Field | Scope | Description |
+|---|---|---|
+| `cooldown_seconds` | Global | Shared timer — once anyone triggers the command, nobody can use it for N seconds |
+| `user_cooldown_seconds` | Per-user | Each chatter has their own timer |
+
+`config["cooldown_response"]` is the template shown when on cooldown. Supports `$(remaining)` for remaining seconds as a raw number, plus all standard variables like `$(user)`. Omit `cooldown_response` to silently ignore attempts during cooldown. Cooldowns are in-memory and reset on bot restart.
 
 ### Skill Handlers
 

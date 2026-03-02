@@ -23,7 +23,6 @@ class ResolvedResponse:
     """Result from _resolve_response with metadata for the common pipeline."""
 
     text: str | None
-    skip_use_count: bool = False
 
 
 # Commands handled by ManagementCommands — skip in the router
@@ -59,7 +58,8 @@ class CommandRouter(commands.Component):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._registry = create_registry()
-        self._cooldowns: dict[tuple[str, str, str], float] = {}
+        self._global_cooldowns: dict[tuple[str, str], float] = {}
+        self._user_cooldowns: dict[tuple[str, str, str], float] = {}
         discover_skills()
 
     @commands.Component.listener()
@@ -120,14 +120,50 @@ class CommandRouter(commands.Component):
             cmd = None
 
         if cmd is not None:
+            # --- Cooldown check (applies to ALL command types) ---
+            cooldown_result = self._check_cooldown(cmd, payload, broadcaster_id)
+            if cooldown_result is not None:
+                if cooldown_result:
+                    chatter_name = (
+                        payload.chatter.display_name
+                        if payload.chatter
+                        else "someone"
+                    )
+                    channel_name = (
+                        payload.broadcaster.display_name
+                        if payload.broadcaster
+                        else ""
+                    )
+                    target_arg = (
+                        raw_args.split()[0].lstrip("@")
+                        if raw_args
+                        else chatter_name
+                    )
+                    context = VariableContext(
+                        user=chatter_name,
+                        target=target_arg,
+                        channel_name=channel_name,
+                        broadcaster_id=broadcaster_id,
+                        command_name=cmd_name,
+                        use_count=cmd.use_count,
+                        raw_args=raw_args,
+                    )
+                    response = await self._registry.process(
+                        cooldown_result, context
+                    )
+                    await payload.respond(response)
+                return
+
             resolved = await self._resolve_response(cmd, payload, broadcaster_id)
             if resolved.text is None:
                 return
 
+            # Record cooldown timestamps after successful response resolution
+            self._record_cooldown(cmd, payload, broadcaster_id)
+
             # Common pipeline: increment use_count → variables → /me → respond
-            if not resolved.skip_use_count:
-                cmd.use_count += 1
-                await sync_to_async(cmd.save)(update_fields=["use_count"])
+            cmd.use_count += 1
+            await sync_to_async(cmd.save)(update_fields=["use_count"])
 
             chatter_name = (
                 payload.chatter.display_name
@@ -209,27 +245,6 @@ class CommandRouter(commands.Component):
             return ResolvedResponse(text=cmd.response)
 
         if cmd.type == Command.Type.LOTTERY:
-            # Cooldown check — keyed by (channel, command, user)
-            cooldown_secs = cmd.config.get("cooldown", 0)
-            if cooldown_secs > 0 and payload.chatter:
-                key = (broadcaster_id, cmd.name, str(payload.chatter.id))
-                now = time.monotonic()
-                last_used = self._cooldowns.get(key)
-                if last_used and (now - last_used) < cooldown_secs:
-                    cooldown_response = cmd.config.get("cooldown_response")
-                    if cooldown_response:
-                        remaining = int(
-                            cooldown_secs - (now - last_used)
-                        )
-                        cooldown_response = cooldown_response.replace(
-                            "$(remaining)", str(remaining)
-                        )
-                        return ResolvedResponse(
-                            text=cooldown_response, skip_use_count=True
-                        )
-                    return ResolvedResponse(text=None)
-                self._cooldowns[key] = now
-
             odds = cmd.config.get("odds", 5)
             if random.randint(1, 100) <= odds:
                 template = cmd.config.get("success", "$(user) wins!")
@@ -266,3 +281,63 @@ class CommandRouter(commands.Component):
             return ResolvedResponse(text=cmd.response)
 
         return ResolvedResponse(text=cmd.response)
+
+    def _check_cooldown(
+        self,
+        cmd,
+        payload: twitchio.ChatMessage,
+        broadcaster_id: str,
+    ) -> str | None:
+        """Check if a command is on cooldown.
+
+        Returns None if not on cooldown (proceed normally).
+        Returns a response string if on cooldown (send it).
+        Returns "" if on cooldown but no response configured (stay silent).
+        """
+        now = time.monotonic()
+
+        # Global cooldown — one timer shared by all chatters
+        if cmd.cooldown_seconds > 0:
+            key = (broadcaster_id, cmd.name)
+            last_used = self._global_cooldowns.get(key)
+            if last_used and (now - last_used) < cmd.cooldown_seconds:
+                return self._build_cooldown_response(
+                    cmd, cmd.cooldown_seconds, now, last_used
+                )
+
+        # Per-user cooldown
+        if cmd.user_cooldown_seconds > 0 and payload.chatter:
+            key = (broadcaster_id, cmd.name, str(payload.chatter.id))
+            last_used = self._user_cooldowns.get(key)
+            if last_used and (now - last_used) < cmd.user_cooldown_seconds:
+                return self._build_cooldown_response(
+                    cmd, cmd.user_cooldown_seconds, now, last_used
+                )
+
+        return None
+
+    def _build_cooldown_response(
+        self, cmd, cooldown_secs: int, now: float, last_used: float
+    ) -> str:
+        """Build the cooldown response string, or empty string for silent."""
+        cooldown_response = cmd.config.get("cooldown_response", "")
+        if not cooldown_response:
+            return ""
+        remaining = int(cooldown_secs - (now - last_used))
+        return cooldown_response.replace("$(remaining)", str(remaining))
+
+    def _record_cooldown(
+        self,
+        cmd,
+        payload: twitchio.ChatMessage,
+        broadcaster_id: str,
+    ) -> None:
+        """Record cooldown timestamps after a successful command execution."""
+        now = time.monotonic()
+
+        if cmd.cooldown_seconds > 0:
+            self._global_cooldowns[(broadcaster_id, cmd.name)] = now
+
+        if cmd.user_cooldown_seconds > 0 and payload.chatter:
+            key = (broadcaster_id, cmd.name, str(payload.chatter.id))
+            self._user_cooldowns[key] = now

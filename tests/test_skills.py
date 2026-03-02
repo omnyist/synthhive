@@ -120,19 +120,19 @@ class TestLotteryType:
 
 
 @pytest.mark.django_db(transaction=True)
-class TestLotteryCooldown:
-    async def test_cooldown_blocks_second_attempt(self, make_command):
+class TestCommandCooldown:
+    async def test_user_cooldown_blocks_second_attempt(self, make_command):
         from bot.router import CommandRouter
         from unittest.mock import MagicMock
 
         make_command(
             name="flask",
             type="lottery",
+            user_cooldown_seconds=300,
             config={
                 "odds": 100,
                 "success": "Win!",
                 "failure": "Lose!",
-                "cooldown": 300,
                 "cooldown_response": "$(user), wait!",
             },
         )
@@ -160,17 +160,16 @@ class TestLotteryCooldown:
 
     async def test_cooldown_does_not_increment_use_count(self, make_command):
         from bot.router import CommandRouter
-        from core.models import Command
         from unittest.mock import MagicMock
 
         cmd = make_command(
             name="flask",
             type="lottery",
+            user_cooldown_seconds=300,
             config={
                 "odds": 100,
                 "success": "Win!",
                 "failure": "Lose!",
-                "cooldown": 300,
                 "cooldown_response": "Wait!",
             },
         )
@@ -206,11 +205,11 @@ class TestLotteryCooldown:
         make_command(
             name="flask",
             type="lottery",
+            user_cooldown_seconds=300,
             config={
                 "odds": 100,
                 "success": "Win!",
                 "failure": "Lose!",
-                "cooldown": 300,
             },
         )
 
@@ -242,11 +241,11 @@ class TestLotteryCooldown:
         make_command(
             name="flask",
             type="lottery",
+            user_cooldown_seconds=300,
             config={
                 "odds": 100,
                 "success": "$(user) wins!",
                 "failure": "Lose!",
-                "cooldown": 300,
                 "cooldown_response": "Wait!",
             },
         )
@@ -286,7 +285,6 @@ class TestLotteryCooldown:
                 "odds": 100,
                 "success": "Win!",
                 "failure": "Lose!",
-                "cooldown": 0,
             },
         )
 
@@ -316,11 +314,11 @@ class TestLotteryCooldown:
         make_command(
             name="flask",
             type="lottery",
+            user_cooldown_seconds=3600,
             config={
                 "odds": 100,
                 "success": "Win!",
                 "failure": "Lose!",
-                "cooldown": 3600,
                 "cooldown_response": "$(user), you have $(remaining) seconds left.",
             },
         )
@@ -350,6 +348,75 @@ class TestLotteryCooldown:
         # Extract the number and verify it's close to 3600
         seconds = int(response.split("you have ")[1].split(" seconds")[0])
         assert 3590 <= seconds <= 3600
+
+    async def test_global_cooldown_blocks_all_users(self, make_command):
+        from bot.router import CommandRouter
+        from unittest.mock import MagicMock
+
+        make_command(
+            name="shout",
+            type="text",
+            response="Hello!",
+            cooldown_seconds=60,
+            config={"cooldown_response": "Command on cooldown!"},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+        router = CommandRouter(bot)
+
+        # User A triggers it
+        payload_a = MockPayload(
+            text="!shout",
+            chatter=MockChatter(name="usera", display_name="UserA", id=111),
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload_a)
+        payload_a.respond.assert_called_once()
+        assert payload_a.respond.call_args[0][0] == "Hello!"
+
+        # User B — blocked by global cooldown
+        payload_b = MockPayload(
+            text="!shout",
+            chatter=MockChatter(name="userb", display_name="UserB", id=222),
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload_b)
+        payload_b.respond.assert_called_once()
+        assert payload_b.respond.call_args[0][0] == "Command on cooldown!"
+
+    async def test_cooldown_works_on_text_commands(self, make_command):
+        from bot.router import CommandRouter
+        from unittest.mock import MagicMock
+
+        make_command(
+            name="greet",
+            type="text",
+            response="Hi $(user)!",
+            user_cooldown_seconds=30,
+            config={"cooldown_response": "Slow down!"},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+        router = CommandRouter(bot)
+
+        payload1 = MockPayload(
+            text="!greet",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload1)
+        payload1.respond.assert_called_once()
+        assert payload1.respond.call_args[0][0] == "Hi TestUser!"
+
+        # Second attempt — cooldown
+        payload2 = MockPayload(
+            text="!greet",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload2)
+        payload2.respond.assert_called_once()
+        assert payload2.respond.call_args[0][0] == "Slow down!"
 
 
 @pytest.mark.django_db(transaction=True)

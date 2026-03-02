@@ -198,25 +198,32 @@ class Command(BaseCommand):
             {
                 "name": "getyeflask",
                 "type": BotCommand.Type.LOTTERY,
+                "user_cooldown_seconds": 3600,
                 "config": {
                     "odds": 2,
                     "success": "$(user) - YOU GET YE FLASK! bardHype bardHype bardHype",
                     "failure": "You can't get ye flask, $(user)! bardPls",
-                    "cooldown": 3600,
                     "cooldown_response": "$(user), you can only try to get ye flask once per hour. You have $(remaining) seconds left.",
                 },
             },
         ]
 
         for cmd_data in spoonee_commands:
+            defaults = {
+                "type": cmd_data["type"],
+                "config": cmd_data["config"],
+                "created_by": "spoonee",
+            }
+            if "cooldown_seconds" in cmd_data:
+                defaults["cooldown_seconds"] = cmd_data["cooldown_seconds"]
+            if "user_cooldown_seconds" in cmd_data:
+                defaults["user_cooldown_seconds"] = cmd_data[
+                    "user_cooldown_seconds"
+                ]
             cmd, created = BotCommand.objects.update_or_create(
                 channel=channel,
                 name=cmd_data["name"],
-                defaults={
-                    "type": cmd_data["type"],
-                    "config": cmd_data["config"],
-                    "created_by": "spoonee",
-                },
+                defaults=defaults,
             )
 
             status = "Created" if created else "Updated"
