@@ -218,6 +218,22 @@ class CommandRouter(commands.Component):
                 if last_used and (now - last_used) < cooldown_secs:
                     cooldown_response = cmd.config.get("cooldown_response")
                     if cooldown_response:
+                        remaining = int(
+                            cooldown_secs - (now - last_used)
+                        )
+                        # Format remaining time as human-readable
+                        if remaining >= 3600:
+                            minutes = (remaining % 3600) // 60
+                            remaining_str = (
+                                f"{remaining // 3600}h {minutes}m"
+                            )
+                        elif remaining >= 60:
+                            remaining_str = f"{remaining // 60}m {remaining % 60}s"
+                        else:
+                            remaining_str = f"{remaining}s"
+                        cooldown_response = cooldown_response.replace(
+                            "$(remaining)", remaining_str
+                        )
                         return ResolvedResponse(
                             text=cooldown_response, skip_use_count=True
                         )

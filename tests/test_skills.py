@@ -309,6 +309,47 @@ class TestLotteryCooldown:
         await router.event_message(payload2)
         payload2.respond.assert_called_once()
 
+    async def test_remaining_time_in_cooldown_response(self, make_command):
+        from bot.router import CommandRouter
+        from unittest.mock import MagicMock
+
+        make_command(
+            name="flask",
+            type="lottery",
+            config={
+                "odds": 100,
+                "success": "Win!",
+                "failure": "Lose!",
+                "cooldown": 3600,
+                "cooldown_response": "$(user), $(remaining) left!",
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+        router = CommandRouter(bot)
+
+        payload1 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload1)
+        payload1.respond.assert_called_once()
+
+        # Second attempt — should include remaining time
+        payload2 = MockPayload(
+            text="!flask",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload2)
+        payload2.respond.assert_called_once()
+        response = payload2.respond.call_args[0][0]
+        # Should contain the user name and a time string
+        assert response.startswith("TestUser, ")
+        assert "left!" in response
+        # Time should be roughly "0h 59m" since nearly no time passed
+        assert "59m" in response
+
 
 @pytest.mark.django_db(transaction=True)
 class TestRandomListType:
