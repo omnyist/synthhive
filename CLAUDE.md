@@ -193,7 +193,7 @@ For importing commands from DeepBot, these map to our system:
 | `scare` | Counter alias → `count scare` | ✅ Seeded as alias |
 | `caster` | Shoutout command | Needs Twitch API — future skill |
 | `checkme` | Follow check | ✅ Skill handler (`FollowCheckHandler`) |
-| `followcheck` | Follow check | Alias to `checkme` (not yet seeded) |
+| `followcheck` | Follow check | ✅ Seeded as alias → `checkme` |
 | `forreal` | Unknown | Ask Spoonee |
 
 ## Management Commands

@@ -266,6 +266,7 @@ class Command(BaseCommand):
             {"name": "countadd", "target": "count death +"},
             {"name": "addscare", "target": "count scare +"},
             {"name": "scare", "target": "count scare"},
+            {"name": "followcheck", "target": "checkme"},
         ]
 
         for alias_data in spoonee_aliases:
