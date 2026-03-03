@@ -22,6 +22,8 @@ jobs:
           TWITCH_CLIENT_ID=${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET=${{ secrets.TWITCH_CLIENT_SECRET }}
           FERNET_KEY=${{ secrets.FERNET_KEY }}
+          SYNTHFUNC_API_URL=${{ vars.SYNTHFUNC_API_URL }}
+          SYNTHFUNC_API_KEY=${{ secrets.SYNTHFUNC_API_KEY }}
           EOF
 
       - name: Deploy with Docker

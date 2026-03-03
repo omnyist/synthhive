@@ -31,6 +31,9 @@ services:
       - .:/app
     ports:
       - "7177:7177"
+    networks:
+      - default
+      - synth
     command: >
       sh -c "uv run python manage.py migrate &&
              uv run python manage.py seed &&

@@ -134,12 +134,11 @@ If a command's response starts with `/me `, the bot sends it as a Twitch action 
 
 ### Twitch API Client (`core/twitch.py`)
 
-Shared utility for making authenticated Twitch Helix API calls with automatic token refresh. Used by skill handlers (e.g., `FollowCheckHandler`) and variable handlers (`UptimeHandler`, `GameHandler`) that need channel owner tokens.
+Shared utility for making authenticated Twitch Helix API calls. Used by skill handlers (e.g., `FollowCheckHandler`) and variable handlers (`UptimeHandler`, `GameHandler`) that need channel owner tokens.
 
-- `twitch_request(channel, method, url, **kwargs)` — Makes an authenticated request using the channel owner's token. On 401, automatically refreshes the token and retries once. Returns an `httpx.Response` on success, or `None` if both the request and refresh fail.
-- `refresh_channel_token(channel)` — Refreshes a channel owner's OAuth token via `POST https://id.twitch.tv/oauth2/token` with `grant_type=refresh_token`. Updates the channel's `owner_access_token`, `owner_refresh_token`, and `owner_token_expires_at` in the database. Returns `True` on success.
+- `twitch_request(channel, method, url, **kwargs)` — Makes an authenticated request using the channel owner's token fetched from Synthfunc (source of truth), falling back to the locally cached token if Synthfunc is unreachable. On 401, re-fetches from Synthfunc in case the token was refreshed by Synthfunc's TwitchIO service, and retries once. Returns an `httpx.Response` on success, or `None` if both attempts fail.
 
-Token refresh is **reactive** (on 401), following Twitch's recommendation. Tokens can become invalid for reasons beyond expiry, so proactive checks on `expires_at` are not sufficient.
+Token refresh is managed by Synthfunc's TwitchIO service via `event_token_refreshed`. Botbesties does not refresh tokens directly.
 
 ## Alias System
 

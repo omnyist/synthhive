@@ -35,6 +35,7 @@ BOT_SCOPES = [
 ]
 
 CHANNEL_SCOPES = [
+    # Moderation
     "channel:bot",
     "channel:moderate",
     "channel:read:subscriptions",
@@ -42,6 +43,17 @@ CHANNEL_SCOPES = [
     "moderator:manage:chat_messages",
     "moderator:read:chatters",
     "moderator:read:followers",
+    # EventSub (used by Synthfunc for event ingestion)
+    "bits:read",
+    "channel:read:ads",
+    "channel:read:charity",
+    "channel:read:goals",
+    "channel:read:polls",
+    "channel:read:predictions",
+    "channel:read:redemptions",
+    "channel:read:vips",
+    "moderator:read:shoutouts",
+    "user:read:chat",
 ]
 
 
@@ -161,7 +173,11 @@ async def twitch_callback(request: HttpRequest) -> HttpResponse:
     elif connect_type == "channel":
         from asgiref.sync import sync_to_async
 
+        from .synthfunc import save_token as synthfunc_save_token
+
         channel = await sync_to_async(Channel.objects.get)(id=channel_id)
+
+        # Save locally as fallback cache
         channel.owner_access_token = access_token
         channel.owner_refresh_token = refresh_token
         channel.owner_token_expires_at = expires_at
@@ -170,5 +186,29 @@ async def twitch_callback(request: HttpRequest) -> HttpResponse:
         logger.info(
             "Channel owner token saved for #%s", channel.twitch_channel_name
         )
+
+        # Push to Synthfunc as the source of truth
+        try:
+            result = await synthfunc_save_token(
+                user_id=channel.twitch_channel_id,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_in=expires_in,
+            )
+            if result:
+                logger.info(
+                    "Channel owner token pushed to Synthfunc for #%s",
+                    channel.twitch_channel_name,
+                )
+            else:
+                logger.warning(
+                    "Failed to push channel owner token to Synthfunc for #%s",
+                    channel.twitch_channel_name,
+                )
+        except Exception:
+            logger.exception(
+                "Unexpected error pushing token to Synthfunc for #%s",
+                channel.twitch_channel_name,
+            )
 
     return HttpResponseRedirect(f"/setup/{bot_id}/")

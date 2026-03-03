@@ -189,3 +189,29 @@ async def create_member(
 async def get_stream_status() -> dict | None:
     """Get current broadcaster stream status."""
     return await _get("/streams/status/")
+
+
+# --- Tokens ---
+
+
+async def save_token(
+    user_id: str,
+    access_token: str,
+    refresh_token: str | None = None,
+    expires_in: int = 3600,
+) -> dict | None:
+    """Push an OAuth token to Synthfunc for centralized storage."""
+    return await _post(
+        "/authentication/tokens/",
+        {
+            "user_id": user_id,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": expires_in,
+        },
+    )
+
+
+async def get_token(user_id: str) -> dict | None:
+    """Fetch an OAuth token from Synthfunc."""
+    return await _get(f"/authentication/tokens/{user_id}")

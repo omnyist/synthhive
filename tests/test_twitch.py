@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
-from core.twitch import refresh_channel_token
 from core.twitch import twitch_request
 
 
@@ -19,127 +18,19 @@ def _mock_httpx_response(status_code=200, json_data=None, text=""):
 
 def _make_mock_channel(
     access_token="fake_token",
-    refresh_token="fake_refresh",
+    twitch_channel_id="12345",
     channel_name="testchannel",
 ):
     """Create a mock Channel object."""
     channel = MagicMock()
     channel.owner_access_token = access_token
-    channel.owner_refresh_token = refresh_token
+    channel.twitch_channel_id = twitch_channel_id
     channel.twitch_channel_name = channel_name
-    channel.save = MagicMock()
     return channel
 
 
-class TestRefreshChannelToken:
-    async def test_successful_refresh_updates_channel(self):
-        channel = _make_mock_channel()
-
-        token_response = _mock_httpx_response(
-            json_data={
-                "access_token": "new_access_token",
-                "refresh_token": "new_refresh_token",
-                "expires_in": 14400,
-            }
-        )
-
-        mock_client = AsyncMock()
-        mock_client.post.return_value = token_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("core.twitch.httpx.AsyncClient", return_value=mock_client):
-            result = await refresh_channel_token(channel)
-
-        assert result is True
-        assert channel.owner_access_token == "new_access_token"
-        assert channel.owner_refresh_token == "new_refresh_token"
-        channel.save.assert_called_once()
-
-    async def test_failed_refresh_returns_false(self):
-        channel = _make_mock_channel()
-
-        token_response = _mock_httpx_response(
-            status_code=400,
-            json_data={"message": "Invalid refresh token"},
-            text="Invalid refresh token",
-        )
-
-        mock_client = AsyncMock()
-        mock_client.post.return_value = token_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("core.twitch.httpx.AsyncClient", return_value=mock_client):
-            result = await refresh_channel_token(channel)
-
-        assert result is False
-        assert channel.owner_access_token == "fake_token"
-
-    async def test_no_refresh_token_returns_false(self):
-        channel = _make_mock_channel(refresh_token="")
-
-        result = await refresh_channel_token(channel)
-
-        assert result is False
-
-    async def test_preserves_refresh_token_if_not_returned(self):
-        channel = _make_mock_channel(refresh_token="original_refresh")
-
-        token_response = _mock_httpx_response(
-            json_data={
-                "access_token": "new_access_token",
-                "expires_in": 14400,
-            }
-        )
-
-        mock_client = AsyncMock()
-        mock_client.post.return_value = token_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("core.twitch.httpx.AsyncClient", return_value=mock_client):
-            result = await refresh_channel_token(channel)
-
-        assert result is True
-        assert channel.owner_refresh_token == "original_refresh"
-
-    async def test_sends_correct_payload(self):
-        channel = _make_mock_channel(refresh_token="my_refresh_token")
-
-        token_response = _mock_httpx_response(
-            json_data={
-                "access_token": "new_token",
-                "refresh_token": "new_refresh",
-                "expires_in": 3600,
-            }
-        )
-
-        mock_client = AsyncMock()
-        mock_client.post.return_value = token_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        with (
-            patch(
-                "core.twitch.httpx.AsyncClient", return_value=mock_client
-            ),
-            patch("core.twitch.settings") as mock_settings,
-        ):
-            mock_settings.TWITCH_CLIENT_ID = "test_client_id"
-            mock_settings.TWITCH_CLIENT_SECRET = "test_client_secret"
-            await refresh_channel_token(channel)
-
-        call_kwargs = mock_client.post.call_args
-        post_data = call_kwargs[1]["data"]
-        assert post_data["grant_type"] == "refresh_token"
-        assert post_data["refresh_token"] == "my_refresh_token"
-        assert post_data["client_id"] == "test_client_id"
-        assert post_data["client_secret"] == "test_client_secret"
-
-
 class TestTwitchRequest:
-    async def test_successful_request(self):
+    async def test_successful_request_uses_synthfunc_token(self):
         channel = _make_mock_channel()
 
         api_response = _mock_httpx_response(
@@ -151,7 +42,14 @@ class TestTwitchRequest:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("core.twitch.httpx.AsyncClient", return_value=mock_client):
+        with (
+            patch("core.twitch.httpx.AsyncClient", return_value=mock_client),
+            patch(
+                "core.synthfunc.get_token",
+                new_callable=AsyncMock,
+                return_value={"access_token": "synthfunc_token"},
+            ),
+        ):
             result = await twitch_request(
                 channel,
                 "GET",
@@ -161,19 +59,56 @@ class TestTwitchRequest:
 
         assert result is not None
         assert result.status_code == 200
+        call_kwargs = mock_client.request.call_args
+        headers = call_kwargs[1]["headers"]
+        assert headers["Authorization"] == "Bearer synthfunc_token"
 
-    async def test_no_token_returns_none(self):
+    async def test_falls_back_to_local_token_when_synthfunc_unreachable(self):
+        channel = _make_mock_channel(access_token="local_cached_token")
+
+        api_response = _mock_httpx_response()
+
+        mock_client = AsyncMock()
+        mock_client.request.return_value = api_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("core.twitch.httpx.AsyncClient", return_value=mock_client),
+            patch(
+                "core.synthfunc.get_token",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
+            result = await twitch_request(
+                channel,
+                "GET",
+                "https://api.twitch.tv/helix/test",
+            )
+
+        assert result is not None
+        call_kwargs = mock_client.request.call_args
+        headers = call_kwargs[1]["headers"]
+        assert headers["Authorization"] == "Bearer local_cached_token"
+
+    async def test_no_token_anywhere_returns_none(self):
         channel = _make_mock_channel(access_token="")
 
-        result = await twitch_request(
-            channel,
-            "GET",
-            "https://api.twitch.tv/helix/channels/followers",
-        )
+        with patch(
+            "core.synthfunc.get_token",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            result = await twitch_request(
+                channel,
+                "GET",
+                "https://api.twitch.tv/helix/test",
+            )
 
         assert result is None
 
-    async def test_401_triggers_refresh_and_retry(self):
+    async def test_401_retries_with_fresh_synthfunc_token(self):
         channel = _make_mock_channel()
 
         unauthorized_response = _mock_httpx_response(status_code=401)
@@ -181,7 +116,6 @@ class TestTwitchRequest:
             json_data={"data": [{"id": "123"}]}
         )
 
-        # First call returns 401, second call (after refresh) returns 200
         mock_client = AsyncMock()
         mock_client.request.side_effect = [
             unauthorized_response,
@@ -190,17 +124,17 @@ class TestTwitchRequest:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
+        mock_get_token = AsyncMock(
+            side_effect=[
+                {"access_token": "stale_token"},
+                {"access_token": "fresh_token"},
+            ]
+        )
+
         with (
-            patch(
-                "core.twitch.httpx.AsyncClient", return_value=mock_client
-            ),
-            patch(
-                "core.twitch.refresh_channel_token",
-                new_callable=AsyncMock,
-                return_value=True,
-            ) as mock_refresh,
+            patch("core.twitch.httpx.AsyncClient", return_value=mock_client),
+            patch("core.synthfunc.get_token", mock_get_token),
         ):
-            channel.owner_access_token = "refreshed_token"
             result = await twitch_request(
                 channel,
                 "GET",
@@ -209,10 +143,10 @@ class TestTwitchRequest:
 
         assert result is not None
         assert result.status_code == 200
-        mock_refresh.assert_called_once_with(channel)
         assert mock_client.request.call_count == 2
+        assert mock_get_token.call_count == 2
 
-    async def test_401_with_failed_refresh_returns_none(self):
+    async def test_401_with_same_stale_token_returns_none(self):
         channel = _make_mock_channel()
 
         unauthorized_response = _mock_httpx_response(status_code=401)
@@ -222,15 +156,42 @@ class TestTwitchRequest:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
+        mock_get_token = AsyncMock(
+            return_value={"access_token": "same_stale_token"}
+        )
+
         with (
-            patch(
-                "core.twitch.httpx.AsyncClient", return_value=mock_client
-            ),
-            patch(
-                "core.twitch.refresh_channel_token",
-                new_callable=AsyncMock,
-                return_value=False,
-            ),
+            patch("core.twitch.httpx.AsyncClient", return_value=mock_client),
+            patch("core.synthfunc.get_token", mock_get_token),
+        ):
+            result = await twitch_request(
+                channel,
+                "GET",
+                "https://api.twitch.tv/helix/channels/followers",
+            )
+
+        assert result is None
+
+    async def test_401_with_synthfunc_unreachable_on_retry_returns_none(self):
+        channel = _make_mock_channel()
+
+        unauthorized_response = _mock_httpx_response(status_code=401)
+
+        mock_client = AsyncMock()
+        mock_client.request.return_value = unauthorized_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        mock_get_token = AsyncMock(
+            side_effect=[
+                {"access_token": "stale_token"},
+                None,
+            ]
+        )
+
+        with (
+            patch("core.twitch.httpx.AsyncClient", return_value=mock_client),
+            patch("core.synthfunc.get_token", mock_get_token),
         ):
             result = await twitch_request(
                 channel,
@@ -241,7 +202,7 @@ class TestTwitchRequest:
         assert result is None
 
     async def test_adds_auth_headers(self):
-        channel = _make_mock_channel(access_token="my_bearer_token")
+        channel = _make_mock_channel()
 
         api_response = _mock_httpx_response()
 
@@ -251,8 +212,11 @@ class TestTwitchRequest:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with (
+            patch("core.twitch.httpx.AsyncClient", return_value=mock_client),
             patch(
-                "core.twitch.httpx.AsyncClient", return_value=mock_client
+                "core.synthfunc.get_token",
+                new_callable=AsyncMock,
+                return_value={"access_token": "my_bearer_token"},
             ),
             patch("core.twitch.settings") as mock_settings,
         ):
