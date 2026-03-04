@@ -1,4 +1,4 @@
-# Botbesties
+# Synthhive
 
 Multi-tenant Twitch bot platform built with Django + TwitchIO 3.x.
 
@@ -138,7 +138,7 @@ Shared utility for making authenticated Twitch Helix API calls. Used by skill ha
 
 - `twitch_request(channel, method, url, **kwargs)` — Makes an authenticated request using the channel owner's token fetched from Synthfunc (source of truth), falling back to the locally cached token if Synthfunc is unreachable. On 401, re-fetches from Synthfunc in case the token was refreshed by Synthfunc's TwitchIO service, and retries once. Returns an `httpx.Response` on success, or `None` if both attempts fail.
 
-Token refresh is managed by Synthfunc's TwitchIO service via `event_token_refreshed`. Botbesties does not refresh tokens directly.
+Token refresh is managed by Synthfunc's TwitchIO service via `event_token_refreshed`. Synthhive does not refresh tokens directly.
 
 ## Alias System
 
@@ -168,7 +168,7 @@ Counters are also accessible in command responses via `$(count.get <name>)` and 
 
 For importing commands from DeepBot, these map to our system:
 
-| DeepBot | Botbesties | Status |
+| DeepBot | Synthhive | Status |
 |---|---|---|
 | `@user@` | `$(user)` | Supported |
 | `@target@` | `$(target)` | Supported |
@@ -221,11 +221,11 @@ For importing commands from DeepBot, these map to our system:
 
 ### Moobot Import
 
-The `importmoobot` command reads a Moobot export file (JSON with UTF-8 BOM) and converts commands to Botbesties format.
+The `importmoobot` command reads a Moobot export file (JSON with UTF-8 BOM) and converts commands to Synthhive format.
 
 **Variable conversion:**
 
-| Moobot | Botbesties | Notes |
+| Moobot | Synthhive | Notes |
 |---|---|---|
 | `<username>` | `$(user)` | |
 | `<args>` | `$(target)` | |
@@ -270,7 +270,7 @@ Automated via GitHub Actions (`.github/workflows/deploy.yml`). Pushes to `main` 
 
 ### Static Files
 
-WhiteNoise does not work under ASGI/Daphne (sync-only middleware). Static files are served via Django's `django.views.static.serve` through a URL route in `botbesties/urls.py`.
+WhiteNoise does not work under ASGI/Daphne (sync-only middleware). Static files are served via Django's `django.views.static.serve` through a URL route in `synthhive/urls.py`.
 
 ## Twitch IDs
 

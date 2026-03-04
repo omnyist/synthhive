@@ -12,7 +12,7 @@ from core.models import Channel
 from core.models import Command as CommandModel
 from core.models import Counter
 
-# Moobot variables → Botbesties variable replacements
+# Moobot variables → Synthhive variable replacements
 VARIABLE_MAP = {
     "<username>": "$(user)",
     "<args>": "$(target)",
@@ -28,7 +28,7 @@ COUNTER_PATTERN = re.compile(r"<counter>")
 
 
 def convert_variables(text: str) -> str:
-    """Replace Moobot variables with Botbesties equivalents."""
+    """Replace Moobot variables with Synthhive equivalents."""
     for moobot_var, bb_var in VARIABLE_MAP.items():
         text = text.replace(moobot_var, bb_var)
     return text

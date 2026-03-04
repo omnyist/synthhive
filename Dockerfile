@@ -38,4 +38,4 @@ RUN uv run python manage.py collectstatic --noinput
 EXPOSE 7175
 
 # Run the application
-CMD ["uv", "run", "daphne", "-b", "0.0.0.0", "-p", "7175", "botbesties.asgi:application"]
+CMD ["uv", "run", "daphne", "-b", "0.0.0.0", "-p", "7175", "synthhive.asgi:application"]

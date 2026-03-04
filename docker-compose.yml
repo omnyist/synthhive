@@ -3,9 +3,9 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: botbesties
-      POSTGRES_USER: botbesties
-      POSTGRES_PASSWORD: botbesties
+      POSTGRES_DB: synthhive
+      POSTGRES_USER: synthhive
+      POSTGRES_PASSWORD: synthhive
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -25,7 +25,7 @@ services:
       - db
       - redis
     environment:
-      - DATABASE_URL=postgresql://botbesties:botbesties@db:5432/botbesties
+      - DATABASE_URL=postgresql://synthhive:synthhive@db:5432/synthhive
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - .:/app
@@ -38,7 +38,7 @@ services:
       sh -c "uv run python manage.py migrate &&
              uv run python manage.py seed &&
              uv run python manage.py collectstatic --noinput &&
-             uv run daphne -b 0.0.0.0 -p 7177 botbesties.asgi:application"
+             uv run daphne -b 0.0.0.0 -p 7177 synthhive.asgi:application"
 
   bot:
     build:
@@ -50,7 +50,7 @@ services:
       - redis
       - server
     environment:
-      - DATABASE_URL=postgresql://botbesties:botbesties@db:5432/botbesties
+      - DATABASE_URL=postgresql://synthhive:synthhive@db:5432/synthhive
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - .:/app

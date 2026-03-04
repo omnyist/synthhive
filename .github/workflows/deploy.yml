@@ -17,7 +17,7 @@ jobs:
           DEBUG=False
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           ALLOWED_HOSTS=${{ vars.ALLOWED_HOSTS }}
-          DATABASE_URL=postgresql://botbesties:botbesties@db:5432/botbesties
+          DATABASE_URL=postgresql://synthhive:synthhive@db:5432/synthhive
           REDIS_URL=redis://redis:6379/0
           TWITCH_CLIENT_ID=${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET=${{ secrets.TWITCH_CLIENT_SECRET }}

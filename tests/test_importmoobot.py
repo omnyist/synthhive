@@ -72,7 +72,7 @@ def _write_export(data):
 
 
 class TestConvertVariables:
-    """Test Moobot → Botbesties variable conversion."""
+    """Test Moobot → Synthhive variable conversion."""
 
     def test_username(self):
         assert convert_variables("Hello <username>!") == "Hello $(user)!"

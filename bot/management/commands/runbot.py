@@ -58,7 +58,7 @@ class Command(BaseCommand):
     help = "Run TwitchIO bot instances for all active bots."
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS("Starting Botbesties..."))
+        self.stdout.write(self.style.SUCCESS("Starting Synthhive..."))
 
         try:
             asyncio.run(self._run())

@@ -42,7 +42,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "botbesties.urls"
+ROOT_URLCONF = "synthhive.urls"
 
 TEMPLATES = [
     {
@@ -59,14 +59,14 @@ TEMPLATES = [
     },
 ]
 
-ASGI_APPLICATION = "botbesties.asgi.application"
-WSGI_APPLICATION = "botbesties.wsgi.application"
+ASGI_APPLICATION = "synthhive.asgi.application"
+WSGI_APPLICATION = "synthhive.wsgi.application"
 
 # Database
 
 DATABASES = {
     "default": env.db(
-        default="postgresql://botbesties:botbesties@localhost:5432/botbesties"
+        default="postgresql://synthhive:synthhive@localhost:5432/synthhive"
     )
 }
 
