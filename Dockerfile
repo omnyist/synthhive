@@ -35,7 +35,7 @@ ENV DEBUG=False
 RUN uv run python manage.py collectstatic --noinput
 
 # Expose port
-EXPOSE 7175
+EXPOSE 7177
 
 # Run the application
-CMD ["uv", "run", "daphne", "-b", "0.0.0.0", "-p", "7175", "synthhive.asgi:application"]
+CMD ["uv", "run", "daphne", "-b", "0.0.0.0", "-p", "7177", "synthhive.asgi:application"]
