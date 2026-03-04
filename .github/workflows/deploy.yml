@@ -18,7 +18,7 @@ jobs:
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           ALLOWED_HOSTS=${{ vars.ALLOWED_HOSTS }}
           DATABASE_URL=postgresql://synthhive:synthhive@db:5432/synthhive
-          REDIS_URL=redis://redis:6379/0
+          REDIS_URL=redis://synthcore-redis-1:6379/1
           TWITCH_CLIENT_ID=${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET=${{ secrets.TWITCH_CLIENT_SECRET }}
           FERNET_KEY=${{ secrets.FERNET_KEY }}
@@ -28,6 +28,5 @@ jobs:
 
       - name: Deploy with Docker
         run: |
-          docker compose down
-          docker compose up -d --build
+          docker compose up -d --build --remove-orphans
           docker image prune -f

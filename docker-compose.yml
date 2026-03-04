@@ -18,7 +18,7 @@ services:
       - db
     environment:
       - DATABASE_URL=postgresql://synthhive:synthhive@db:5432/synthhive
-      - REDIS_URL=redis://synthfunc-redis-1:6379/1
+      - REDIS_URL=redis://synthcore-redis-1:6379/1
     volumes:
       - .:/app
     ports:
@@ -42,7 +42,7 @@ services:
       - server
     environment:
       - DATABASE_URL=postgresql://synthhive:synthhive@db:5432/synthhive
-      - REDIS_URL=redis://synthfunc-redis-1:6379/1
+      - REDIS_URL=redis://synthcore-redis-1:6379/1
     volumes:
       - .:/app
     networks:
