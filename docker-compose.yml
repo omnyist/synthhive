@@ -17,7 +17,7 @@ services:
     depends_on:
       - db
     environment:
-      - DATABASE_URL=postgresql://synthhive:synthhive@db:5432/synthhive
+      - DATABASE_URL=postgresql://synthhive:synthhive@synthcore-postgres-1:5432/synthhive
       - REDIS_URL=redis://synthcore-redis-1:6379/1
     volumes:
       - .:/app
@@ -41,7 +41,7 @@ services:
       - db
       - server
     environment:
-      - DATABASE_URL=postgresql://synthhive:synthhive@db:5432/synthhive
+      - DATABASE_URL=postgresql://synthhive:synthhive@synthcore-postgres-1:5432/synthhive
       - REDIS_URL=redis://synthcore-redis-1:6379/1
     volumes:
       - .:/app
