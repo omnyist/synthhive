@@ -1,18 +1,19 @@
 """!quote — Quote commands powered by Synthfunc.
 
 Usage:
-    !quote              — Random quote
-    !quote 42           — Quote by number
-    !quote search fish  — Search quotes by text
-    !quote user bryan   — Quotes by a specific person
-    !quote add @user Something funny they said
-    !quote latest       — Most recent quote
-    !quote stats bryan  — Quote stats for a user
+    !quote                              — Random quote
+    !quote 42                           — Quote by number
+    !quote search fish                  — Search quotes by text
+    !quote user bryan                   — Quotes by a specific person
+    !quote add "Something funny" ~ @user — Add a new quote
+    !quote latest                       — Most recent quote
+    !quote stats bryan                  — Quote stats for a user
 """
 
 from __future__ import annotations
 
 import logging
+import re
 
 from bot.router import send_reply
 from bot.skills import SkillHandler
@@ -154,26 +155,30 @@ class QuoteHandler(SkillHandler):
             payload, f"{formatted}{suffix}", bot_id=bot.bot_id
         )
 
+    # Matches: "quote text here" ~ @username
+    ADD_PATTERN = re.compile(r'"([^"]*?)"\s*~\s*@([A-Za-z0-9_]+)')
+
     async def _add(self, payload, bot, chatter_name, args_str):
         if not args_str:
             await send_reply(
                 payload,
-                "Usage: !quote add @user Something they said",
+                'Usage: !quote add "Something they said" ~ @username',
                 bot_id=bot.bot_id,
             )
             return
 
-        parts = args_str.split(maxsplit=1)
-        if len(parts) < 2:
+        match = self.ADD_PATTERN.search(args_str)
+        if not match:
             await send_reply(
                 payload,
-                "Usage: !quote add @user Something they said",
+                'I has OCD and can\'t accept that quote. Please format it '
+                'like so: "quote" ~ @username',
                 bot_id=bot.bot_id,
             )
             return
 
-        quotee = parts[0].lstrip("@")
-        text = parts[1]
+        text = match.group(1)
+        quotee = match.group(2)
 
         quote = await create_quote(text, quotee, chatter_name)
         if not quote:

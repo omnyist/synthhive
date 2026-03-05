@@ -442,6 +442,7 @@ class Command(BaseCommand):
         """Seed skill records for all active channels."""
         skills_to_seed = [
             {"name": "followage"},
+            {"name": "quote"},
             {"name": "wallet"},
         ]
 
