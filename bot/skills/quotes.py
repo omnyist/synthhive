@@ -30,7 +30,11 @@ logger = logging.getLogger("bot")
 
 
 def _format_quote(quote: dict) -> str:
-    """Format a quote dict into a chat-friendly string."""
+    """Format a quote dict into Elsydeon-style chat string.
+
+    Format: "text" ~ Name (#number, year, Game)
+    Game is only included when present.
+    """
     number = quote.get("number", "?")
     text = quote.get("text", "")
     quotee = quote.get("quotee", {})
@@ -38,15 +42,15 @@ def _format_quote(quote: dict) -> str:
     game = quote.get("game")
     year = quote.get("year")
 
-    # Build suffix: [Game, Year], [Game], [Year], or nothing
-    parts = []
-    if game:
-        parts.append(game)
+    # Build metadata: (#number, year, Game) or (#number, year) or (#number)
+    parts = [f"#{number}"]
     if year:
         parts.append(str(year))
-    suffix = f" [{', '.join(parts)}]" if parts else ""
+    if game:
+        parts.append(game)
+    meta = ", ".join(parts)
 
-    return f'Quote #{number}: "{text}" — {name}{suffix}'
+    return f'"{text}" ~ {name} ({meta})'
 
 
 class QuoteHandler(SkillHandler):
@@ -89,7 +93,11 @@ class QuoteHandler(SkillHandler):
                 payload, "No quotes found.", bot_id=bot.bot_id
             )
             return
-        await send_reply(payload, _format_quote(quote), bot_id=bot.bot_id)
+        await send_reply(
+            payload,
+            f"I found this quote: {_format_quote(quote)}",
+            bot_id=bot.bot_id,
+        )
 
     async def _by_number(self, payload, bot, chatter_name, number):
         quote = await get_quote_by_number(number)
@@ -100,7 +108,11 @@ class QuoteHandler(SkillHandler):
                 bot_id=bot.bot_id,
             )
             return
-        await send_reply(payload, _format_quote(quote), bot_id=bot.bot_id)
+        await send_reply(
+            payload,
+            f"I found this quote: {_format_quote(quote)}",
+            bot_id=bot.bot_id,
+        )
 
     async def _search(self, payload, bot, chatter_name, query):
         if not query:
@@ -111,22 +123,30 @@ class QuoteHandler(SkillHandler):
             )
             return
 
-        result = await search_quotes(query, limit=3)
+        result = await search_quotes(query, limit=1, random=True)
         if not result or not result.get("quotes"):
             await send_reply(
                 payload,
-                f'No quotes found matching "{query}".',
+                f'No quotes found containing "{query}"',
                 bot_id=bot.bot_id,
             )
             return
 
         total = result.get("total_matches", 0)
-        quotes = result["quotes"]
-        first = _format_quote(quotes[0])
-        suffix = f" ({total} total matches)" if total > 1 else ""
-        await send_reply(
-            payload, f"{first}{suffix}", bot_id=bot.bot_id
-        )
+        formatted = _format_quote(result["quotes"][0])
+        if total == 1:
+            await send_reply(
+                payload,
+                f"I found this quote: {formatted}",
+                bot_id=bot.bot_id,
+            )
+        else:
+            await send_reply(
+                payload,
+                f'I found {total} quotes with "{query}". '
+                f"Here's one: {formatted}",
+                bot_id=bot.bot_id,
+            )
 
     async def _by_user(self, payload, bot, chatter_name, username):
         if not username:
@@ -142,18 +162,26 @@ class QuoteHandler(SkillHandler):
         if not result or not result.get("quotes"):
             await send_reply(
                 payload,
-                f"No quotes found for {username}.",
+                f'No quotes found from "{username}".',
                 bot_id=bot.bot_id,
             )
             return
 
         total = result.get("total_matches", 0)
-        quote = result["quotes"][0]
-        formatted = _format_quote(quote)
-        suffix = f" ({total} total)" if total > 1 else ""
-        await send_reply(
-            payload, f"{formatted}{suffix}", bot_id=bot.bot_id
-        )
+        formatted = _format_quote(result["quotes"][0])
+        if total == 1:
+            await send_reply(
+                payload,
+                f"I found this quote from {username}: {formatted}",
+                bot_id=bot.bot_id,
+            )
+        else:
+            await send_reply(
+                payload,
+                f"I found {total} quotes from {username}. "
+                f"Here's one: {formatted}",
+                bot_id=bot.bot_id,
+            )
 
     # Matches: "quote text here" ~ @username
     ADD_PATTERN = re.compile(r'"([^"]*?)"\s*~\s*@([A-Za-z0-9_]+)')
@@ -192,7 +220,8 @@ class QuoteHandler(SkillHandler):
         number = quote.get("number", "?")
         await send_reply(
             payload,
-            f"Quote #{number} added!",
+            f"I've added quote #{number} to the database. "
+            "Blame yourself or God.",
             bot_id=bot.bot_id,
         )
 
@@ -203,7 +232,11 @@ class QuoteHandler(SkillHandler):
                 payload, "No quotes found.", bot_id=bot.bot_id
             )
             return
-        await send_reply(payload, _format_quote(quote), bot_id=bot.bot_id)
+        await send_reply(
+            payload,
+            f"I found this quote: {_format_quote(quote)}",
+            bot_id=bot.bot_id,
+        )
 
     async def _stats(self, payload, bot, chatter_name, username):
         if not username:

@@ -37,7 +37,8 @@ class TestQuoteAdd:
 
         mock_create.assert_called_once_with("Something funny", "spoonee", "TestUser")
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
-        assert "Quote #99 added!" in msg
+        assert "added quote #99" in msg
+        assert "Blame yourself or God." in msg
 
     @pytest.mark.asyncio
     async def test_add_bad_format_shows_ocd_message(self, handler, bot, skill):
@@ -86,8 +87,8 @@ class TestQuoteFormat:
         }
         result = _format_quote(quote)
         assert result == (
-            'Quote #42: "I think I\'m lost again..." '
-            "— Spoonee [Final Fantasy IX, 2015]"
+            '"I think I\'m lost again..." '
+            "~ Spoonee (#42, 2015, Final Fantasy IX)"
         )
 
     def test_format_with_game_no_year(self):
@@ -99,7 +100,7 @@ class TestQuoteFormat:
             "year": None,
         }
         result = _format_quote(quote)
-        assert result == 'Quote #1: "Hello!" — Test [Elden Ring]'
+        assert result == '"Hello!" ~ Test (#1, Elden Ring)'
 
     def test_format_with_year_no_game(self):
         quote = {
@@ -110,7 +111,7 @@ class TestQuoteFormat:
             "year": 2024,
         }
         result = _format_quote(quote)
-        assert result == 'Quote #1: "Hello!" — Test [2024]'
+        assert result == '"Hello!" ~ Test (#1, 2024)'
 
     def test_format_no_game_no_year(self):
         quote = {
@@ -119,4 +120,4 @@ class TestQuoteFormat:
             "quotee": {"display_name": "Test"},
         }
         result = _format_quote(quote)
-        assert result == 'Quote #1: "Hello!" — Test'
+        assert result == '"Hello!" ~ Test (#1)'
