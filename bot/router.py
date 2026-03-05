@@ -228,7 +228,9 @@ class CommandRouter(commands.Component):
             from core.models import Skill
 
             try:
-                skill = await sync_to_async(Skill.objects.get)(
+                skill = await sync_to_async(
+                    Skill.objects.select_related("channel").get
+                )(
                     channel__twitch_channel_id=broadcaster_id,
                     channel__is_active=True,
                     name=cmd_name,
