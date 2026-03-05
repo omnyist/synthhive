@@ -27,7 +27,7 @@ class CurrencyAccrual(commands.Component):
         self._task: asyncio.Task | None = None
         self._channel_cache: dict[str, object] = {}
 
-    async def component_setup(self) -> None:
+    async def component_load(self) -> None:
         self._task = asyncio.create_task(self._tick_loop())
 
     async def component_teardown(self) -> None:
