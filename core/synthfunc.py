@@ -216,6 +216,16 @@ async def get_active_campaign(tenant_slug: str) -> dict | None:
     return await _get("/campaigns/active", tenant_slug=tenant_slug)
 
 
+async def start_campaign_timer(tenant_slug: str) -> dict | None:
+    """Start or restart the subathon timer for the active campaign."""
+    return await _post("/campaigns/timer/start", {}, tenant_slug=tenant_slug)
+
+
+async def pause_campaign_timer(tenant_slug: str) -> dict | None:
+    """Pause the subathon timer for the active campaign."""
+    return await _post("/campaigns/timer/pause", {}, tenant_slug=tenant_slug)
+
+
 async def get_campaign_metrics(campaign_id: str, tenant_slug: str) -> dict | None:
     """Get metrics for a specific campaign."""
     return await _get(

@@ -18,6 +18,8 @@ from bot.skills import SkillHandler
 from bot.skills import register_skill
 from core.synthfunc import get_active_campaign
 from core.synthfunc import get_gift_leaderboard
+from core.synthfunc import pause_campaign_timer
+from core.synthfunc import start_campaign_timer
 
 logger = logging.getLogger("bot")
 
@@ -174,7 +176,123 @@ class GiftsHandler(SkillHandler):
         )
 
 
+class NextGoalHandler(SkillHandler):
+    """!nextgoal — Show the next milestone to unlock."""
+
+    name = "nextgoal"
+
+    async def handle(self, payload, args, skill, bot):
+        tenant_slug = skill.channel.twitch_channel_name
+        campaign = await get_active_campaign(tenant_slug)
+        if not campaign:
+            await send_reply(
+                payload, "No active campaign right now.", bot_id=bot.bot_id
+            )
+            return
+
+        milestones = campaign.get("milestones", [])
+        next_milestone = None
+        for m in milestones:
+            if not m.get("is_unlocked"):
+                next_milestone = m
+                break
+
+        if not next_milestone:
+            await send_reply(
+                payload, "All milestones unlocked!", bot_id=bot.bot_id
+            )
+            return
+
+        await send_reply(
+            payload,
+            f"Next goal: {next_milestone['title']} at {next_milestone['threshold']}",
+            bot_id=bot.bot_id,
+        )
+
+
+class ProgressHandler(SkillHandler):
+    """!progress — Show overall campaign progress."""
+
+    name = "progress"
+
+    async def handle(self, payload, args, skill, bot):
+        tenant_slug = skill.channel.twitch_channel_name
+        campaign = await get_active_campaign(tenant_slug)
+        if not campaign:
+            await send_reply(
+                payload, "No active campaign right now.", bot_id=bot.bot_id
+            )
+            return
+
+        metric = campaign.get("metric", {})
+        total_subs = metric.get("total_subs", 0)
+        total_resubs = metric.get("total_resubs", 0)
+        total_bits = metric.get("total_bits", 0)
+
+        milestones = campaign.get("milestones", [])
+        unlocked = sum(1 for m in milestones if m.get("is_unlocked"))
+        total = len(milestones)
+        pct = int((unlocked / total * 100)) if total > 0 else 0
+
+        parts = [f"Progress: {pct}% ({unlocked}/{total} milestones)"]
+        parts.append(f"{total_subs} subs, {total_resubs} resubs")
+        if total_bits > 0:
+            parts.append(f"{total_bits:,} bits")
+
+        await send_reply(
+            payload, " | ".join(parts), bot_id=bot.bot_id
+        )
+
+
+class StartTimerHandler(SkillHandler):
+    """!starttimer — Start the subathon timer (mod/broadcaster only)."""
+
+    name = "starttimer"
+
+    async def handle(self, payload, args, skill, bot):
+        chatter = payload.chatter
+        if not chatter or not (chatter.moderator or chatter.broadcaster):
+            return
+
+        tenant_slug = skill.channel.twitch_channel_name
+        result = await start_campaign_timer(tenant_slug)
+        if not result or result.get("error"):
+            error = result.get("error", "Unknown error") if result else "No response"
+            await send_reply(
+                payload, f"Failed to start timer: {error}", bot_id=bot.bot_id
+            )
+            return
+
+        await send_reply(payload, "Timer started!", bot_id=bot.bot_id)
+
+
+class PauseTimerHandler(SkillHandler):
+    """!pausetimer — Pause the subathon timer (mod/broadcaster only)."""
+
+    name = "pausetimer"
+
+    async def handle(self, payload, args, skill, bot):
+        chatter = payload.chatter
+        if not chatter or not (chatter.moderator or chatter.broadcaster):
+            return
+
+        tenant_slug = skill.channel.twitch_channel_name
+        result = await pause_campaign_timer(tenant_slug)
+        if not result or result.get("error"):
+            error = result.get("error", "Unknown error") if result else "No response"
+            await send_reply(
+                payload, f"Failed to pause timer: {error}", bot_id=bot.bot_id
+            )
+            return
+
+        await send_reply(payload, "Timer paused!", bot_id=bot.bot_id)
+
+
 register_skill(CampaignHandler())
 register_skill(TimerHandler())
 register_skill(MilestonesHandler())
 register_skill(GiftsHandler())
+register_skill(NextGoalHandler())
+register_skill(ProgressHandler())
+register_skill(StartTimerHandler())
+register_skill(PauseTimerHandler())
