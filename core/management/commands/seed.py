@@ -137,6 +137,11 @@ class Command(BaseCommand):
         if avalonstar_channel:
             self._seed_avalonstar_commands(avalonstar_channel)
 
+        # --- Seed Spoonee-only skills ---
+
+        if spoonee_channel:
+            self._seed_spoonee_skills(spoonee_channel)
+
         # --- Seed skills for all active channels ---
 
         self._seed_skills()
@@ -435,6 +440,52 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f"    {status} alias: !{alias.name} \u2192 !{alias.target}"
+                )
+            )
+
+    def _seed_spoonee_skills(self, channel):
+        """Seed Spoonee-only skills and clean up replaced commands."""
+        # Delete old lottery command replaced by the skill
+        deleted, _ = BotCommand.objects.filter(
+            channel=channel, name="lizardroulette"
+        ).delete()
+        if deleted:
+            self.stdout.write(
+                self.style.WARNING(
+                    "    Deleted old !lizardroulette command (now a skill)"
+                )
+            )
+
+        spoonee_skills = [
+            {
+                "name": "lizardroulette",
+                "config": {
+                    "odds": 16,
+                    "success": "*click* You survived $(user). Congrats, have some serotonin. bardLizard",
+                    "failure": "You lose $(user). Reach for the sky. 3, 2, 1... LizardWithAGun",
+                    "timeout_failed": "*shot*... bardLizard... I see you came prepared.",
+                    "timeout_duration": 600,
+                    "timeout_delay": 3,
+                    "cooldown": 300,
+                },
+            },
+        ]
+
+        for skill_data in spoonee_skills:
+            skill, created = Skill.objects.get_or_create(
+                channel=channel,
+                name=skill_data["name"],
+                defaults={
+                    "enabled": True,
+                    "config": skill_data["config"],
+                },
+            )
+
+            status = "Created" if created else "Exists"
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"    {status} skill: !{skill.name}"
+                    f" in #{channel.twitch_channel_name}"
                 )
             )
 

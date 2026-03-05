@@ -14,6 +14,7 @@ from bot.skills import SkillHandler
 from bot.skills import discover_skills
 from bot.skills.followcheck import FollowCheckHandler
 from bot.skills.followcheck import format_timesince
+from bot.skills.lizardroulette import LizardRouletteHandler
 from tests.conftest import MockBroadcaster
 from tests.conftest import MockChatter
 from tests.conftest import MockPayload
@@ -993,3 +994,306 @@ class TestFollowCheckHandler:
         assert "channels/followers" in call_args[0][2]
         assert call_args[1]["params"]["broadcaster_id"] == "99999"
         assert call_args[1]["params"]["user_id"] == "12345"
+
+
+# --- LizardRouletteHandler tests ---
+
+
+@pytest.mark.django_db(transaction=True)
+class TestLizardRouletteHandler:
+    def setup_method(self):
+        """Clear singleton handler cooldowns between tests."""
+        discover_skills()
+        SKILL_REGISTRY["lizardroulette"]._cooldowns.clear()
+
+    def test_discover_skills_registers_lizardroulette(self):
+        discover_skills()
+        assert "lizardroulette" in SKILL_REGISTRY
+        assert isinstance(
+            SKILL_REGISTRY["lizardroulette"], LizardRouletteHandler
+        )
+
+    async def test_win_sends_success_message(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 0,
+                "success": "you survived $(user), congrats!",
+                "failure": "you lose $(user)!",
+                "cooldown": 0,
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+        ) as mock_twitch:
+            await router.event_message(payload)
+            mock_twitch.assert_not_called()
+
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "you survived TestUser, congrats!"
+
+    async def test_loss_sends_failure_and_timeouts(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 100,
+                "success": "you survived $(user)!",
+                "failure": "you lose $(user)!",
+                "timeout_duration": 600,
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ) as mock_twitch:
+            await router.event_message(payload)
+
+            # Verify failure message sent
+            payload.broadcaster.send_message.assert_called_once()
+            msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+            assert msg == "you lose TestUser!"
+
+            # Verify timeout API called
+            mock_twitch.assert_called_once()
+            call_args = mock_twitch.call_args
+            assert call_args[0][1] == "POST"
+            assert "moderation/bans" in call_args[0][2]
+            body = call_args[1]["json"]
+            assert body["data"]["user_id"] == "12345"
+            assert body["data"]["duration"] == 600
+            assert body["data"]["reason"] == "lizardroulette"
+
+    async def test_per_user_cooldown_blocks_second_attempt(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 0,
+                "success": "survived!",
+                "cooldown": 300,
+                "cooldown_response": "$(user), wait $(remaining)s!",
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        # First use — succeeds
+        payload1 = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload1)
+        payload1.broadcaster.send_message.assert_called_once()
+        assert (
+            payload1.broadcaster.send_message.call_args.kwargs["message"]
+            == "survived!"
+        )
+
+        # Second use — cooldown
+        payload2 = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload2)
+        payload2.broadcaster.send_message.assert_called_once()
+        response = payload2.broadcaster.send_message.call_args.kwargs[
+            "message"
+        ]
+        assert response.startswith("TestUser, wait ")
+
+    async def test_different_users_have_separate_cooldowns(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 0,
+                "success": "$(user) survived!",
+                "cooldown": 300,
+                "cooldown_response": "Wait!",
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        # User A
+        payload_a = MockPayload(
+            text="!lizardroulette",
+            chatter=MockChatter(
+                name="usera", display_name="UserA", id=111
+            ),
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload_a)
+        payload_a.broadcaster.send_message.assert_called_once()
+        assert (
+            payload_a.broadcaster.send_message.call_args.kwargs["message"]
+            == "UserA survived!"
+        )
+
+        # User B — different user, no cooldown
+        payload_b = MockPayload(
+            text="!lizardroulette",
+            chatter=MockChatter(
+                name="userb", display_name="UserB", id=222
+            ),
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload_b)
+        payload_b.broadcaster.send_message.assert_called_once()
+        assert (
+            payload_b.broadcaster.send_message.call_args.kwargs["message"]
+            == "UserB survived!"
+        )
+
+    async def test_config_values_drive_behavior(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 0,
+                "success": "custom win for $(user)!",
+                "cooldown": 0,
+            },
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        payload.broadcaster.send_message.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "custom win for TestUser!"
+
+    async def test_timeout_failed_sends_fallback_message(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 100,
+                "failure": "you lose $(user)!",
+                "timeout_failed": "...the gun jammed. $(user) lives another day.",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 400
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        calls = payload.broadcaster.send_message.call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["message"] == "you lose TestUser!"
+        assert (
+            calls[1].kwargs["message"]
+            == "...the gun jammed. TestUser lives another day."
+        )
