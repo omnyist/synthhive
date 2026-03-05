@@ -6,6 +6,7 @@ import twitchio
 from twitchio import eventsub, web
 from twitchio.ext import commands
 
+from .components.accrual import CurrencyAccrual
 from .components.errors import ErrorHandler
 from .components.management import ManagementCommands
 from .router import CommandRouter
@@ -73,6 +74,7 @@ class BotClient(commands.Bot):
         await self.add_component(ErrorHandler(self))
         await self.add_component(ManagementCommands(self))
         await self.add_component(CommandRouter(self))
+        await self.add_component(CurrencyAccrual(self))
 
         logger.info("[%s] Setup complete.", self.bot_name)
 

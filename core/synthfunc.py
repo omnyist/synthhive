@@ -162,6 +162,20 @@ async def create_quote(
 # --- Wallets ---
 
 
+async def accrue_wallets(
+    tenant_slug: str,
+    chatters: list[dict],
+    amount: str = "1.0",
+    minutes: int = 5,
+) -> dict | None:
+    """Bulk-increment balance and minutes for a list of chatters."""
+    return await _post(
+        "/wallets/accrue",
+        {"chatters": chatters, "amount": amount, "minutes": minutes},
+        tenant_slug=tenant_slug,
+    )
+
+
 async def get_wallet(
     twitch_id: str, tenant_slug: str, username: str | None = None
 ) -> dict | None:
