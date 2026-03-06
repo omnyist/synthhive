@@ -86,7 +86,43 @@ Handler signature: `handle(self, payload, args, skill, bot)` — the `bot` param
 
 | Skill | Handler | Description |
 |---|---|---|
-| `checkme` | `FollowCheckHandler` | Checks if the chatter follows the channel and shows how long they've been following. Uses `twitch_request()` to call Twitch Helix API (`/channels/followers`) with automatic token refresh on 401. Requires `moderator:read:followers` scope on the channel owner token. |
+| `followage` | `FollowCheckHandler` | Checks if the chatter follows the channel and shows how long they've been following. Uses `twitch_request()` to call Twitch Helix API (`/channels/followers`) with automatic token refresh on 401. Requires `moderator:read:followers` scope on the channel owner token. |
+| `lizardroulette` | `LizardRouletteHandler` | Roll odds — lose and get timed out via Twitch Helix `POST /moderation/bans`. Config: `odds` (1-100), `success`/`failure`/`timeout_failed` messages, `timeout_duration`, `timeout_delay`, `cooldown`. Per-user cooldown. Spoonee-only. |
+| `quote` | `QuoteHandler` | Quote CRUD via Synthfunc API. Subcommands: `!quote`, `!quote 42`, `!quote search <text>`, `!quote user <name>`, `!quote add "text" ~ @user`, `!quote latest`, `!quote stats <name>`. `!quote add` auto-records the current game from Twitch Helix. |
+| `wallet` | `WalletHandler` | Check currency balance via Synthfunc wallets. `!wallet` for self, `!wallet @name` for others. Resolves target via `bot.fetch_users()`. |
+| `dungeon` | `DungeonHandler` | Multiplayer dungeon minigame with currency wagering via Synthfunc `POST /transact`. Entry phase (120s default) → level selection by player count → survival rolls → payout to winners. In-memory game state (`_games` dict keyed by broadcaster_id). Global cooldown between runs. Spoonee-only (aliased as `!heist`). |
+| `cute` | `CuteHandler` | Compliment someone. If target matches `config["bot_name"]` (default "elsydeon"), responds with `config["bot_response"]`. Otherwise uses `config["response"]` template with `$(target)` replacement. Avalonstar-only (Elsydeon channel). |
+| `punt` | `PuntHandler` | 1-second self-timeout for disrespecting lalafells. Issues `POST /moderation/bans` with `duration: 1` via `twitch_request()`. Mods and broadcasters are immune (get a "too kawaii" message). Config: `immune`, `success`, `failure` message templates. Avalonstar-only. |
+| `campaign` | `CampaignHandler` | Show active campaign info (subs, resubs, milestones unlocked). Avalonstar-only. |
+| `timer` | `TimerHandler` | Show subathon timer status (remaining time, running/paused). Avalonstar-only. |
+| `milestones` | `MilestonesHandler` | Show milestone progress with `[+]`/`[-]` icons. Avalonstar-only. |
+| `gifts` | `GiftsHandler` | Show top 5 gift sub contributors from Synthfunc leaderboard. Avalonstar-only. |
+| `nextgoal` | `NextGoalHandler` | Show the next milestone to unlock. Avalonstar-only. |
+| `progress` | `ProgressHandler` | Show overall campaign progress percentage, subs, resubs, bits. Avalonstar-only. |
+| `starttimer` | `StartTimerHandler` | Start the subathon timer (mod/broadcaster only). Calls Synthfunc `POST /campaigns/timer/start`. Avalonstar-only. |
+| `pausetimer` | `PauseTimerHandler` | Pause the subathon timer (mod/broadcaster only). Calls Synthfunc `POST /campaigns/timer/pause`. Avalonstar-only. |
+
+#### Dungeon Config Schema
+
+```json
+{
+    "entry_duration": 120,
+    "cooldown": 900,
+    "min_wager": 10,
+    "max_wager": 10000,
+    "currency_name": "spoons",
+    "levels": [
+        {"name": "Cactuar Village", "min_players": 1, "survival_chance": 70, "multiplier": 1.5},
+        {"name": "Tonberry Cove", "min_players": 3, "survival_chance": 60, "multiplier": 1.75},
+        {"name": "Ultros", "min_players": 6, "survival_chance": 50, "multiplier": 2.0},
+        {"name": "Tiamat", "min_players": 12, "survival_chance": 40, "multiplier": 2.25},
+        {"name": "Bahamut", "min_players": 18, "survival_chance": 30, "multiplier": 2.5}
+    ],
+    "messages": { "entry_started": "...", "entry_joined": "...", "..." : "..." }
+}
+```
+
+Game flow: `!dungeon 500` deducts wager → entry phase opens → others join → entry closes → level determined by player count → each player rolls survival chance → winners get `wager × multiplier` credited back, losers forfeit. Solo games have dedicated win/loss messages. Broadcast messages (entry closed, outcomes) use `broadcaster.send_message()` directly; player-specific messages (joined, insufficient funds) use `send_reply()`.
 
 ## Message Processing Pipeline
 
@@ -192,7 +228,6 @@ For importing commands from DeepBot, these map to our system:
 | `countadd` | Counter alias → `count death +` | ✅ Seeded as alias |
 | `addscare` | Counter alias → `count scare +` | ✅ Seeded as alias |
 | `scare` | Counter alias → `count scare` | ✅ Seeded as alias |
-| `caster` | Shoutout command | Needs Twitch API — future skill |
 | `checkme` | Follow check | ✅ Skill handler (`FollowCheckHandler`) |
 | `followcheck` | Follow check | ✅ Seeded as alias → `checkme` |
 | `forreal` | Unknown | Ask Spoonee |
@@ -202,9 +237,13 @@ For importing commands from DeepBot, these map to our system:
 | Command | Description |
 |---|---|
 | `manage.py runbot` | Start all active bot instances |
-| `manage.py seed` | Create initial users, bots, channels, Spoonee's commands, counters, aliases, and skills |
+| `manage.py seed` | Ensure infrastructure records exist (users, bots, channels only). Runs on every deploy. Does NOT touch commands, counters, aliases, or skills. |
 | `manage.py importcommands <json> --channel <name>` | Bulk import commands from JSON. Use `--dry-run` to preview. Sets `created_by` to channel owner name |
 | `manage.py importmoobot <json> --channel <name>` | Import commands from a Moobot export. Use `--dry-run` to preview. Converts variables, creates counters and aliases |
+
+### Content Management
+
+Commands, counters, aliases, and skills are managed directly in the database — either through Django admin or via `docker exec` on Saya. The seed command intentionally does not create or modify these records to avoid overwriting changes made in production.
 
 ### Import JSON Format
 
@@ -214,7 +253,7 @@ For importing commands from DeepBot, these map to our system:
     {"name": "lurk", "response": "/me - $(user) settles in for a cozy lurk.", "mod_only": false}
   ],
   "metadata": {
-    "skipped_skills": ["caster", "checkme"]
+    "skipped_skills": ["checkme"]
   }
 }
 ```
