@@ -9,6 +9,7 @@ from twitchio.ext import commands
 from .components.accrual import CurrencyAccrual
 from .components.ads import AdAnnounce
 from .components.errors import ErrorHandler
+from .components.lizardbullets import LizardBullets
 from .components.management import ManagementCommands
 from .router import CommandRouter
 
@@ -77,6 +78,7 @@ class BotClient(commands.Bot):
         await self.add_component(CommandRouter(self))
         await self.add_component(CurrencyAccrual(self))
         await self.add_component(AdAnnounce(self))
+        await self.add_component(LizardBullets(self))
 
         logger.info("[%s] Setup complete.", self.bot_name)
 

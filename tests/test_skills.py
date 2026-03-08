@@ -1003,9 +1003,10 @@ class TestFollowCheckHandler:
 @pytest.mark.django_db(transaction=True)
 class TestLizardRouletteHandler:
     def setup_method(self):
-        """Clear singleton handler cooldowns between tests."""
+        """Clear singleton handler state between tests."""
         discover_skills()
         SKILL_REGISTRY["lizardroulette"]._cooldowns.clear()
+        SKILL_REGISTRY["lizardroulette"]._bullets.clear()
 
     def test_discover_skills_registers_lizardroulette(self):
         discover_skills()
@@ -1464,6 +1465,239 @@ class TestLizardRouletteHandler:
         await router.event_message(payload_b)
         msg_b = payload_b.broadcaster.send_message.call_args.kwargs["message"]
         assert "survived" in msg_b
+
+
+    async def test_bullets_guarantee_loss(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 0,
+                "success": "survived!",
+                "failure_first": "shot $(user)!",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        handler = SKILL_REGISTRY["lizardroulette"]
+        handler._bullets["99999"] = 1
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "shot TestUser" in msg
+
+    async def test_bullets_decrement_on_use(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 0,
+                "failure_first": "shot!",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        handler = SKILL_REGISTRY["lizardroulette"]
+        handler._bullets["99999"] = 3
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        assert handler._bullets["99999"] == 2
+
+    async def test_bullets_exhausted_resumes_normal_odds(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 0,
+                "success": "survived!",
+                "cooldown": 0,
+            },
+        )
+
+        handler = SKILL_REGISTRY["lizardroulette"]
+        handler._bullets["99999"] = 0
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+        ) as mock_twitch:
+            await router.event_message(payload)
+            mock_twitch.assert_not_called()
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "survived!"
+
+    async def test_bullet_loss_tracks_death(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 0,
+                "failure_first": "shot!",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        handler = SKILL_REGISTRY["lizardroulette"]
+        handler._bullets["99999"] = 1
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        stat = SkillStat.objects.get(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+        )
+        assert stat.stats["deaths"] == 1
+
+
+# --- LizardBullets component tests ---
+
+
+class TestLizardBulletsComponent:
+    def setup_method(self):
+        discover_skills()
+        SKILL_REGISTRY["lizardroulette"]._bullets.clear()
+
+    def test_tick_loads_gun_on_hit(self):
+        from bot.components.lizardbullets import LizardBullets
+
+        mock_bot = MagicMock()
+        mock_bot._channel_map = {
+            "spoonee": {
+                "name": "spoonee",
+                "twitch_channel_id": "78238052",
+            }
+        }
+
+        component = LizardBullets(mock_bot)
+
+        with patch("bot.components.lizardbullets.random.randint", return_value=1):
+            component._tick_channel(mock_bot._channel_map["spoonee"])
+
+        handler = SKILL_REGISTRY["lizardroulette"]
+        assert handler._bullets["78238052"] == 6
+
+    def test_tick_no_load_on_miss(self):
+        from bot.components.lizardbullets import LizardBullets
+
+        mock_bot = MagicMock()
+        mock_bot._channel_map = {
+            "spoonee": {
+                "name": "spoonee",
+                "twitch_channel_id": "78238052",
+            }
+        }
+
+        component = LizardBullets(mock_bot)
+
+        with patch("bot.components.lizardbullets.random.randint", return_value=2):
+            component._tick_channel(mock_bot._channel_map["spoonee"])
+
+        handler = SKILL_REGISTRY["lizardroulette"]
+        assert handler._bullets.get("78238052", 0) == 0
 
 
 class TestOrdinal:

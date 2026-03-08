@@ -88,7 +88,7 @@ Handler signature: `handle(self, payload, args, skill, bot)` — the `bot` param
 | Skill | Handler | Description |
 |---|---|---|
 | `followage` | `FollowCheckHandler` | Checks if the chatter follows the channel and shows how long they've been following. Uses `twitch_request()` to call Twitch Helix API (`/channels/followers`) with automatic token refresh on 401. Requires `moderator:read:followers` scope on the channel owner token. |
-| `lizardroulette` | `LizardRouletteHandler` | Roll odds — lose and get timed out via Twitch Helix `POST /moderation/bans`. Tracks per-user death count via `SkillStat` model; `$(deaths)` in failure message becomes ordinal (1st, 2nd, 14th). Config: `odds` (1-100), `success`/`failure`/`timeout_failed` messages, `timeout_duration`, `timeout_delay` (default 5s), `cooldown`. Per-user cooldown scoped per-channel. |
+| `lizardroulette` | `LizardRouletteHandler` | Roll odds — lose and get timed out via Twitch Helix `POST /moderation/bans`. Tracks per-user death count via `SkillStat` model; `$(deaths)` in failure message becomes ordinal (1st, 2nd, 14th). **Bullet mechanic**: `LizardBullets` component silently rolls 1/651 every 30s per channel to load a 6-chamber gun — when loaded, next 6 uses are guaranteed losses. Config: `odds` (1-100), `success`/`failure`/`failure_first`/`timeout_failed` messages, `timeout_duration`, `timeout_delay` (default 5s), `cooldown`. Per-user cooldown scoped per-channel. |
 | `quote` | `QuoteHandler` | Quote CRUD via Synthfunc API. Subcommands: `!quote`, `!quote 42`, `!quote search <text>`, `!quote user <name>`, `!quote add "text" ~ @user`, `!quote latest`, `!quote stats <name>`. `!quote add` auto-records the current game from Twitch Helix. |
 | `wallet` | `WalletHandler` | Check currency balance via Synthfunc wallets. `!wallet` for self, `!wallet @name` for others. Resolves target via `bot.fetch_users()`. |
 | `dungeon` | `DungeonHandler` | Multiplayer dungeon minigame with currency wagering via Synthfunc `POST /transact`. Entry phase (120s default) → level selection by player count → survival rolls → payout to winners. In-memory game state (`_games` dict keyed by broadcaster_id). Global cooldown between runs. Spoonee-only (aliased as `!heist`). |
@@ -150,6 +150,7 @@ TwitchIO Components that run background tasks alongside the message pipeline.
 |---|---|---|
 | `CurrencyAccrual` | `bot/components/accrual.py` | Ticks every 5 min while stream is live. Posts to Synthfunc `POST /wallets/accrue`. |
 | `AdAnnounce` | `bot/components/ads.py` | Subscribes to Synthfunc Redis pub/sub (`events:{slug}:ads`). Announces ad warnings, running, ended, enabled, disabled events in chat. Warning intervals configurable per-channel via skill config (`warning_intervals`, default `[60, 5]`). Messages customizable via `config["messages"]`. Uses `create_partialuser()` to send messages without a chat payload. |
+| `LizardBullets` | `bot/components/lizardbullets.py` | Ticks every 30s. Rolls 1/651 per channel per tick to silently load a 6-chamber gun. When loaded, next 6 `!lizardroulette` uses are guaranteed losses. Writes to `LizardRouletteHandler._bullets` dict (in-memory, resets on restart). |
 
 ## Variable System
 

@@ -30,6 +30,7 @@ class LizardRouletteHandler(SkillHandler):
 
     def __init__(self):
         self._cooldowns: dict[str, float] = {}
+        self._bullets: dict[str, int] = {}
 
     async def handle(self, payload, args, skill, bot):
         chatter = payload.chatter
@@ -70,9 +71,17 @@ class LizardRouletteHandler(SkillHandler):
             logger.warning("No active channel found for broadcaster %s", broadcaster_id)
             return
 
-        # --- Roll ---
-        odds = config.get("odds", 16)
-        if random.randint(1, 100) <= odds:
+        # --- Check for loaded gun ---
+        bullets = self._bullets.get(broadcaster_id, 0)
+        if bullets > 0:
+            self._bullets[broadcaster_id] = bullets - 1
+            is_loss = True
+        else:
+            odds = config.get("odds", 16)
+            is_loss = random.randint(1, 100) <= odds
+
+        # --- Resolve outcome ---
+        if is_loss:
             # Loss — track death
             deaths = await self._update_stat(
                 channel, chatter_id, chatter.name, "deaths"
