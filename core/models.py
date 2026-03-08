@@ -158,6 +158,30 @@ class Counter(models.Model):
         return f"{display}: {self.value} in #{self.channel.twitch_channel_name}"
 
 
+class SkillStat(models.Model):
+    """Per-user stats for a skill in a channel.
+
+    Stores arbitrary stats as JSON (e.g., deaths, survivals, wins).
+    Reusable across any skill that needs per-user tracking.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, related_name="skill_stats"
+    )
+    skill_name = models.CharField(max_length=50)
+    twitch_id = models.CharField(max_length=50)
+    twitch_username = models.CharField(max_length=100, blank=True, default="")
+    stats = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = ["channel", "skill_name", "twitch_id"]
+        ordering = ["skill_name", "twitch_username"]
+
+    def __str__(self):
+        return f"{self.skill_name} stats for {self.twitch_username or self.twitch_id} in #{self.channel.twitch_channel_name}"
+
+
 class Alias(models.Model):
     """A type-agnostic command alias per channel.
 

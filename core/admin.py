@@ -8,6 +8,7 @@ from .models import Channel
 from .models import Command
 from .models import Counter
 from .models import Skill
+from .models import SkillStat
 
 
 class ChannelInline(admin.TabularInline):
@@ -75,6 +76,14 @@ class CounterAdmin(admin.ModelAdmin):
     list_filter = ("channel",)
     search_fields = ("name", "label")
     ordering = ["channel", "name"]
+
+
+@admin.register(SkillStat)
+class SkillStatAdmin(admin.ModelAdmin):
+    list_display = ("skill_name", "twitch_username", "channel", "stats")
+    list_filter = ("channel", "skill_name")
+    search_fields = ("twitch_username", "twitch_id")
+    ordering = ["channel", "skill_name", "twitch_username"]
 
 
 @admin.register(Alias)

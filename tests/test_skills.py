@@ -15,6 +15,7 @@ from bot.skills import discover_skills
 from bot.skills.followcheck import FollowCheckHandler
 from bot.skills.followcheck import format_timesince
 from bot.skills.lizardroulette import LizardRouletteHandler
+from bot.skills.lizardroulette import _ordinal
 from tests.conftest import MockBroadcaster
 from tests.conftest import MockChatter
 from tests.conftest import MockPayload
@@ -1067,6 +1068,7 @@ class TestLizardRouletteHandler:
             config={
                 "odds": 100,
                 "success": "you survived $(user)!",
+                "failure_first": "you lose $(user)!",
                 "failure": "you lose $(user)!",
                 "timeout_duration": 600,
                 "timeout_delay": 0,
@@ -1261,6 +1263,7 @@ class TestLizardRouletteHandler:
             enabled=True,
             config={
                 "odds": 100,
+                "failure_first": "you lose $(user)!",
                 "failure": "you lose $(user)!",
                 "timeout_failed": "...the gun jammed. $(user) lives another day.",
                 "timeout_delay": 0,
@@ -1297,3 +1300,188 @@ class TestLizardRouletteHandler:
             calls[1].kwargs["message"]
             == "...the gun jammed. TestUser lives another day."
         )
+
+    async def test_loss_tracks_death_count(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 100,
+                "failure_first": "first shot for $(user)!",
+                "failure": "shot $(user) for the $(deaths) time!",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        # First death — uses failure_first
+        payload1 = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload1)
+
+        msg1 = payload1.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg1 == "first shot for TestUser!"
+
+        # Second death — uses failure with $(deaths)
+        payload2 = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload2)
+
+        msg2 = payload2.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg2 == "shot TestUser for the 2nd time!"
+
+    async def test_death_count_persists_in_skillstat(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 100,
+                "failure": "shot!",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        stat = SkillStat.objects.get(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+        )
+        assert stat.stats["deaths"] == 1
+        assert stat.twitch_username == "testuser"
+
+    async def test_cross_channel_cooldowns_independent(self, bot):
+        from core.models import Channel
+        from core.models import Skill
+
+        channel_a = Channel.objects.create(
+            bot=bot,
+            twitch_channel_id="11111",
+            twitch_channel_name="channel_a",
+            is_active=True,
+            owner_access_token="fake",
+        )
+        channel_b = Channel.objects.create(
+            bot=bot,
+            twitch_channel_id="22222",
+            twitch_channel_name="channel_b",
+            is_active=True,
+            owner_access_token="fake",
+        )
+
+        for ch in [channel_a, channel_b]:
+            Skill.objects.create(
+                channel=ch,
+                name="lizardroulette",
+                enabled=True,
+                config={
+                    "odds": 0,
+                    "success": "survived in #$(channel)!",
+                    "cooldown": 300,
+                    "cooldown_response": "on cooldown!",
+                },
+            )
+
+        mock_bot = MagicMock()
+        mock_bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(mock_bot)
+
+        # Play in channel A
+        payload_a = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=11111),
+        )
+        await router.event_message(payload_a)
+        msg_a = payload_a.broadcaster.send_message.call_args.kwargs["message"]
+        assert "survived" in msg_a
+
+        # Same user in channel B — should NOT be on cooldown
+        payload_b = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=22222),
+        )
+        await router.event_message(payload_b)
+        msg_b = payload_b.broadcaster.send_message.call_args.kwargs["message"]
+        assert "survived" in msg_b
+
+
+class TestOrdinal:
+    def test_basic_ordinals(self):
+        assert _ordinal(1) == "1st"
+        assert _ordinal(2) == "2nd"
+        assert _ordinal(3) == "3rd"
+        assert _ordinal(4) == "4th"
+
+    def test_teens(self):
+        assert _ordinal(11) == "11th"
+        assert _ordinal(12) == "12th"
+        assert _ordinal(13) == "13th"
+
+    def test_larger_numbers(self):
+        assert _ordinal(21) == "21st"
+        assert _ordinal(22) == "22nd"
+        assert _ordinal(100) == "100th"
+        assert _ordinal(111) == "111th"
+        assert _ordinal(112) == "112th"
+        assert _ordinal(113) == "113th"
