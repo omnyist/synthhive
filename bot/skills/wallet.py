@@ -31,7 +31,7 @@ class WalletHandler(SkillHandler):
             target = args.strip().lstrip("@")
             # Resolve target to Twitch ID
             try:
-                users = await bot.fetch_users(names=[target])
+                users = await bot.fetch_users(logins=[target])
             except Exception:
                 logger.exception("Failed to fetch Twitch user: %s", target)
                 await send_reply(
