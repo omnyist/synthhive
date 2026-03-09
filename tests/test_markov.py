@@ -12,6 +12,7 @@ from bot.skills.markov import MarkovHandler
 from bot.skills.markov import build_chain
 from bot.skills.markov import generate_sentence
 from bot.skills.markov import END
+from bot.skills.markov import SEP
 from bot.skills.markov import START
 from tests.conftest import MockChatter
 from tests.conftest import MockPayload
@@ -22,11 +23,12 @@ class TestBuildChain:
         messages = ["the quick brown fox jumps"]
         chain = build_chain(messages)
 
-        assert START in chain
-        assert "the" in chain[START]
-        assert "quick" in chain["the"]
-        assert "brown" in chain["quick"]
-        assert END in chain["jumps"]
+        assert f"{START}{SEP}the" in chain
+        assert "quick" in chain[f"{START}{SEP}the"]
+        assert f"the{SEP}quick" in chain
+        assert "brown" in chain[f"the{SEP}quick"]
+        assert f"fox{SEP}jumps" in chain
+        assert END in chain[f"fox{SEP}jumps"]
 
     def test_skips_short_messages(self):
         messages = ["hi", "yes no", "this is long enough"]
@@ -47,9 +49,10 @@ class TestBuildChain:
         ]
         chain = build_chain(messages)
 
-        assert "cats" in chain["love"]
-        assert "dogs" in chain["love"]
-        assert len(chain[START]) == 2
+        assert "very" in chain[f"love{SEP}cats"]
+        assert "very" in chain[f"love{SEP}dogs"]
+        key = f"{START}{SEP}I"
+        assert len(chain[key]) == 2
 
 
 class TestGenerateSentence:
