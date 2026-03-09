@@ -55,6 +55,7 @@ def discover_skills() -> None:
     from bot.skills import followcheck  # noqa: F401
     from bot.skills import give  # noqa: F401
     from bot.skills import lizardroulette  # noqa: F401
+    from bot.skills import markov  # noqa: F401
     from bot.skills import punt  # noqa: F401
     from bot.skills import quotes  # noqa: F401
     from bot.skills import wallet  # noqa: F401
