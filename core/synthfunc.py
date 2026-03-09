@@ -212,7 +212,7 @@ async def get_wallet_leaderboard(
 
 
 async def get_chat_messages(
-    tenant_slug: str, limit: int = 10000
+    tenant_slug: str, limit: int = 50000
 ) -> list[str] | None:
     """Fetch chat message texts from Synthfunc for Markov chain building."""
     result = await _get(
