@@ -28,6 +28,105 @@ CHEMICALS = [
     "norepinephrine",
 ]
 
+STREAK_TIERS = [
+    {
+        "min": 1,
+        "max": 2,
+        "openers": [
+            "*click*",
+            "The chamber was empty.",
+            "...nothing happened.",
+        ],
+        "bodies": [
+            "$(user) survives. Have some $(chemical).",
+            "$(user) gets away with it. Enjoy some $(chemical).",
+            "$(user) lives. Here's your $(chemical).",
+        ],
+        "victim_clauses": [
+            "$(victim) wasn't so lucky.",
+            "The lizard's still eating $(victim)...",
+            "$(victim)'s seat is still warm.",
+        ],
+    },
+    {
+        "min": 3,
+        "max": 4,
+        "openers": [
+            "*click* ...again?",
+            "*click* ...seriously?",
+            "The lizard squints.",
+        ],
+        "bodies": [
+            "$(user) at $(streak) in a row. Don't push it.",
+            "$(streak) survivals for $(user). The lizard's patience is thinning.",
+            "$(user) walks away again. That's $(streak).",
+        ],
+        "victim_clauses": [
+            "$(victim) is watching from the shadow realm.",
+            "$(victim) could never.",
+            "$(victim) is seething, in Minecraft.",
+        ],
+    },
+    {
+        "min": 5,
+        "max": 7,
+        "openers": [
+            "*click* ...you're STILL here?",
+            "The lizard is visibly shaking.",
+            "*click* ...impossible.",
+        ],
+        "bodies": [
+            "$(streak) survivals. $(user), the lizard is getting REAL irritated.",
+            "$(user) at $(streak). This can't last.",
+            "$(streak) times, $(user). The lizard remembers every single one.",
+        ],
+        "victim_clauses": [
+            "$(victim) WISHES they had your luck.",
+            "$(victim) is rolling in their grave.",
+            "At least $(victim) had the decency to get shot.",
+        ],
+    },
+    {
+        "min": 8,
+        "max": None,
+        "openers": [
+            "*click* — HOW.",
+            "The lizard throws the gun.",
+            "...this is RIGGED.",
+        ],
+        "bodies": [
+            "$(streak) in a ROW, $(user)?! The lizard is furious, but their face doesn't change.",
+            "$(user) at $(streak). The lizard is getting their revolver checked.",
+            "$(streak). $(user). The lizard will remember this.",
+        ],
+        "victim_clauses": [
+            "$(victim) is filing a complaint.",
+            "$(victim) died so $(user) could live. Disgusting.",
+            "$(victim) is COOKED.",
+        ],
+    },
+]
+
+
+def _get_streak_tier(streak: int) -> dict:
+    """Return the tier dict for the given streak count."""
+    for tier in STREAK_TIERS:
+        if streak >= tier["min"] and (tier["max"] is None or streak <= tier["max"]):
+            return tier
+    return STREAK_TIERS[-1]
+
+
+def _compose_message(tier: dict, has_victim: bool) -> str:
+    """Pick random fragments from a tier and compose them."""
+    opener = random.choice(tier["openers"])
+    body = random.choice(tier["bodies"])
+
+    if has_victim and tier.get("victim_clauses"):
+        victim_clause = random.choice(tier["victim_clauses"])
+        return f"{opener} {body} {victim_clause} bardLizard"
+
+    return f"{opener} {body} bardLizard"
+
 
 def _ordinal(n: int) -> str:
     """Format an integer as an ordinal string (1st, 2nd, 3rd, 14th, etc.)."""
@@ -44,6 +143,7 @@ class LizardRouletteHandler(SkillHandler):
     def __init__(self):
         self._cooldowns: dict[str, float] = {}
         self._bullets: dict[str, int] = {}
+        self._last_victim: dict[str, str] = {}
 
     async def handle(self, payload, args, skill, bot):
         chatter = payload.chatter
@@ -95,10 +195,13 @@ class LizardRouletteHandler(SkillHandler):
 
         # --- Resolve outcome ---
         if is_loss:
-            # Loss — track death
             deaths = await self._update_stat(
                 channel, chatter_id, chatter.name, "deaths"
             )
+            broken_streak = await self._get_stat(channel, chatter_id, "streak")
+            await self._set_stat(channel, chatter_id, chatter.name, "streak", 0)
+            self._last_victim[broadcaster_id] = chatter_name
+
             if deaths == 1:
                 failure = config.get(
                     "failure_first",
@@ -109,8 +212,10 @@ class LizardRouletteHandler(SkillHandler):
                     "failure",
                     "Damnit, for the $(deaths) time, you lose $(user). Reach for the sky. 3, 2, 1... LizardWithAGun",
                 )
-            message = failure.replace("$(user)", chatter_name).replace(
-                "$(deaths)", _ordinal(deaths)
+            message = (
+                failure.replace("$(user)", chatter_name)
+                .replace("$(deaths)", _ordinal(deaths))
+                .replace("$(streak)", str(broken_streak))
             )
             await send_reply(payload, message, bot_id=bot.bot_id)
 
@@ -127,16 +232,49 @@ class LizardRouletteHandler(SkillHandler):
                     msg = timeout_failed.replace("$(user)", chatter_name)
                     await send_reply(payload, msg, bot_id=bot.bot_id)
         else:
-            # Win
-            success = config.get(
-                "success",
-                "*click* You survived $(user). Congrats, have some $(chemical). bardLizard",
+            streak = await self._update_stat(
+                channel, chatter_id, chatter.name, "streak"
             )
+            tier = _get_streak_tier(streak)
+            victim = self._last_victim.get(broadcaster_id, "")
+            message = _compose_message(tier, bool(victim))
             chemical = random.choice(CHEMICALS)
-            message = success.replace("$(user)", chatter_name).replace(
-                "$(chemical)", chemical
+            message = (
+                message.replace("$(user)", chatter_name)
+                .replace("$(chemical)", chemical)
+                .replace("$(streak)", str(streak))
+                .replace("$(victim)", victim)
             )
             await send_reply(payload, message, bot_id=bot.bot_id)
+
+    async def _get_stat(self, channel, twitch_id, stat_key):
+        """Read a stat value, returning 0 if not found."""
+        from core.models import SkillStat
+
+        try:
+            stat = await sync_to_async(SkillStat.objects.get)(
+                channel=channel,
+                skill_name="lizardroulette",
+                twitch_id=twitch_id,
+            )
+            return stat.stats.get(stat_key, 0)
+        except SkillStat.DoesNotExist:
+            return 0
+
+    async def _set_stat(self, channel, twitch_id, username, stat_key, value):
+        """Set a stat to a specific value."""
+        from core.models import SkillStat
+
+        stat, created = await sync_to_async(SkillStat.objects.get_or_create)(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id=twitch_id,
+            defaults={"twitch_username": username, "stats": {stat_key: value}},
+        )
+        if not created:
+            stat.twitch_username = username
+            stat.stats[stat_key] = value
+            await sync_to_async(stat.save)(update_fields=["twitch_username", "stats"])
 
     async def _update_stat(self, channel, twitch_id, username, stat_key):
         """Increment a stat and return the new value."""

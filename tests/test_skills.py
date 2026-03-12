@@ -1007,6 +1007,7 @@ class TestLizardRouletteHandler:
         discover_skills()
         SKILL_REGISTRY["lizardroulette"]._cooldowns.clear()
         SKILL_REGISTRY["lizardroulette"]._bullets.clear()
+        SKILL_REGISTRY["lizardroulette"]._last_victim.clear()
 
     def test_discover_skills_registers_lizardroulette(self):
         discover_skills()
@@ -1027,8 +1028,6 @@ class TestLizardRouletteHandler:
             enabled=True,
             config={
                 "odds": 0,
-                "success": "you survived $(user), congrats!",
-                "failure": "you lose $(user)!",
                 "cooldown": 0,
             },
         )
@@ -1054,7 +1053,8 @@ class TestLizardRouletteHandler:
 
         payload.broadcaster.send_message.assert_called_once()
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
-        assert msg == "you survived TestUser, congrats!"
+        assert "TestUser" in msg
+        assert "bardLizard" in msg
 
     async def test_loss_sends_failure_and_timeouts(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1126,7 +1126,6 @@ class TestLizardRouletteHandler:
             enabled=True,
             config={
                 "odds": 0,
-                "success": "survived!",
                 "cooldown": 300,
                 "cooldown_response": "$(user), wait $(remaining)s!",
             },
@@ -1146,10 +1145,9 @@ class TestLizardRouletteHandler:
         )
         await router.event_message(payload1)
         payload1.broadcaster.send_message.assert_called_once()
-        assert (
-            payload1.broadcaster.send_message.call_args.kwargs["message"]
-            == "survived!"
-        )
+        msg = payload1.broadcaster.send_message.call_args.kwargs["message"]
+        assert "TestUser" in msg
+        assert "bardLizard" in msg
 
         # Second use — cooldown
         payload2 = MockPayload(
@@ -1175,7 +1173,6 @@ class TestLizardRouletteHandler:
             enabled=True,
             config={
                 "odds": 0,
-                "success": "$(user) survived!",
                 "cooldown": 300,
                 "cooldown_response": "Wait!",
             },
@@ -1198,10 +1195,8 @@ class TestLizardRouletteHandler:
         )
         await router.event_message(payload_a)
         payload_a.broadcaster.send_message.assert_called_once()
-        assert (
-            payload_a.broadcaster.send_message.call_args.kwargs["message"]
-            == "UserA survived!"
-        )
+        msg_a = payload_a.broadcaster.send_message.call_args.kwargs["message"]
+        assert "UserA" in msg_a
 
         # User B — different user, no cooldown
         payload_b = MockPayload(
@@ -1213,10 +1208,8 @@ class TestLizardRouletteHandler:
         )
         await router.event_message(payload_b)
         payload_b.broadcaster.send_message.assert_called_once()
-        assert (
-            payload_b.broadcaster.send_message.call_args.kwargs["message"]
-            == "UserB survived!"
-        )
+        msg_b = payload_b.broadcaster.send_message.call_args.kwargs["message"]
+        assert "UserB" in msg_b
 
     async def test_config_values_drive_behavior(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1230,7 +1223,6 @@ class TestLizardRouletteHandler:
             enabled=True,
             config={
                 "odds": 0,
-                "success": "custom win for $(user)!",
                 "cooldown": 0,
             },
         )
@@ -1250,7 +1242,8 @@ class TestLizardRouletteHandler:
 
         payload.broadcaster.send_message.assert_called_once()
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
-        assert msg == "custom win for TestUser!"
+        assert "TestUser" in msg
+        assert "bardLizard" in msg
 
     async def test_timeout_failed_sends_fallback_message(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1435,7 +1428,6 @@ class TestLizardRouletteHandler:
                 enabled=True,
                 config={
                     "odds": 0,
-                    "success": "survived in #$(channel)!",
                     "cooldown": 300,
                     "cooldown_response": "on cooldown!",
                 },
@@ -1455,7 +1447,8 @@ class TestLizardRouletteHandler:
         )
         await router.event_message(payload_a)
         msg_a = payload_a.broadcaster.send_message.call_args.kwargs["message"]
-        assert "survived" in msg_a
+        assert "TestUser" in msg_a
+        assert "bardLizard" in msg_a
 
         # Same user in channel B — should NOT be on cooldown
         payload_b = MockPayload(
@@ -1464,7 +1457,8 @@ class TestLizardRouletteHandler:
         )
         await router.event_message(payload_b)
         msg_b = payload_b.broadcaster.send_message.call_args.kwargs["message"]
-        assert "survived" in msg_b
+        assert "TestUser" in msg_b
+        assert "bardLizard" in msg_b
 
 
     async def test_bullets_guarantee_loss(self, channel):
@@ -1571,7 +1565,6 @@ class TestLizardRouletteHandler:
             enabled=True,
             config={
                 "odds": 0,
-                "success": "survived!",
                 "cooldown": 0,
             },
         )
@@ -1599,7 +1592,7 @@ class TestLizardRouletteHandler:
             mock_twitch.assert_not_called()
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
-        assert msg == "survived!"
+        assert "TestUser" in msg
 
     async def test_bullet_loss_tracks_death(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1651,6 +1644,358 @@ class TestLizardRouletteHandler:
             twitch_id="12345",
         )
         assert stat.stats["deaths"] == 1
+
+    async def test_win_increments_streak(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        for _ in range(3):
+            payload = MockPayload(
+                text="!lizardroulette",
+                broadcaster=MockBroadcaster(id=99999),
+            )
+            await router.event_message(payload)
+
+        stat = SkillStat.objects.get(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+        )
+        assert stat.stats["streak"] == 3
+
+    async def test_death_resets_streak(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 100,
+                "failure_first": "shot!",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+            twitch_username="testuser",
+            stats={"streak": 5, "deaths": 0},
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        stat = SkillStat.objects.get(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+        )
+        assert stat.stats["streak"] == 0
+        assert stat.stats["deaths"] == 1
+
+    async def test_broken_streak_in_failure_message(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 100,
+                "failure": "$(user) dies, breaking $(streak)!",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+            twitch_username="testuser",
+            stats={"streak": 7, "deaths": 1},
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert msg == "TestUser dies, breaking 7!"
+
+    async def test_streak_tiers_escalate(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+            twitch_username="testuser",
+            stats={"streak": 4},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "5" in msg
+        assert "bardLizard" in msg
+
+    async def test_death_sets_last_victim(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 100,
+                "failure_first": "shot!",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            chatter=MockChatter(
+                name="victim_user", display_name="VictimUser", id=55555
+            ),
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        handler = SKILL_REGISTRY["lizardroulette"]
+        assert handler._last_victim["99999"] == "VictimUser"
+
+    async def test_victim_in_success_message(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        handler = SKILL_REGISTRY["lizardroulette"]
+        handler._last_victim["99999"] = "UnluckyPerson"
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "UnluckyPerson" in msg
+
+    async def test_no_victim_omits_clause(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "$(victim)" not in msg
+        assert "TestUser" in msg
+
+
+# --- Streak tier and composition tests ---
+
+
+class TestGetStreakTier:
+    def test_tier_1(self):
+        from bot.skills.lizardroulette import _get_streak_tier
+
+        tier = _get_streak_tier(1)
+        assert tier["min"] == 1
+        assert tier["max"] == 2
+
+    def test_tier_2(self):
+        from bot.skills.lizardroulette import _get_streak_tier
+
+        tier = _get_streak_tier(3)
+        assert tier["min"] == 3
+        assert tier["max"] == 4
+
+    def test_tier_3(self):
+        from bot.skills.lizardroulette import _get_streak_tier
+
+        tier = _get_streak_tier(5)
+        assert tier["min"] == 5
+        assert tier["max"] == 7
+
+    def test_tier_4(self):
+        from bot.skills.lizardroulette import _get_streak_tier
+
+        tier = _get_streak_tier(10)
+        assert tier["min"] == 8
+        assert tier["max"] is None
+
+    def test_high_streak_stays_tier_4(self):
+        from bot.skills.lizardroulette import _get_streak_tier
+
+        tier = _get_streak_tier(100)
+        assert tier["min"] == 8
+
+
+class TestComposeMessage:
+    def test_without_victim(self):
+        from bot.skills.lizardroulette import _compose_message
+
+        tier = {
+            "openers": ["OPEN"],
+            "bodies": ["BODY"],
+            "victim_clauses": ["VICTIM"],
+        }
+        msg = _compose_message(tier, has_victim=False)
+        assert msg == "OPEN BODY bardLizard"
+        assert "VICTIM" not in msg
+
+    def test_with_victim(self):
+        from bot.skills.lizardroulette import _compose_message
+
+        tier = {
+            "openers": ["OPEN"],
+            "bodies": ["BODY"],
+            "victim_clauses": ["VICTIM"],
+        }
+        msg = _compose_message(tier, has_victim=True)
+        assert msg == "OPEN BODY VICTIM bardLizard"
 
 
 # --- LizardBullets component tests ---
