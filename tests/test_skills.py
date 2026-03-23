@@ -2201,3 +2201,94 @@ class TestOrdinal:
         assert _ordinal(111) == "111th"
         assert _ordinal(112) == "112th"
         assert _ordinal(113) == "113th"
+
+
+# --- Victims skill tests ---
+
+
+@pytest.mark.django_db(transaction=True)
+class TestVictimsHandler:
+    def setup_method(self):
+        discover_skills()
+        handler = SKILL_REGISTRY.get("victims")
+        if handler:
+            handler._cooldowns = {}
+
+    async def test_no_victims_shows_empty_message(self, channel):
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="victims",
+            enabled=True,
+            config={},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!victims",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "no victims" in msg.lower()
+
+    async def test_shows_leaderboard(self, channel):
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="victims",
+            enabled=True,
+            config={},
+        )
+
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="111",
+            twitch_username="playerone",
+            stats={"deaths": 50, "streak": 0},
+        )
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="222",
+            twitch_username="playertwo",
+            stats={"deaths": 30, "streak": 2},
+        )
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="333",
+            twitch_username="playerthree",
+            stats={"deaths": 0, "streak": 5},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!victims",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "digging graves" in msg
+        assert "playerone" in msg
+        assert "playertwo" in msg
+        assert "playerthree" not in msg
+        assert msg.index("playerone") < msg.index("playertwo")
