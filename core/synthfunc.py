@@ -20,9 +20,33 @@ from django.conf import settings
 
 logger = logging.getLogger("bot")
 
+# Tracks whether Synthfunc is unreachable to suppress log spam.
+# First failure logs a warning; subsequent failures are silent until recovery.
+_synthfunc_down: bool = False
+
 
 def _headers() -> dict[str, str]:
     return {"X-API-Key": settings.SYNTHFUNC_API_KEY}
+
+
+def _mark_recovered() -> None:
+    """Log recovery if Synthfunc was previously unreachable."""
+    global _synthfunc_down
+    if _synthfunc_down:
+        logger.info("Synthfunc connection recovered")
+        _synthfunc_down = False
+
+
+def _mark_down(exc: Exception, url_path: str) -> None:
+    """Log first network failure, suppress subsequent."""
+    global _synthfunc_down
+    if not _synthfunc_down:
+        logger.warning(
+            "Synthfunc unreachable (%s) for %s — suppressing until recovery",
+            type(exc).__name__,
+            url_path,
+        )
+        _synthfunc_down = True
 
 
 async def _get(
@@ -41,6 +65,8 @@ async def _get(
                 timeout=10.0,
             )
 
+        _mark_recovered()
+
         if response.status_code == 404:
             return None
 
@@ -54,6 +80,10 @@ async def _get(
             return None
 
         return response.json()
+
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        _mark_down(exc, url_path)
+        return None
 
     except httpx.HTTPError:
         logger.exception("HTTP error during Synthfunc GET %s", url_path)
@@ -74,6 +104,8 @@ async def _post(
                 timeout=10.0,
             )
 
+        _mark_recovered()
+
         if response.status_code not in (200, 201):
             logger.error(
                 "Synthfunc POST %s failed: %s %s",
@@ -84,6 +116,10 @@ async def _post(
             return None
 
         return response.json()
+
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        _mark_down(exc, url_path)
+        return None
 
     except httpx.HTTPError:
         logger.exception("HTTP error during Synthfunc POST %s", url_path)

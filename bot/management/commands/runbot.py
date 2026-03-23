@@ -105,7 +105,10 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"Starting {len(bot_instances)} bot(s)...")
         )
 
-        tasks = [asyncio.create_task(bot.start()) for bot in bot_instances]
+        tasks = [
+            asyncio.create_task(self._run_bot(bot))
+            for bot in bot_instances
+        ]
 
         try:
             await asyncio.gather(*tasks)
@@ -114,3 +117,23 @@ class Command(BaseCommand):
             for task in tasks:
                 task.cancel()
             raise
+
+    async def _run_bot(self, client):
+        """Run a single bot with automatic restart on crash."""
+        backoff = 5
+        max_backoff = 300
+
+        while True:
+            try:
+                await client.start()
+                break
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception(
+                    "[%s] Bot crashed, restarting in %ds...",
+                    client.bot_name,
+                    backoff,
+                )
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)

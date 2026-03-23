@@ -9,6 +9,10 @@ logger = logging.getLogger("bot")
 
 TWITCH_API_BASE = "https://api.twitch.tv/helix"
 
+# Tracks channels with active network errors to suppress log spam.
+# First failure logs a warning; subsequent failures are silent until recovery.
+_network_errors: set[str] = set()
+
 
 async def twitch_request(
     channel,
@@ -45,6 +49,11 @@ async def twitch_request(
         async with httpx.AsyncClient() as client:
             response = await client.request(method, url, **kwargs)
 
+        key = channel.twitch_channel_name
+        if key in _network_errors:
+            logger.info("Twitch API recovered for #%s", key)
+            _network_errors.discard(key)
+
         if response.status_code != 401:
             return response
 
@@ -72,6 +81,17 @@ async def twitch_request(
 
         async with httpx.AsyncClient() as client:
             return await client.request(method, url, **kwargs)
+
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        key = channel.twitch_channel_name
+        if key not in _network_errors:
+            logger.warning(
+                "Twitch API unreachable for #%s (%s) — suppressing until recovery",
+                key,
+                type(exc).__name__,
+            )
+            _network_errors.add(key)
+        return None
 
     except httpx.HTTPError:
         logger.exception(
