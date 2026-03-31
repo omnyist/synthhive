@@ -9,8 +9,6 @@ import pytest
 
 from bot.components.ads import AdAnnounce
 from bot.components.ads import DEFAULT_MESSAGES
-from bot.components.ads import DEFAULT_WARNING_INTERVALS
-from bot.components.ads import WARNING_TOLERANCE
 from bot.skills import SKILL_REGISTRY
 from bot.skills import discover_skills
 from bot.skills.ads import AdsHandler
@@ -238,35 +236,23 @@ class TestAdAnnounceComponent:
         msg = broadcaster.send_message.call_args.kwargs["message"]
         assert "5" in msg
 
-    async def test_warning_ignored_at_30_seconds(self, component, skill, mock_bot):
-        """Default intervals are [60, 5], so 30s should be ignored."""
-        raw = self._make_event("ads:warning", {"seconds": 30})
-        await component._handle_event(b"events:testchannel:ads", raw)
-
-        mock_bot.create_partialuser.return_value.send_message.assert_not_called()
-
-    async def test_warning_tolerance(self, component, skill, mock_bot):
-        """Warning at 62s should still match the 60s interval (within ±5s)."""
-        raw = self._make_event("ads:warning", {"seconds": 62})
+    async def test_warning_always_announced(self, component, skill, mock_bot):
+        """Any seconds value is announced — no tolerance filtering."""
+        raw = self._make_event("ads:warning", {"seconds": 42})
         await component._handle_event(b"events:testchannel:ads", raw)
 
         broadcaster = mock_bot.create_partialuser.return_value
-        broadcaster.send_message.assert_called_once()
+        msg = broadcaster.send_message.call_args.kwargs["message"]
+        assert "42" in msg
 
-    async def test_warning_outside_tolerance(self, component, skill, mock_bot):
-        """Warning at 50s should not match any default interval."""
-        raw = self._make_event("ads:warning", {"seconds": 50})
-        await component._handle_event(b"events:testchannel:ads", raw)
-
-        mock_bot.create_partialuser.return_value.send_message.assert_not_called()
-
-    async def test_custom_warning_intervals(self, component, mock_bot, make_skill):
-        make_skill(name="ads", config={"warning_intervals": [30, 10]})
-        raw = self._make_event("ads:warning", {"seconds": 30})
+    async def test_handle_error_event(self, component, skill, mock_bot):
+        """ads:error events surface the failure in chat."""
+        raw = self._make_event("ads:error", {"error": "HelixService returned empty result"})
         await component._handle_event(b"events:testchannel:ads", raw)
 
         broadcaster = mock_bot.create_partialuser.return_value
-        broadcaster.send_message.assert_called_once()
+        msg = broadcaster.send_message.call_args.kwargs["message"]
+        assert "HelixService returned empty result" in msg
 
     async def test_custom_messages(self, component, mock_bot, make_skill):
         make_skill(

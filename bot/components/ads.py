@@ -30,10 +30,6 @@ DEFAULT_MESSAGES = {
     "disabled": "Ad rotation disabled.",
 }
 
-DEFAULT_WARNING_INTERVALS = [60, 5]
-WARNING_TOLERANCE = 5
-
-
 class AdAnnounce(commands.Component):
     """Subscribes to Synthfunc ad events via Redis and announces in chat."""
 
@@ -140,6 +136,9 @@ class AdAnnounce(commands.Component):
         elif event_type == "ads:disabled":
             msg = messages.get("disabled", DEFAULT_MESSAGES["disabled"])
             await self._send_chat(broadcaster_id, msg)
+        elif event_type == "ads:error":
+            error = data.get("error", "Unknown error")
+            await self._send_chat(broadcaster_id, f"Ad failed to run: {error}")
 
     async def _handle_warning(
         self,
@@ -148,18 +147,11 @@ class AdAnnounce(commands.Component):
         messages: dict,
         config: dict,
     ) -> None:
-        """Announce warnings only at configured second thresholds."""
+        """Announce the warning. Synthfunc publishes exactly once per cycle."""
         seconds = data.get("seconds", 0)
-        intervals = config.get(
-            "warning_intervals", DEFAULT_WARNING_INTERVALS
-        )
-
-        for interval in intervals:
-            if abs(seconds - interval) <= WARNING_TOLERANCE:
-                msg = messages.get("warning", DEFAULT_MESSAGES["warning"])
-                msg = msg.replace("$(seconds)", str(seconds))
-                await self._send_chat(broadcaster_id, msg)
-                return
+        msg = messages.get("warning", DEFAULT_MESSAGES["warning"])
+        msg = msg.replace("$(seconds)", str(seconds))
+        await self._send_chat(broadcaster_id, msg)
 
     async def _send_chat(self, broadcaster_id: str, message: str) -> None:
         """Send a chat message to a channel."""
