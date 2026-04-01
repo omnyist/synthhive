@@ -19,6 +19,7 @@ CHANNEL_SCOPES = [
     "moderator:read:followers",
     # EventSub (used by Synthfunc for event ingestion)
     "bits:read",
+    "channel:edit:commercial",
     "channel:read:ads",
     "channel:read:charity",
     "channel:read:goals",
