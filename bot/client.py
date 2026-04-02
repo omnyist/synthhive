@@ -122,6 +122,11 @@ class BotClient(commands.Bot):
                     if not missing:
                         continue
 
+                    # Close dead websockets (0 subscriptions) so
+                    # subscribe_websocket creates a fresh connection
+                    # instead of reusing the stale session.
+                    await self._close_dead_websockets()
+
                     for channel_info in self._channel_map.values():
                         bid = channel_info["twitch_channel_id"]
                         if bid not in missing:
@@ -153,3 +158,21 @@ class BotClient(commands.Bot):
 
         except asyncio.CancelledError:
             pass
+
+    async def _close_dead_websockets(self) -> None:
+        """Close websockets that lost all their subscriptions."""
+        for token_for, sockets in list(self._websockets.items()):
+            for session_id, ws in list(sockets.items()):
+                if ws.subscription_count == 0:
+                    logger.info(
+                        "[%s] Closing dead websocket session %s",
+                        self.bot_name,
+                        session_id,
+                    )
+                    try:
+                        await ws.close()
+                    except Exception:
+                        pass
+                    sockets.pop(session_id, None)
+            if not sockets:
+                self._websockets.pop(token_for, None)
