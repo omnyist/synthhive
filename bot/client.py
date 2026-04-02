@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import twitchio
-from twitchio import eventsub, web
+from twitchio import eventsub
+from twitchio import web
 from twitchio.ext import commands
 
 from .components.accrual import CurrencyAccrual
@@ -80,7 +82,74 @@ class BotClient(commands.Bot):
         await self.add_component(AdAnnounce(self))
         await self.add_component(LizardBullets(self))
 
+        self._health_task = asyncio.create_task(
+            self._subscription_health_check()
+        )
+
         logger.info("[%s] Setup complete.", self.bot_name)
 
     async def event_ready(self) -> None:
         logger.info("[%s] Bot is ready (ID: %s).", self.bot_name, self.bot_id)
+
+    async def _subscription_health_check(self) -> None:
+        """Periodically verify EventSub subscriptions and re-create missing ones.
+
+        TwitchIO silently drops subscriptions that fail to resubscribe after
+        a WebSocket reconnect. This task detects the loss and re-subscribes.
+        """
+        try:
+            await asyncio.sleep(30)
+
+            while True:
+                await asyncio.sleep(60)
+
+                try:
+                    active_channels: set[str] = set()
+                    for sockets in self._websockets.values():
+                        for ws in sockets.values():
+                            for sub_data in ws._subscriptions.values():
+                                condition = sub_data.get("condition", {})
+                                bid = condition.get("broadcaster_user_id")
+                                if bid:
+                                    active_channels.add(bid)
+
+                    expected = {
+                        info["twitch_channel_id"]
+                        for info in self._channel_map.values()
+                    }
+                    missing = expected - active_channels
+
+                    if not missing:
+                        continue
+
+                    for channel_info in self._channel_map.values():
+                        bid = channel_info["twitch_channel_id"]
+                        if bid not in missing:
+                            continue
+
+                        payload = eventsub.ChatMessageSubscription(
+                            broadcaster_user_id=bid,
+                            user_id=self.bot_id,
+                        )
+                        try:
+                            await self.subscribe_websocket(payload=payload)
+                            logger.info(
+                                "[%s] Re-subscribed to chat in #%s",
+                                self.bot_name,
+                                channel_info["name"],
+                            )
+                        except Exception:
+                            logger.exception(
+                                "[%s] Failed to re-subscribe to #%s",
+                                self.bot_name,
+                                channel_info["name"],
+                            )
+
+                except Exception:
+                    logger.exception(
+                        "[%s] Subscription health check error",
+                        self.bot_name,
+                    )
+
+        except asyncio.CancelledError:
+            pass
