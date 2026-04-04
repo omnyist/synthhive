@@ -44,6 +44,7 @@ def twitch_login(request: HttpRequest) -> HttpResponse:
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": " ".join(CHANNEL_SCOPES),
+        "force_verify": "true",
         "state": state,
     }
 

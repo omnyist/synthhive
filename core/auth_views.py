@@ -78,6 +78,7 @@ def twitch_connect(request: HttpRequest) -> HttpResponse:
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": " ".join(scopes),
+        "force_verify": "true",
         "state": state,
     }
 
