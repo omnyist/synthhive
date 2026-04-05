@@ -26,8 +26,8 @@ DEFAULT_MESSAGES = {
         "The ad block has completed. "
         "You may now return to your irregularly scheduled programming."
     ),
-    "enabled": "Ad rotation enabled.",
-    "disabled": "Ad rotation disabled.",
+    "enabled": "Ads have been enabled.",
+    "disabled": "Ads have been disabled.",
 }
 
 class AdAnnounce(commands.Component):
