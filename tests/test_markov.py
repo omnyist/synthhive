@@ -116,14 +116,14 @@ class TestMarkovHandler:
         return MarkovHandler()
 
     @pytest.mark.asyncio
-    @patch("bot.skills.markov.aioredis")
-    async def test_generate_from_cache(self, mock_aioredis, handler):
+    @patch("bot.skills.markov._get_redis")
+    async def test_generate_from_cache(self, mock_get_redis, handler):
         import json
 
         chain = build_chain(["the quick brown fox jumps over the lazy dog today"])
         mock_client = AsyncMock()
         mock_client.get.return_value = json.dumps(chain).encode()
-        mock_aioredis.from_url.return_value = mock_client
+        mock_get_redis.return_value = mock_client
 
         payload = MockPayload(text="!markov")
         await handler.handle(payload, "", _mock_skill(), _mock_bot())
@@ -132,14 +132,14 @@ class TestMarkovHandler:
         assert len(msg) > 0
 
     @pytest.mark.asyncio
-    @patch("bot.skills.markov.aioredis")
+    @patch("bot.skills.markov._get_redis")
     @patch("bot.skills.markov.get_chat_messages")
     async def test_builds_on_cache_miss(
-        self, mock_messages, mock_aioredis, handler
+        self, mock_messages, mock_get_redis, handler
     ):
         mock_client = AsyncMock()
         mock_client.get.return_value = None
-        mock_aioredis.from_url.return_value = mock_client
+        mock_get_redis.return_value = mock_client
 
         mock_messages.return_value = [
             "the quick brown fox jumps over the lazy dog today",
@@ -155,13 +155,13 @@ class TestMarkovHandler:
         assert len(msg) > 0
 
     @pytest.mark.asyncio
-    @patch("bot.skills.markov.aioredis")
+    @patch("bot.skills.markov._get_redis")
     @patch("bot.skills.markov.get_chat_messages")
     async def test_rebuild_subcommand_mod_only(
-        self, mock_messages, mock_aioredis, handler
+        self, mock_messages, mock_get_redis, handler
     ):
         mock_client = AsyncMock()
-        mock_aioredis.from_url.return_value = mock_client
+        mock_get_redis.return_value = mock_client
 
         mock_messages.return_value = [
             "hello world this is a test chat message",
@@ -188,14 +188,14 @@ class TestMarkovHandler:
         payload.broadcaster.send_message.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("bot.skills.markov.aioredis")
+    @patch("bot.skills.markov._get_redis")
     @patch("bot.skills.markov.get_chat_messages")
     async def test_no_data_shows_message(
-        self, mock_messages, mock_aioredis, handler
+        self, mock_messages, mock_get_redis, handler
     ):
         mock_client = AsyncMock()
         mock_client.get.return_value = None
-        mock_aioredis.from_url.return_value = mock_client
+        mock_get_redis.return_value = mock_client
 
         mock_messages.return_value = None
 

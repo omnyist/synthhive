@@ -23,6 +23,16 @@ START = "\x02"
 END = "\x03"
 SEP = "\x00"
 
+_redis: aioredis.Redis | None = None
+
+
+def _get_redis() -> aioredis.Redis:
+    """Return a shared Redis client, creating it on first use."""
+    global _redis
+    if _redis is None:
+        _redis = aioredis.from_url(settings.REDIS_URL)
+    return _redis
+
 
 def build_chain(messages: list[str]) -> dict[str, list[str]]:
     """Build a 2nd-order Markov chain from a list of messages."""
@@ -122,15 +132,11 @@ class MarkovHandler(SkillHandler):
         if not chain:
             return None
 
-        client = aioredis.from_url(settings.REDIS_URL)
-        try:
-            await client.set(
-                f"markov:{tenant_slug}",
-                json.dumps(chain),
-                ex=CACHE_TTL,
-            )
-        finally:
-            await client.close()
+        await _get_redis().set(
+            f"markov:{tenant_slug}",
+            json.dumps(chain),
+            ex=CACHE_TTL,
+        )
 
         logger.info(
             "[Markov] Chain built for %s from %d messages (%d transitions).",
@@ -142,11 +148,7 @@ class MarkovHandler(SkillHandler):
 
     async def _generate(self, tenant_slug: str) -> str | None:
         """Read the cached chain from Redis and generate a sentence."""
-        client = aioredis.from_url(settings.REDIS_URL)
-        try:
-            raw = await client.get(f"markov:{tenant_slug}")
-        finally:
-            await client.close()
+        raw = await _get_redis().get(f"markov:{tenant_slug}")
 
         if raw is None:
             return None
