@@ -313,6 +313,11 @@ class LizardRouletteHandler(SkillHandler):
             streak = await self._update_stat(
                 channel, chatter_id, chatter.name, "streak"
             )
+            max_streak = await self._get_stat(channel, chatter_id, "max_streak")
+            if streak > max_streak:
+                await self._set_stat(
+                    channel, chatter_id, chatter.name, "max_streak", streak
+                )
             tier = _get_tier(STREAK_TIERS, streak)
             victim = self._last_victim.get(broadcaster_id, "")
             is_self_victim = victim == chatter_name

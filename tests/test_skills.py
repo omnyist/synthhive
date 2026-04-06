@@ -1968,6 +1968,71 @@ class TestLizardRouletteHandler:
                        "filing a complaint", "died so", "COOKED"]:
             assert clause not in msg
 
+    async def test_tracks_max_streak(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"cooldown": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        # Survive twice (odds=0 → always survive)
+        for _ in range(2):
+            payload = MockPayload(
+                text="!lizardroulette",
+                broadcaster=MockBroadcaster(id=99999),
+                chatter=MockChatter(id=111, name="streaker"),
+            )
+            with patch("bot.skills.lizardroulette.random.randint", return_value=100):
+                with patch("bot.skills.lizardroulette.twitch_request", new_callable=AsyncMock):
+                    await router.event_message(payload)
+
+        stat = SkillStat.objects.get(channel=channel, twitch_id="111")
+        assert stat.stats["streak"] == 2
+        assert stat.stats["max_streak"] == 2
+
+        # Die (odds=100 → always lose)
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+            chatter=MockChatter(id=111, name="streaker"),
+        )
+        with patch("bot.skills.lizardroulette.random.randint", return_value=1):
+            with patch("bot.skills.lizardroulette.twitch_request", new_callable=AsyncMock):
+                with patch("bot.skills.lizardroulette.asyncio.sleep", new_callable=AsyncMock):
+                    await router.event_message(payload)
+
+        stat.refresh_from_db()
+        assert stat.stats["streak"] == 0
+        assert stat.stats["max_streak"] == 2
+
+        # Survive once more — max_streak should stay at 2
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+            chatter=MockChatter(id=111, name="streaker"),
+        )
+        with patch("bot.skills.lizardroulette.random.randint", return_value=100):
+            with patch("bot.skills.lizardroulette.twitch_request", new_callable=AsyncMock):
+                await router.event_message(payload)
+
+        stat.refresh_from_db()
+        assert stat.stats["streak"] == 1
+        assert stat.stats["max_streak"] == 2
+
 
 # --- Streak tier and composition tests ---
 
@@ -2288,6 +2353,94 @@ class TestVictimsHandler:
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "digging graves" in msg
+        assert "playerone" in msg
+        assert "playertwo" in msg
+        assert "playerthree" not in msg
+        assert msg.index("playerone") < msg.index("playertwo")
+
+
+@pytest.mark.django_db(transaction=True)
+class TestSurvivorsHandler:
+    def setup_method(self):
+        discover_skills()
+        handler = SKILL_REGISTRY.get("survivors")
+        if handler:
+            handler._cooldowns = {}
+
+    async def test_no_survivors_shows_empty_message(self, channel):
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="survivors",
+            enabled=True,
+            config={},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!survivors",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "no one has survived" in msg.lower()
+
+    async def test_shows_leaderboard(self, channel):
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="survivors",
+            enabled=True,
+            config={},
+        )
+
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="111",
+            twitch_username="playerone",
+            stats={"deaths": 50, "streak": 0, "max_streak": 42},
+        )
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="222",
+            twitch_username="playertwo",
+            stats={"deaths": 30, "streak": 2, "max_streak": 15},
+        )
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="333",
+            twitch_username="playerthree",
+            stats={"deaths": 10, "streak": 0, "max_streak": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!survivors",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "luckiest survivors" in msg
         assert "playerone" in msg
         assert "playertwo" in msg
         assert "playerthree" not in msg
