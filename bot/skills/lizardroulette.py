@@ -126,6 +126,7 @@ class LizardRouletteHandler(SkillHandler):
                 is_self_victim=(previous_victim == chatter_name),
                 bullets_loaded=was_bullet,
                 chemical="",
+                channel_id=broadcaster_id,
             )
             mood_roll = roll_mood(ctx)
             behavior = MOOD_BEHAVIORS[mood_roll.mood]
@@ -183,6 +184,7 @@ class LizardRouletteHandler(SkillHandler):
                 is_self_victim=(victim == chatter_name),
                 bullets_loaded=self._bullets.get(broadcaster_id, 0) > 0,
                 chemical=chemical,
+                channel_id=broadcaster_id,
             )
             mood_roll = roll_mood(ctx)
             logger.debug(

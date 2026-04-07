@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import random
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -39,6 +40,7 @@ class MoodContext:
     is_self_victim: bool
     bullets_loaded: bool
     chemical: str
+    channel_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -225,6 +227,44 @@ def _get_tier_key(tiers: list[TierKey], value: int) -> TierKey:
         if value >= min_val and (max_val is None or value <= max_val):
             return tier
     return tiers[-1]
+
+
+# ---------------------------------------------------------------------------
+# Recency tracker — avoids repeating fragments within a window
+# ---------------------------------------------------------------------------
+
+RECENCY_WINDOW = 10  # remember last N fragments per channel
+
+
+class RecencyTracker:
+    """Track recently used message fragments per channel to avoid repeats."""
+
+    def __init__(self) -> None:
+        self._history: dict[str, deque[str]] = {}
+
+    def pick(self, channel_id: str, options: list[str]) -> str:
+        """Pick a random option, avoiding recently used ones.
+
+        Falls back to unfiltered random if all options are recent
+        (small pool, many plays).
+        """
+        history = self._history.setdefault(
+            channel_id, deque(maxlen=RECENCY_WINDOW)
+        )
+        fresh = [o for o in options if o not in history]
+        choice = random.choice(fresh) if fresh else random.choice(options)
+        history.append(choice)
+        return choice
+
+    def clear(self, channel_id: str | None = None) -> None:
+        """Clear history. If channel_id is None, clear all."""
+        if channel_id is None:
+            self._history.clear()
+        else:
+            self._history.pop(channel_id, None)
+
+
+recency = RecencyTracker()
 
 
 # ---------------------------------------------------------------------------
@@ -1144,20 +1184,21 @@ def render_survival(mood: Mood, ctx: MoodContext) -> str:
     behavior = MOOD_BEHAVIORS[mood]
     tier_key = _get_tier_key(SURVIVAL_TIER_RANGES, ctx.streak)
     pool = MOOD_SURVIVAL[mood][tier_key]
+    cid = ctx.channel_id
 
     rare = _try_rare(pool, ctx)
     if rare:
         return rare
 
-    opener = random.choice(pool["openers"])
-    body = random.choice(pool["bodies"])
+    opener = recency.pick(cid, pool["openers"])
+    body = recency.pick(cid, pool["bodies"])
     parts = [opener, body]
 
     if behavior.include_victim_clause and ctx.victim:
         if ctx.is_self_victim and pool.get("self_victim_clauses"):
-            parts.append(random.choice(pool["self_victim_clauses"]))
+            parts.append(recency.pick(cid, pool["self_victim_clauses"]))
         elif pool.get("victim_clauses"):
-            parts.append(random.choice(pool["victim_clauses"]))
+            parts.append(recency.pick(cid, pool["victim_clauses"]))
 
     message = " ".join(parts) + " bardLizard"
     return _substitute(message, ctx)
@@ -1168,12 +1209,13 @@ def render_death(mood: Mood, ctx: MoodContext) -> str:
     behavior = MOOD_BEHAVIORS[mood]
     tier_key = _get_tier_key(DEATH_TIER_RANGES, ctx.deaths)
     pool = MOOD_DEATH[mood][tier_key]
+    cid = ctx.channel_id
 
     rare = _try_rare(pool, ctx)
     if rare:
         return rare
 
-    core = random.choice(pool["cores"])
+    core = recency.pick(cid, pool["cores"])
     parts = [core]
 
     if behavior.countdown:

@@ -14,8 +14,10 @@ from bot.skills.lizardmood import MOOD_SURVIVAL
 from bot.skills.lizardmood import SURVIVAL_TIER_RANGES
 from bot.skills.lizardmood import Mood
 from bot.skills.lizardmood import MoodContext
+from bot.skills.lizardmood import RecencyTracker
 from bot.skills.lizardmood import _get_tier_key
 from bot.skills.lizardmood import _ordinal
+from bot.skills.lizardmood import recency
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
 from bot.skills.lizardmood import roll_mood
@@ -397,6 +399,71 @@ class TestRareMessages:
         with patch("bot.skills.lizardmood.random.random", return_value=0.01):
             msg = render_death(Mood.THEATRICAL, ctx)
         assert "3, 2, 1" not in msg
+
+
+# ---------------------------------------------------------------------------
+# Recency tracker
+# ---------------------------------------------------------------------------
+
+
+class TestRecencyTracker:
+    def setup_method(self):
+        recency.clear()
+
+    def test_avoids_recent_pick(self):
+        tracker = RecencyTracker()
+        options = ["A", "B", "C"]
+        first = tracker.pick("ch1", options)
+        second = tracker.pick("ch1", options)
+        assert second != first
+        third = tracker.pick("ch1", options)
+        assert third != second
+
+    def test_falls_back_when_all_recent(self):
+        tracker = RecencyTracker()
+        options = ["A"]
+        first = tracker.pick("ch1", options)
+        assert first == "A"
+        second = tracker.pick("ch1", options)
+        assert second == "A"
+
+    def test_channels_are_independent(self):
+        tracker = RecencyTracker()
+        tracker.pick("ch1", ["A"])
+        result = tracker.pick("ch2", ["A", "B"])
+        assert result in ("A", "B")
+
+    def test_clear_channel(self):
+        tracker = RecencyTracker()
+        tracker.pick("ch1", ["A"])
+        tracker.clear("ch1")
+        result = tracker.pick("ch1", ["A", "B"])
+        assert result in ("A", "B")
+
+    def test_clear_all(self):
+        tracker = RecencyTracker()
+        tracker.pick("ch1", ["A"])
+        tracker.pick("ch2", ["X"])
+        tracker.clear()
+        r1 = tracker.pick("ch1", ["A", "B"])
+        r2 = tracker.pick("ch2", ["X", "Y"])
+        assert r1 in ("A", "B")
+        assert r2 in ("X", "Y")
+
+    def test_render_avoids_repeat_fragments(self):
+        recency.clear()
+        ctx = _make_ctx(
+            outcome="survival",
+            streak=1,
+            chatter_name="test",
+            channel_id="99999",
+        )
+        with patch("bot.skills.lizardmood.random.random", return_value=1.0):
+            msg1 = render_survival(Mood.THEATRICAL, ctx)
+            msg2 = render_survival(Mood.THEATRICAL, ctx)
+        assert msg1 != msg2 or len(
+            MOOD_SURVIVAL[Mood.THEATRICAL][(1, 2)]["openers"]
+        ) == 1
 
 
 # ---------------------------------------------------------------------------
