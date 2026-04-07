@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import timedelta
 
 import twitchio
+from django.utils import timezone
 from twitchio import eventsub
 from twitchio import web
 from twitchio.ext import commands
@@ -90,6 +92,46 @@ class BotClient(commands.Bot):
 
     async def event_ready(self) -> None:
         logger.info("[%s] Bot is ready (ID: %s).", self.bot_name, self.bot_id)
+
+    async def event_token_refreshed(
+        self, payload: twitchio.TokenRefreshedPayload
+    ) -> None:
+        """Persist refreshed bot token back to the database."""
+        from asgiref.sync import sync_to_async
+
+        from core.models import Bot as BotModel
+
+        try:
+            bot = await sync_to_async(BotModel.objects.get)(
+                twitch_user_id=self.bot_id,
+            )
+            bot.access_token = payload.token
+            bot.refresh_token = payload.refresh_token
+            bot.token_expires_at = timezone.now() + timedelta(
+                seconds=payload.expires_in
+            )
+            await sync_to_async(bot.save)(
+                update_fields=[
+                    "access_token",
+                    "refresh_token",
+                    "token_expires_at",
+                ]
+            )
+            logger.info(
+                "[%s] Refreshed bot token saved to DB.",
+                self.bot_name,
+            )
+        except BotModel.DoesNotExist:
+            logger.warning(
+                "[%s] Bot record not found for token refresh (id=%s).",
+                self.bot_name,
+                self.bot_id,
+            )
+        except Exception:
+            logger.exception(
+                "[%s] Failed to persist refreshed bot token.",
+                self.bot_name,
+            )
 
     async def _subscription_health_check(self) -> None:
         """Periodically verify EventSub subscriptions and re-create missing ones.
