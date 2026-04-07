@@ -14,8 +14,9 @@ from bot.skills import SkillHandler
 from bot.skills import discover_skills
 from bot.skills.followcheck import FollowCheckHandler
 from bot.skills.followcheck import format_timesince
+from bot.skills.lizardmood import Mood
+from bot.skills.lizardmood import MoodRoll
 from bot.skills.lizardroulette import LizardRouletteHandler
-from bot.skills.lizardroulette import _ordinal
 from tests.conftest import MockBroadcaster
 from tests.conftest import MockChatter
 from tests.conftest import MockPayload
@@ -1000,8 +1001,21 @@ class TestFollowCheckHandler:
 # --- LizardRouletteHandler tests ---
 
 
+def _theatrical_roll(ctx, weight_fn=None):
+    """Force theatrical mood for deterministic integration tests."""
+    return MoodRoll(mood=Mood.THEATRICAL, weights={}, ctx=ctx)
+
+
 @pytest.mark.django_db(transaction=True)
 class TestLizardRouletteHandler:
+    @pytest.fixture(autouse=True)
+    def _force_theatrical(self):
+        with patch(
+            "bot.skills.lizardroulette.roll_mood",
+            side_effect=_theatrical_roll,
+        ):
+            yield
+
     def setup_method(self):
         """Clear singleton handler state between tests."""
         discover_skills()
@@ -1640,6 +1654,127 @@ class TestLizardRouletteHandler:
             twitch_id="12345",
         )
         assert stat.stats["deaths"] == 1
+        assert stat.stats["bullet_deaths"] == 1
+
+    async def test_tracks_plays_and_survivals(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        stat = SkillStat.objects.get(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+        )
+        assert stat.stats["plays"] == 1
+        assert stat.stats["survivals"] == 1
+
+    async def test_tracks_streaks_broken(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 100, "timeout_delay": 0, "cooldown": 0},
+        )
+
+        SkillStat.objects.create(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+            twitch_username="testuser",
+            stats={"streak": 5},
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 200
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        stat = SkillStat.objects.get(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+        )
+        assert stat.stats["streaks_broken"] == 1
+
+    async def test_tracks_last_mood(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+        from core.models import SkillStat
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        stat = SkillStat.objects.get(
+            channel=channel,
+            skill_name="lizardroulette",
+            twitch_id="12345",
+        )
+        assert stat.stats["last_mood"] == "theatrical"
 
     async def test_win_increments_streak(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1819,6 +1954,7 @@ class TestLizardRouletteHandler:
             text="!lizardroulette",
             broadcaster=MockBroadcaster(id=99999),
         )
+
         await router.event_message(payload)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -1896,6 +2032,7 @@ class TestLizardRouletteHandler:
             text="!lizardroulette",
             broadcaster=MockBroadcaster(id=99999),
         )
+
         await router.event_message(payload)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -1958,6 +2095,7 @@ class TestLizardRouletteHandler:
             text="!lizardroulette",
             broadcaster=MockBroadcaster(id=99999),
         )
+
         await router.event_message(payload)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -2037,133 +2175,6 @@ class TestLizardRouletteHandler:
 # --- Streak tier and composition tests ---
 
 
-class TestGetTier:
-    def test_streak_tier_1(self):
-        from bot.skills.lizardroulette import STREAK_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(STREAK_TIERS, 1)
-        assert tier["min"] == 1
-        assert tier["max"] == 2
-
-    def test_streak_tier_2(self):
-        from bot.skills.lizardroulette import STREAK_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(STREAK_TIERS, 3)
-        assert tier["min"] == 3
-        assert tier["max"] == 4
-
-    def test_streak_tier_3(self):
-        from bot.skills.lizardroulette import STREAK_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(STREAK_TIERS, 5)
-        assert tier["min"] == 5
-        assert tier["max"] == 7
-
-    def test_streak_tier_4(self):
-        from bot.skills.lizardroulette import STREAK_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(STREAK_TIERS, 10)
-        assert tier["min"] == 8
-        assert tier["max"] is None
-
-    def test_high_streak_stays_tier_4(self):
-        from bot.skills.lizardroulette import STREAK_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(STREAK_TIERS, 100)
-        assert tier["min"] == 8
-
-    def test_death_tier_first(self):
-        from bot.skills.lizardroulette import DEATH_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(DEATH_TIERS, 1)
-        assert tier["min"] == 1
-        assert tier["max"] == 1
-
-    def test_death_tier_normal(self):
-        from bot.skills.lizardroulette import DEATH_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(DEATH_TIERS, 5)
-        assert tier["min"] == 2
-        assert tier["max"] == 9
-
-    def test_death_tier_concerned(self):
-        from bot.skills.lizardroulette import DEATH_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(DEATH_TIERS, 15)
-        assert tier["min"] == 10
-        assert tier["max"] == 24
-
-    def test_death_tier_impressed(self):
-        from bot.skills.lizardroulette import DEATH_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(DEATH_TIERS, 30)
-        assert tier["min"] == 25
-        assert tier["max"] == 49
-
-    def test_death_tier_unhinged(self):
-        from bot.skills.lizardroulette import DEATH_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(DEATH_TIERS, 70)
-        assert tier["min"] == 50
-        assert tier["max"] == 99
-
-    def test_death_tier_legendary(self):
-        from bot.skills.lizardroulette import DEATH_TIERS
-        from bot.skills.lizardroulette import _get_tier
-
-        tier = _get_tier(DEATH_TIERS, 100)
-        assert tier["min"] == 100
-        assert tier["max"] is None
-
-
-class TestComposeMessage:
-    def test_without_victim(self):
-        from bot.skills.lizardroulette import _compose_message
-
-        tier = {
-            "openers": ["OPEN"],
-            "bodies": ["BODY"],
-            "victim_clauses": ["VICTIM"],
-            "self_victim_clauses": ["SELF"],
-        }
-        msg = _compose_message(tier, victim="", is_self_victim=False)
-        assert msg == "OPEN BODY bardLizard"
-        assert "VICTIM" not in msg
-
-    def test_with_victim(self):
-        from bot.skills.lizardroulette import _compose_message
-
-        tier = {
-            "openers": ["OPEN"],
-            "bodies": ["BODY"],
-            "victim_clauses": ["VICTIM"],
-            "self_victim_clauses": ["SELF"],
-        }
-        msg = _compose_message(tier, victim="SomeUser", is_self_victim=False)
-        assert msg == "OPEN BODY VICTIM bardLizard"
-
-    def test_with_self_victim(self):
-        from bot.skills.lizardroulette import _compose_message
-
-        tier = {
-            "openers": ["OPEN"],
-            "bodies": ["BODY"],
-            "victim_clauses": ["VICTIM"],
-            "self_victim_clauses": ["SELF"],
-        }
-        msg = _compose_message(tier, victim="SameUser", is_self_victim=True)
-        assert msg == "OPEN BODY SELF bardLizard"
-        assert "VICTIM" not in msg
 
 
 # --- LizardBullets component tests ---
@@ -2293,27 +2304,6 @@ class TestLizardBulletsComponent:
 
         handler = SKILL_REGISTRY["lizardroulette"]
         assert handler._bullets.get("78238052", 0) == 0
-
-
-class TestOrdinal:
-    def test_basic_ordinals(self):
-        assert _ordinal(1) == "1st"
-        assert _ordinal(2) == "2nd"
-        assert _ordinal(3) == "3rd"
-        assert _ordinal(4) == "4th"
-
-    def test_teens(self):
-        assert _ordinal(11) == "11th"
-        assert _ordinal(12) == "12th"
-        assert _ordinal(13) == "13th"
-
-    def test_larger_numbers(self):
-        assert _ordinal(21) == "21st"
-        assert _ordinal(22) == "22nd"
-        assert _ordinal(100) == "100th"
-        assert _ordinal(111) == "111th"
-        assert _ordinal(112) == "112th"
-        assert _ordinal(113) == "113th"
 
 
 # --- Victims skill tests ---

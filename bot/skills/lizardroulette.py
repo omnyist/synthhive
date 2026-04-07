@@ -10,6 +10,11 @@ from asgiref.sync import sync_to_async
 from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
+from bot.skills.lizardmood import MOOD_BEHAVIORS
+from bot.skills.lizardmood import MoodContext
+from bot.skills.lizardmood import render_death
+from bot.skills.lizardmood import render_survival
+from bot.skills.lizardmood import roll_mood
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
@@ -27,196 +32,6 @@ CHEMICALS = [
     "melatonin",
     "norepinephrine",
 ]
-
-STREAK_TIERS = [
-    {
-        "min": 1,
-        "max": 2,
-        "openers": [
-            "*click*",
-            "The chamber was empty.",
-            "...nothing happened.",
-        ],
-        "bodies": [
-            "$(user) survives. Have some $(chemical).",
-            "$(user) gets away with it. Enjoy some $(chemical).",
-            "$(user) lives. Here's your $(chemical).",
-        ],
-        "victim_clauses": [
-            "$(victim) wasn't so lucky.",
-            "The lizard's still eating $(victim)...",
-            "$(victim)'s seat is still warm.",
-        ],
-        "self_victim_clauses": [
-            "Looks like the lizard shot a corpse.",
-            "Wait, didn't $(user) just die?",
-            "The lizard checks its notes. Weren't you just here?",
-        ],
-    },
-    {
-        "min": 3,
-        "max": 4,
-        "openers": [
-            "*click* ...again?",
-            "*click* ...seriously?",
-            "The lizard squints.",
-        ],
-        "bodies": [
-            "$(user) at $(streak) in a row. Don't push it.",
-            "$(streak) survivals for $(user). The lizard's patience is thinning.",
-            "$(user) walks away again. That's $(streak).",
-        ],
-        "victim_clauses": [
-            "$(victim) is watching from the shadow realm.",
-            "$(victim) could never.",
-            "$(victim) is seething, in Minecraft.",
-        ],
-        "self_victim_clauses": [
-            "Somehow back from the dead and thriving.",
-            "The shadow realm couldn't hold $(user).",
-            "$(user) speedran the respawn timer.",
-        ],
-    },
-    {
-        "min": 5,
-        "max": 7,
-        "openers": [
-            "*click* ...you're STILL here?",
-            "The lizard is visibly shaking.",
-            "*click* ...impossible.",
-        ],
-        "bodies": [
-            "$(streak) survivals. $(user), the lizard is getting REAL irritated.",
-            "$(user) at $(streak). This can't last.",
-            "$(streak) times, $(user). The lizard remembers every single one.",
-        ],
-        "victim_clauses": [
-            "$(victim) WISHES they had your luck.",
-            "$(victim) is rolling in their grave.",
-            "At least $(victim) had the decency to get shot.",
-        ],
-        "self_victim_clauses": [
-            "$(user) came back from the grave and chose violence.",
-            "Died and came back stronger. The lizard is shook.",
-            "$(user) used a phoenix down apparently.",
-        ],
-    },
-    {
-        "min": 8,
-        "max": None,
-        "openers": [
-            "*click* — HOW.",
-            "The lizard throws the gun.",
-            "...this is RIGGED.",
-        ],
-        "bodies": [
-            "$(streak) in a ROW, $(user)?! The lizard is furious, but their face doesn't change.",
-            "$(user) at $(streak). The lizard is getting their revolver checked.",
-            "$(streak). $(user). The lizard will remember this.",
-        ],
-        "victim_clauses": [
-            "$(victim) is filing a complaint.",
-            "$(victim) died so $(user) could live. Disgusting.",
-            "$(victim) is COOKED.",
-        ],
-        "self_victim_clauses": [
-            "$(user) died, respawned, and is now immortal. The lizard quits.",
-            "Back from the grave $(streak) times?! This is a ZOMBIE.",
-            "$(user) keeps dying and coming back. The lizard is filing a bug report.",
-        ],
-    },
-]
-
-
-DEATH_TIERS = [
-    {
-        "min": 1,
-        "max": 1,
-        "messages": [
-            "You lose, $(user). Reach for the sky. 3, 2, 1...",
-            "$(user) goes down. First time's free. 3, 2, 1...",
-            "Welcome to the club, $(user). 3, 2, 1...",
-        ],
-    },
-    {
-        "min": 2,
-        "max": 9,
-        "messages": [
-            "For the $(deaths) time, you lose, $(user). 3, 2, 1...",
-            "$(deaths) time's the charm? Nope. $(user) goes down. 3, 2, 1...",
-            "$(user) again?! That's $(raw_deaths). 3, 2, 1...",
-        ],
-    },
-    {
-        "min": 10,
-        "max": 24,
-        "messages": [
-            "$(raw_deaths) deaths, $(user). The lizard is starting to recognize you. 3, 2, 1...",
-            "$(user), $(raw_deaths) times now. You might have a problem. 3, 2, 1...",
-            "The lizard nods at $(user). A familiar face. Death #$(raw_deaths). 3, 2, 1...",
-        ],
-    },
-    {
-        "min": 25,
-        "max": 49,
-        "messages": [
-            "$(raw_deaths) deaths. $(user), the lizard has a punch card with your name on it. 3, 2, 1...",
-            "$(user) at $(raw_deaths). The lizard doesn't even aim anymore. 3, 2, 1...",
-            "Death #$(raw_deaths) for $(user). At this point it's a subscription. 3, 2, 1...",
-        ],
-    },
-    {
-        "min": 50,
-        "max": 99,
-        "messages": [
-            "$(raw_deaths). FIFTY-PLUS deaths, $(user). The lizard is concerned for your wellbeing. 3, 2, 1...",
-            "$(user), death #$(raw_deaths). The shadow realm has a reserved seat with your name on it. 3, 2, 1...",
-            "$(raw_deaths) times, $(user). The lizard is running out of bullets because of YOU. 3, 2, 1...",
-        ],
-    },
-    {
-        "min": 100,
-        "max": None,
-        "messages": [
-            "$(raw_deaths). $(user), you are CLINICALLY addicted to dying. The lizard is speechless. 3, 2, 1...",
-            "Death #$(raw_deaths) for $(user). The lizard has retired and been replaced twice since you started. 3, 2, 1...",
-            "$(user). $(raw_deaths) deaths. The lizard wrote a thesis about you. 3, 2, 1...",
-        ],
-    },
-]
-
-DEATH_EMOTE = "LizardWithAGun"
-
-
-def _get_tier(tiers: list[dict], value: int) -> dict:
-    """Return the tier dict for the given value."""
-    for tier in tiers:
-        if value >= tier["min"] and (tier["max"] is None or value <= tier["max"]):
-            return tier
-    return tiers[-1]
-
-
-def _compose_message(tier: dict, victim: str, is_self_victim: bool) -> str:
-    """Pick random fragments from a tier and compose them."""
-    opener = random.choice(tier["openers"])
-    body = random.choice(tier["bodies"])
-
-    if is_self_victim and tier.get("self_victim_clauses"):
-        clause = random.choice(tier["self_victim_clauses"])
-        return f"{opener} {body} {clause} bardLizard"
-
-    if victim and tier.get("victim_clauses"):
-        clause = random.choice(tier["victim_clauses"])
-        return f"{opener} {body} {clause} bardLizard"
-
-    return f"{opener} {body} bardLizard"
-
-
-def _ordinal(n: int) -> str:
-    """Format an integer as an ordinal string (1st, 2nd, 3rd, 14th, etc.)."""
-    if 11 <= (n % 100) <= 13:
-        return f"{n}th"
-    return f"{n}{['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]}"
 
 
 class LizardRouletteHandler(SkillHandler):
@@ -268,14 +83,19 @@ class LizardRouletteHandler(SkillHandler):
             logger.warning("No active channel found for broadcaster %s", broadcaster_id)
             return
 
+        # --- Track play count ---
+        await self._update_stat(channel, chatter_id, chatter.name, "plays")
+
         # --- Check for loaded gun ---
         bullets = self._bullets.get(broadcaster_id, 0)
         if bullets > 0:
             self._bullets[broadcaster_id] = bullets - 1
             is_loss = True
+            was_bullet = True
         else:
             odds = config.get("odds", 16)
             is_loss = random.randint(1, 100) <= odds
+            was_bullet = False
 
         # --- Resolve outcome ---
         if is_loss:
@@ -284,20 +104,48 @@ class LizardRouletteHandler(SkillHandler):
             )
             broken_streak = await self._get_stat(channel, chatter_id, "streak")
             await self._set_stat(channel, chatter_id, chatter.name, "streak", 0)
+            previous_victim = self._last_victim.get(broadcaster_id, "")
             self._last_victim[broadcaster_id] = chatter_name
 
-            death_tier = _get_tier(DEATH_TIERS, deaths)
-            failure = random.choice(death_tier["messages"])
-            message = (
-                failure.replace("$(user)", chatter_name)
-                .replace("$(deaths)", _ordinal(deaths))
-                .replace("$(raw_deaths)", str(deaths))
-                .replace("$(streak)", str(broken_streak))
+            if was_bullet:
+                await self._update_stat(
+                    channel, chatter_id, chatter.name, "bullet_deaths"
+                )
+            if broken_streak > 0:
+                await self._update_stat(
+                    channel, chatter_id, chatter.name, "streaks_broken"
+                )
+
+            ctx = MoodContext(
+                outcome="death",
+                deaths=deaths,
+                streak=broken_streak,
+                max_streak=await self._get_stat(channel, chatter_id, "max_streak"),
+                chatter_name=chatter_name,
+                victim=previous_victim,
+                is_self_victim=(previous_victim == chatter_name),
+                bullets_loaded=was_bullet,
+                chemical="",
             )
-            message = f"{message} {DEATH_EMOTE}"
+            mood_roll = roll_mood(ctx)
+            behavior = MOOD_BEHAVIORS[mood_roll.mood]
+            logger.debug(
+                "[LizardRoulette] mood=%s weights=%s user=%s deaths=%d",
+                mood_roll.mood.value,
+                {k.value: v for k, v in mood_roll.weights.items()},
+                chatter_name,
+                deaths,
+            )
+
+            await self._set_stat(
+                channel, chatter_id, chatter.name,
+                "last_mood", mood_roll.mood.value,
+            )
+
+            message = render_death(mood_roll.mood, ctx)
             await send_reply(payload, message, bot_id=bot.bot_id)
 
-            timeout_delay = config.get("timeout_delay", 5)
+            timeout_delay = config.get("timeout_delay", 5) * behavior.timeout_delay_multiplier
             timeout_duration = config.get("timeout_duration", 600)
             await asyncio.sleep(timeout_delay)
             timed_out = await self._timeout_user(
@@ -313,22 +161,44 @@ class LizardRouletteHandler(SkillHandler):
             streak = await self._update_stat(
                 channel, chatter_id, chatter.name, "streak"
             )
+            await self._update_stat(
+                channel, chatter_id, chatter.name, "survivals"
+            )
             max_streak = await self._get_stat(channel, chatter_id, "max_streak")
             if streak > max_streak:
                 await self._set_stat(
                     channel, chatter_id, chatter.name, "max_streak", streak
                 )
-            tier = _get_tier(STREAK_TIERS, streak)
+
             victim = self._last_victim.get(broadcaster_id, "")
-            is_self_victim = victim == chatter_name
-            message = _compose_message(tier, victim, is_self_victim)
             chemical = random.choice(CHEMICALS)
-            message = (
-                message.replace("$(user)", chatter_name)
-                .replace("$(chemical)", chemical)
-                .replace("$(streak)", str(streak))
-                .replace("$(victim)", victim)
+
+            ctx = MoodContext(
+                outcome="survival",
+                deaths=await self._get_stat(channel, chatter_id, "deaths"),
+                streak=streak,
+                max_streak=max(streak, max_streak),
+                chatter_name=chatter_name,
+                victim=victim,
+                is_self_victim=(victim == chatter_name),
+                bullets_loaded=self._bullets.get(broadcaster_id, 0) > 0,
+                chemical=chemical,
             )
+            mood_roll = roll_mood(ctx)
+            logger.debug(
+                "[LizardRoulette] mood=%s weights=%s user=%s streak=%d",
+                mood_roll.mood.value,
+                {k.value: v for k, v in mood_roll.weights.items()},
+                chatter_name,
+                streak,
+            )
+
+            await self._set_stat(
+                channel, chatter_id, chatter.name,
+                "last_mood", mood_roll.mood.value,
+            )
+
+            message = render_survival(mood_roll.mood, ctx)
             await send_reply(payload, message, bot_id=bot.bot_id)
 
     async def _get_stat(self, channel, twitch_id, stat_key):
