@@ -450,6 +450,37 @@ class TestRecencyTracker:
         assert r1 in ("A", "B")
         assert r2 in ("X", "Y")
 
+    def test_flow_produces_connected_body_and_clause(self):
+        recency.clear()
+        ctx = _make_ctx(
+            outcome="survival",
+            streak=6,
+            chatter_name="TestUser",
+            victim="DeadPlayer",
+            channel_id="99999",
+        )
+        with (
+            patch("bot.skills.lizardmood.random.random", side_effect=[1.0, 0.1]),
+            patch("bot.skills.lizardmood.FLOW_CHANCE", 1.0),
+        ):
+            msg = render_survival(Mood.THEATRICAL, ctx)
+        assert "TestUser" in msg
+        assert "DeadPlayer" in msg or "TestUser" in msg
+        assert "bardLizard" in msg
+
+    def test_flow_not_used_without_victim(self):
+        recency.clear()
+        ctx = _make_ctx(
+            outcome="survival",
+            streak=6,
+            chatter_name="TestUser",
+            victim="",
+            channel_id="99999",
+        )
+        with patch("bot.skills.lizardmood.FLOW_CHANCE", 1.0):
+            msg = render_survival(Mood.THEATRICAL, ctx)
+        assert "bardLizard" in msg
+
     def test_render_avoids_repeat_fragments(self):
         recency.clear()
         ctx = _make_ctx(

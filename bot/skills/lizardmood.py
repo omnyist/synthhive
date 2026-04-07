@@ -234,6 +234,7 @@ def _get_tier_key(tiers: list[TierKey], value: int) -> TierKey:
 # ---------------------------------------------------------------------------
 
 RECENCY_WINDOW = 10  # remember last N fragments per channel
+FLOW_CHANCE = 0.5  # probability of using a paired flow vs independent selection
 
 
 class RecencyTracker:
@@ -309,6 +310,18 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "Wait, didn't $(user) just die?",
                 "The lizard checks its notes. Weren't you just here?",
             ],
+            "flows": [
+                {
+                    "body": "$(user) survives — unlike $(victim).",
+                    "victim": "The lizard still has fresh ammunition from that one.",
+                    "self_victim": "Then again, the lizard already got $(user) once today.",
+                },
+                {
+                    "body": "$(user) lives. $(chemical) dispensed.",
+                    "victim": "$(victim) didn't get any $(chemical). $(victim) got the gun.",
+                    "self_victim": "Last time, $(user) got the gun instead.",
+                },
+            ],
         },
         (3, 4): {
             "openers": [
@@ -330,6 +343,18 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "Somehow back from the dead and thriving.",
                 "The shadow realm couldn't hold $(user).",
                 "$(user) speedran the respawn timer.",
+            ],
+            "flows": [
+                {
+                    "body": "$(streak) for $(user). The lizard is keeping count,",
+                    "victim": "just like it counted $(victim)'s last breaths.",
+                    "self_victim": "just like it counted $(user)'s last breaths.",
+                },
+                {
+                    "body": "$(user) walks away again. That's $(streak),",
+                    "victim": "which is $(streak) more than $(victim) managed.",
+                    "self_victim": "not bad for someone who just respawned.",
+                },
             ],
         },
         (5, 7): {
@@ -353,6 +378,23 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "Died and came back stronger. The lizard is shook.",
                 "$(user) used a phoenix down apparently.",
             ],
+            "flows": [
+                {
+                    "body": "$(streak) times, $(user). The lizard remembers every single one —",
+                    "victim": "especially what happened to $(victim).",
+                    "self_victim": "especially $(user)'s last visit.",
+                },
+                {
+                    "body": "$(user) at $(streak). The lizard's aim is clearly off.",
+                    "victim": "Worked just fine on $(victim), though.",
+                    "self_victim": "It wasn't off last time, $(user).",
+                },
+                {
+                    "body": "$(streak) survivals, $(user). The lizard can't even look at you.",
+                    "victim": "It's still making eye contact with $(victim)'s ghost.",
+                    "self_victim": "It's still staring at the spot where $(user) fell.",
+                },
+            ],
         },
         (8, None): {
             "openers": [
@@ -374,6 +416,23 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "$(user) died, respawned, and is now immortal. The lizard quits.",
                 "Back from the grave $(streak) times?! This is a ZOMBIE.",
                 "$(user) keeps dying and coming back. The lizard is filing a bug report.",
+            ],
+            "flows": [
+                {
+                    "body": "$(streak), $(user). The lizard has nothing left —",
+                    "victim": "it spent everything on $(victim).",
+                    "self_victim": "it already used its best material on $(user) last round.",
+                },
+                {
+                    "body": "$(user) at $(streak). At this point the lizard is questioning itself,",
+                    "victim": "not $(victim). $(victim) went down clean.",
+                    "self_victim": "because $(user) went down clean last time and STILL came back.",
+                },
+                {
+                    "body": "$(streak). $(user). The lizard is starting to think the gun is broken.",
+                    "victim": "It worked on $(victim) just fine.",
+                    "self_victim": "It worked on $(user) just fine last time.",
+                },
             ],
         },
     },
@@ -479,6 +538,18 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "The lizard watches $(user) with grudging admiration.",
                 "$(user) went from dead to legendary.",
             ],
+            "flows": [
+                {
+                    "body": "$(streak) survivals, $(user). The lizard underestimated you.",
+                    "victim": "It didn't underestimate $(victim), though. That was precision.",
+                    "self_victim": "Especially after what happened to $(user) last time.",
+                },
+                {
+                    "body": "$(user) at $(streak). The lizard is genuinely surprised —",
+                    "victim": "$(victim) never gave the lizard this kind of trouble.",
+                    "self_victim": "$(user) didn't seem this capable last round.",
+                },
+            ],
         },
         (8, None): {
             "openers": [
@@ -500,6 +571,18 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "From death to $(streak)? $(user) is writing history.",
                 "The lizard has never seen a comeback like this.",
                 "$(user) died, respawned, and became a legend.",
+            ],
+            "flows": [
+                {
+                    "body": "$(streak), $(user). The lizard has seen a lot of players,",
+                    "victim": "but $(victim) was the only one who put up a fight. Until now.",
+                    "self_victim": "and $(user) died and came back better than all of them.",
+                },
+                {
+                    "body": "$(user) at $(streak). The lizard puts the gun down —",
+                    "victim": "it only picks it up for worthy challengers. $(victim) wasn't one.",
+                    "self_victim": "not out of mercy. Out of respect for what $(user) survived.",
+                },
             ],
         },
     },
@@ -572,6 +655,18 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "From corpse to $(streak) streak. The lizard is... entertained.",
                 "$(user) forgot the taste of the shadow realm. The lizard will remind them.",
             ],
+            "flows": [
+                {
+                    "body": "$(streak) survivals, $(user). The fall will be spectacular —",
+                    "victim": "ask $(victim) how the landing felt.",
+                    "self_victim": "$(user) already knows how the landing feels.",
+                },
+                {
+                    "body": "$(user) at $(streak). The lizard is patient.",
+                    "victim": "It was patient with $(victim) too. Look how that ended.",
+                    "self_victim": "It was patient last time too, $(user). Remember?",
+                },
+            ],
         },
         (8, None): {
             "openers": [
@@ -593,6 +688,18 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "$(user) keeps coming back. The lizard admires the audacity.",
                 "$(streak) after dying? $(user) is speed-running the tragedy.",
                 "The lizard lets $(user) build the streak. It's more fun that way.",
+            ],
+            "flows": [
+                {
+                    "body": "$(streak), $(user). The lizard is writing the obituary —",
+                    "victim": "it recycled $(victim)'s. Just changed the name.",
+                    "self_victim": "it already has $(user)'s on file from last time.",
+                },
+                {
+                    "body": "$(user) at $(streak). The lizard can wait.",
+                    "victim": "$(victim) couldn't.",
+                    "self_victim": "$(user) couldn't, last time.",
+                },
             ],
         },
     },
@@ -710,6 +817,18 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "$(user) broke free from the shadow realm to torment the lizard.",
                 "The lizard thought $(user) was DONE. It was WRONG.",
             ],
+            "flows": [
+                {
+                    "body": "$(streak) survivals, $(user)?! The lizard is going to SAVOR your demise",
+                    "victim": "the way it SAVORED $(victim)'s!",
+                    "self_victim": "AGAIN! Just like LAST TIME!",
+                },
+                {
+                    "body": "$(user) at $(streak). The lizard got $(victim) so easily,",
+                    "victim": "WHY CAN'T IT GET $(user)?!",
+                    "self_victim": "GOT $(user) so easily last time, WHAT CHANGED?!",
+                },
+            ],
         },
         (8, None): {
             "openers": [
@@ -731,6 +850,18 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "$(user) died and has now survived $(streak) in a ROW?! The lizard needs THERAPY.",
                 "FROM DEATH TO $(streak)?! $(user) is the lizard's NEMESIS.",
                 "$(user) won't STAY DOWN. The lizard is filing for a transfer.",
+            ],
+            "flows": [
+                {
+                    "body": "$(streak), $(user)?! The lizard is going to EXPLODE.",
+                    "victim": "$(victim) went down in ONE. WHY NOT $(user)?! WHY?!",
+                    "self_victim": "$(user) went down LAST TIME! THIS ISN'T FAIR!",
+                },
+                {
+                    "body": "$(user) at $(streak). The lizard is questioning EVERYTHING it knows",
+                    "victim": "because EVERYTHING worked PERFECTLY on $(victim)!",
+                    "self_victim": "because EVERYTHING worked PERFECTLY on $(user) LAST TIME!",
+                },
             ],
         },
     },
@@ -1191,14 +1322,34 @@ def render_survival(mood: Mood, ctx: MoodContext) -> str:
         return rare
 
     opener = recency.pick(cid, pool["openers"])
-    body = recency.pick(cid, pool["bodies"])
-    parts = [opener, body]
 
-    if behavior.include_victim_clause and ctx.victim:
-        if ctx.is_self_victim and pool.get("self_victim_clauses"):
-            parts.append(recency.pick(cid, pool["self_victim_clauses"]))
-        elif pool.get("victim_clauses"):
-            parts.append(recency.pick(cid, pool["victim_clauses"]))
+    # Try a paired flow (body+clause written together) for natural transitions
+    flows = pool.get("flows", [])
+    use_flow = (
+        flows
+        and behavior.include_victim_clause
+        and ctx.victim
+        and random.random() < FLOW_CHANCE
+    )
+
+    if use_flow:
+        flow_bodies = [f["body"] for f in flows]
+        body = recency.pick(cid, flow_bodies)
+        flow = next(f for f in flows if f["body"] == body)
+        if ctx.is_self_victim and "self_victim" in flow:
+            clause = flow["self_victim"]
+        else:
+            clause = flow["victim"]
+        parts = [opener, body, clause]
+    else:
+        body = recency.pick(cid, pool["bodies"])
+        parts = [opener, body]
+
+        if behavior.include_victim_clause and ctx.victim:
+            if ctx.is_self_victim and pool.get("self_victim_clauses"):
+                parts.append(recency.pick(cid, pool["self_victim_clauses"]))
+            elif pool.get("victim_clauses"):
+                parts.append(recency.pick(cid, pool["victim_clauses"]))
 
     message = " ".join(parts) + " bardLizard"
     return _substitute(message, ctx)
