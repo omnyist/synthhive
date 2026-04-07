@@ -84,9 +84,21 @@ class LizardBullets(commands.Component):
         return len(data) > 0
 
     async def _tick_channel(self, channel_info: dict) -> None:
-        """Roll once for a single channel, only if live."""
+        """Roll once for a single channel, only if live and bullets enabled."""
         broadcaster_id = channel_info["twitch_channel_id"]
         channel = await self._get_channel(channel_info)
+
+        from core.models import Skill
+
+        try:
+            skill = await sync_to_async(Skill.objects.get)(
+                channel=channel,
+                name="lizardroulette",
+            )
+            if not skill.config.get("bullets_enabled", True):
+                return
+        except Skill.DoesNotExist:
+            return
 
         if not await self._is_live(channel, broadcaster_id):
             return
