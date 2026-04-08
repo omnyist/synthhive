@@ -1070,6 +1070,18 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
                     "countdown": None,
                     "timeout_first": True,
                 },
+                {
+                    "text": "Whoops, finger slipped. That's $(raw_deaths), $(user).",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
+                {
+                    "text": "That wasn't me, I swear. But that's $(raw_deaths), $(user).",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
             ],
         },
         (100, None): {
@@ -1081,6 +1093,18 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
             "rare": [
                 {
                     "text": "Oh, I'm sorry $(user), did you expect a warning? After $(raw_deaths) times?",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
+                {
+                    "text": "Whoops, finger slipped. $(raw_deaths), $(user).",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
+                {
+                    "text": "That wasn't me, I swear. But that's $(raw_deaths), $(user).",
                     "emote": "LizardWithAGun",
                     "countdown": None,
                     "timeout_first": True,
