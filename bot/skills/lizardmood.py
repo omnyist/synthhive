@@ -1082,6 +1082,12 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
                     "countdown": None,
                     "timeout_first": True,
                 },
+                {
+                    "text": "That wasn't me, that was the bird. $(raw_deaths), $(user).",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
             ],
         },
         (100, None): {
@@ -1111,6 +1117,12 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
                 },
                 {
                     "text": "$(raw_deaths). The lizard didn't even bother picking up the gun this time, $(user).",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
+                {
+                    "text": "That wasn't me, that was the bird. $(raw_deaths), $(user).",
                     "emote": "LizardWithAGun",
                     "countdown": None,
                     "timeout_first": True,
