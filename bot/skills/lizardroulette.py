@@ -15,6 +15,7 @@ from bot.skills.lizardmood import MoodContext
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
 from bot.skills.lizardmood import roll_mood
+from bot.skills.lizardmood import DeathMessage
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
@@ -143,26 +144,38 @@ class LizardRouletteHandler(SkillHandler):
                 "last_mood", mood_roll.mood.value,
             )
 
-            message = render_death(mood_roll.mood, ctx)
-            await send_reply(payload, message, bot_id=bot.bot_id)
-
+            death_msg = render_death(mood_roll.mood, ctx)
             timeout_delay = config.get("timeout_delay", 5) * behavior.timeout_delay_multiplier
             timeout_duration = config.get("timeout_duration", 600)
-            logger.info(
-                "[LizardRoulette] Timeout pending: user=%s delay=%.1fs duration=%ds",
-                chatter_name,
-                timeout_delay,
-                timeout_duration,
-            )
-            await asyncio.sleep(timeout_delay)
-            timed_out = await self._timeout_user(
-                channel, broadcaster_id, chatter_id, timeout_duration
-            )
-            logger.info(
-                "[LizardRoulette] Timeout result: user=%s success=%s",
-                chatter_name,
-                timed_out,
-            )
+
+            if death_msg.timeout_first:
+                # Shoot first, talk later.
+                timed_out = await self._timeout_user(
+                    channel, broadcaster_id, chatter_id, timeout_duration
+                )
+                logger.info(
+                    "[LizardRoulette] Timeout (first): user=%s success=%s",
+                    chatter_name,
+                    timed_out,
+                )
+                await send_reply(payload, death_msg.text, bot_id=bot.bot_id)
+            else:
+                await send_reply(payload, death_msg.text, bot_id=bot.bot_id)
+                logger.info(
+                    "[LizardRoulette] Timeout pending: user=%s delay=%.1fs duration=%ds",
+                    chatter_name,
+                    timeout_delay,
+                    timeout_duration,
+                )
+                await asyncio.sleep(timeout_delay)
+                timed_out = await self._timeout_user(
+                    channel, broadcaster_id, chatter_id, timeout_duration
+                )
+                logger.info(
+                    "[LizardRoulette] Timeout result: user=%s success=%s",
+                    chatter_name,
+                    timed_out,
+                )
 
             if not timed_out:
                 timeout_failed = config.get("timeout_failed")

@@ -51,6 +51,7 @@ class MoodBehavior:
     countdown: str | None
     include_victim_clause: bool
     emote: str
+    timeout_first: bool = False
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,14 @@ class MoodRoll:
     mood: Mood
     weights: dict[Mood, int]
     ctx: MoodContext
+
+
+@dataclass(frozen=True)
+class DeathMessage:
+    """Result of render_death — message text plus behavior overrides."""
+
+    text: str
+    timeout_first: bool = False
 
 
 WeightFn = Callable[[dict[Mood, int], MoodContext], dict[Mood, int]]
@@ -1054,12 +1063,34 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
                 "$(user). $(raw_deaths). gtfo already.",
                 "$(raw_deaths) deaths, $(user). Filed under 'expected'.",
             ],
+            "rare": [
+                {
+                    "text": "Oh, I'm sorry $(user), did you expect me to warn you that time? $(raw_deaths).",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
+            ],
         },
         (100, None): {
             "cores": [
                 "$(raw_deaths). $(user). The lizard has nothing left to say.",
                 "$(user). $(raw_deaths). ...",
                 "$(raw_deaths). The lizard respects the commitment. No wait, it doesn't.",
+            ],
+            "rare": [
+                {
+                    "text": "Oh, I'm sorry $(user), did you expect a warning? After $(raw_deaths) times?",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
+                {
+                    "text": "$(raw_deaths). The lizard didn't even bother picking up the gun this time, $(user).",
+                    "emote": "LizardWithAGun",
+                    "countdown": None,
+                    "timeout_first": True,
+                },
             ],
         },
     },
@@ -1294,8 +1325,13 @@ def _substitute(message: str, ctx: MoodContext) -> str:
     )
 
 
-def _try_rare(pool: dict, ctx: MoodContext) -> str | None:
-    """Roll for a rare message. Returns the full message or None."""
+def _try_rare(
+    pool: dict, ctx: MoodContext, as_death: bool = False
+) -> DeathMessage | str | None:
+    """Roll for a rare message.
+
+    Returns DeathMessage (death path), str (survival path), or None.
+    """
     rares = pool.get("rare")
     if not rares or random.random() >= RARE_CHANCE:
         return None
@@ -1307,7 +1343,12 @@ def _try_rare(pool: dict, ctx: MoodContext) -> str | None:
     if countdown:
         parts.append(countdown)
     message = " ".join(parts) + f" {emote}"
-    return _substitute(message, ctx)
+    message = _substitute(message, ctx)
+    if as_death:
+        return DeathMessage(
+            text=message, timeout_first=entry.get("timeout_first", False)
+        )
+    return message
 
 
 def render_survival(mood: Mood, ctx: MoodContext) -> str:
@@ -1355,14 +1396,14 @@ def render_survival(mood: Mood, ctx: MoodContext) -> str:
     return _substitute(message, ctx)
 
 
-def render_death(mood: Mood, ctx: MoodContext) -> str:
+def render_death(mood: Mood, ctx: MoodContext) -> DeathMessage:
     """Compose a death message for the given mood and context."""
     behavior = MOOD_BEHAVIORS[mood]
     tier_key = _get_tier_key(DEATH_TIER_RANGES, ctx.deaths)
     pool = MOOD_DEATH[mood][tier_key]
     cid = ctx.channel_id
 
-    rare = _try_rare(pool, ctx)
+    rare = _try_rare(pool, ctx, as_death=True)
     if rare:
         return rare
 
@@ -1373,4 +1414,7 @@ def render_death(mood: Mood, ctx: MoodContext) -> str:
         parts.append(behavior.countdown)
 
     message = " ".join(parts) + f" {behavior.emote}"
-    return _substitute(message, ctx)
+    return DeathMessage(
+        text=_substitute(message, ctx),
+        timeout_first=behavior.timeout_first,
+    )

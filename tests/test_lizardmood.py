@@ -15,12 +15,18 @@ from bot.skills.lizardmood import SURVIVAL_TIER_RANGES
 from bot.skills.lizardmood import Mood
 from bot.skills.lizardmood import MoodContext
 from bot.skills.lizardmood import RecencyTracker
+from bot.skills.lizardmood import DeathMessage
 from bot.skills.lizardmood import _get_tier_key
 from bot.skills.lizardmood import _ordinal
 from bot.skills.lizardmood import recency
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
 from bot.skills.lizardmood import roll_mood
+
+
+def _render_death_text(mood: Mood, ctx: MoodContext) -> str:
+    """Helper: render death and return just the text."""
+    return render_death(mood, ctx).text
 
 
 def _make_ctx(**overrides) -> MoodContext:
@@ -194,59 +200,59 @@ class TestGetTierKey:
 class TestRenderDeath:
     def test_theatrical_has_countdown(self):
         ctx = _make_ctx(deaths=5, chatter_name="akk")
-        msg = render_death(Mood.THEATRICAL, ctx)
+        msg = _render_death_text(Mood.THEATRICAL, ctx)
         assert "3, 2, 1..." in msg
         assert "akk" in msg
         assert "LizardWithAGun" in msg
 
     def test_bored_has_no_countdown(self):
         ctx = _make_ctx(deaths=50, chatter_name="akk")
-        msg = render_death(Mood.BORED, ctx)
+        msg = _render_death_text(Mood.BORED, ctx)
         assert "3, 2, 1" not in msg
         assert "THREE" not in msg
         assert "LizardWithAGun" in msg
 
     def test_impressed_has_slow_countdown(self):
         ctx = _make_ctx(deaths=1, chatter_name="test")
-        msg = render_death(Mood.IMPRESSED, ctx)
+        msg = _render_death_text(Mood.IMPRESSED, ctx)
         assert "3... 2... 1..." in msg
 
     def test_smug_has_standard_countdown(self):
         ctx = _make_ctx(deaths=10, chatter_name="test")
-        msg = render_death(Mood.SMUG, ctx)
+        msg = _render_death_text(Mood.SMUG, ctx)
         assert "3, 2, 1..." in msg
 
     def test_clinical_has_commencing(self):
         ctx = _make_ctx(deaths=100, chatter_name="subject")
-        msg = render_death(Mood.CLINICAL, ctx)
+        msg = _render_death_text(Mood.CLINICAL, ctx)
         assert "Timeout commencing." in msg
 
     def test_gleeful_has_caps_countdown(self):
         ctx = _make_ctx(deaths=5, streak=8, chatter_name="test")
-        msg = render_death(Mood.GLEEFUL, ctx)
+        msg = _render_death_text(Mood.GLEEFUL, ctx)
         assert "THREE! TWO! ONE!" in msg
 
     def test_deadpan_has_no_countdown(self):
         ctx = _make_ctx(deaths=50, chatter_name="test")
-        msg = render_death(Mood.DEADPAN, ctx)
+        msg = _render_death_text(Mood.DEADPAN, ctx)
         assert "3, 2, 1" not in msg
         assert "THREE" not in msg
 
     def test_substitutes_deaths_ordinal(self):
         ctx = _make_ctx(deaths=3, chatter_name="test")
-        msg = render_death(Mood.THEATRICAL, ctx)
+        msg = _render_death_text(Mood.THEATRICAL, ctx)
         if "$(deaths)" not in msg:
             pass
         assert "$(deaths)" not in msg
 
     def test_substitutes_raw_deaths(self):
         ctx = _make_ctx(deaths=42, chatter_name="test")
-        msg = render_death(Mood.CLINICAL, ctx)
+        msg = _render_death_text(Mood.CLINICAL, ctx)
         assert "42" in msg
 
     def test_substitutes_user(self):
         ctx = _make_ctx(deaths=1, chatter_name="CoolPlayer")
-        msg = render_death(Mood.THEATRICAL, ctx)
+        msg = _render_death_text(Mood.THEATRICAL, ctx)
         assert "CoolPlayer" in msg
 
 
@@ -366,39 +372,53 @@ class TestRareMessages:
     def test_rare_death_fires_when_rolled(self):
         ctx = _make_ctx(deaths=5, chatter_name="akk")
         with patch("bot.skills.lizardmood.random.random", return_value=0.01):
-            msg = render_death(Mood.THEATRICAL, ctx)
+            msg = _render_death_text(Mood.THEATRICAL, ctx)
         assert "bardGun" in msg or "bardA" in msg
         assert "LizardWithAGun" not in msg
 
     def test_rare_death_skipped_on_high_roll(self):
         ctx = _make_ctx(deaths=5, chatter_name="akk")
         with patch("bot.skills.lizardmood.random.random", return_value=0.5):
-            msg = render_death(Mood.THEATRICAL, ctx)
+            msg = _render_death_text(Mood.THEATRICAL, ctx)
         assert "LizardWithAGun" in msg
 
     def test_rare_uses_custom_emote(self):
         ctx = _make_ctx(deaths=5, chatter_name="TestUser")
         with patch("bot.skills.lizardmood.random.random", return_value=0.01):
-            msg = render_death(Mood.THEATRICAL, ctx)
+            msg = _render_death_text(Mood.THEATRICAL, ctx)
         assert "bardGun" in msg or "bardA" in msg
 
     def test_rare_substitutes_variables(self):
         ctx = _make_ctx(deaths=5, chatter_name="CoolPlayer")
         with patch("bot.skills.lizardmood.random.random", return_value=0.01):
-            msg = render_death(Mood.THEATRICAL, ctx)
+            msg = _render_death_text(Mood.THEATRICAL, ctx)
         assert "CoolPlayer" in msg
 
     def test_no_rare_pool_never_fires(self):
         ctx = _make_ctx(deaths=5, chatter_name="test")
         with patch("bot.skills.lizardmood.random.random", return_value=0.01):
-            msg = render_death(Mood.BORED, ctx)
+            msg = _render_death_text(Mood.BORED, ctx)
         assert "LizardWithAGun" in msg
 
     def test_rare_no_countdown(self):
         ctx = _make_ctx(deaths=5, chatter_name="test")
         with patch("bot.skills.lizardmood.random.random", return_value=0.01):
-            msg = render_death(Mood.THEATRICAL, ctx)
+            msg = _render_death_text(Mood.THEATRICAL, ctx)
         assert "3, 2, 1" not in msg
+
+    def test_timeout_first_rare(self):
+        ctx = _make_ctx(deaths=75, chatter_name="akk")
+        with patch("bot.skills.lizardmood.random.random", return_value=0.01):
+            result = render_death(Mood.BORED, ctx)
+        assert isinstance(result, DeathMessage)
+        assert result.timeout_first is True
+        assert "akk" in result.text
+
+    def test_normal_death_not_timeout_first(self):
+        ctx = _make_ctx(deaths=5, chatter_name="test")
+        with patch("bot.skills.lizardmood.random.random", return_value=1.0):
+            result = render_death(Mood.THEATRICAL, ctx)
+        assert result.timeout_first is False
 
 
 # ---------------------------------------------------------------------------
