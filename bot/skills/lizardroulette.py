@@ -283,11 +283,6 @@ class LizardRouletteHandler(SkillHandler):
             }
         }
 
-        logger.info(
-            "Timeout request: url=%s body=%s",
-            url,
-            body,
-        )
         response = await twitch_request(channel, "POST", url, json=body)
         if response is None:
             logger.warning(
@@ -297,15 +292,14 @@ class LizardRouletteHandler(SkillHandler):
             )
             return False
 
-        logger.info(
-            "Timeout API response: status=%s user=%s channel=#%s body=%s",
-            response.status_code,
-            user_id,
-            channel.twitch_channel_name,
-            response.text,
-        )
-
         if response.status_code >= 400:
+            logger.warning(
+                "Timeout API returned %s for user %s in #%s: %s",
+                response.status_code,
+                user_id,
+                channel.twitch_channel_name,
+                response.text,
+            )
             return False
 
         return True
