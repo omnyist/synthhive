@@ -444,7 +444,7 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
             "openers": ["*click*", "Empty.", "yeah."],
             "bodies": [
                 "$(user) lives. Whatever.",
-                "$(user). $(chemical), I guess.",
+                "$(user). Have some $(chemical), I guess.",
                 "Sure. $(user) survives.",
             ],
         },
