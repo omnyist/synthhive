@@ -451,9 +451,9 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
         (3, 4): {
             "openers": ["*click*", "again.", "mhm."],
             "bodies": [
-                "$(user). $(streak). Cool.",
-                "$(streak) for $(user). Are we done?",
-                "$(user) at $(streak). Riveting.",
+                "$(streak) in a row for $(user). Cool.",
+                "$(streak) survivals for $(user). Are we done?",
+                "$(user) at $(streak) in a row. Riveting.",
             ],
         },
         (5, 7): {
