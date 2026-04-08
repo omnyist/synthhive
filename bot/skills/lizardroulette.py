@@ -148,9 +148,20 @@ class LizardRouletteHandler(SkillHandler):
 
             timeout_delay = config.get("timeout_delay", 5) * behavior.timeout_delay_multiplier
             timeout_duration = config.get("timeout_duration", 600)
+            logger.info(
+                "[LizardRoulette] Timeout pending: user=%s delay=%.1fs duration=%ds",
+                chatter_name,
+                timeout_delay,
+                timeout_duration,
+            )
             await asyncio.sleep(timeout_delay)
             timed_out = await self._timeout_user(
                 channel, broadcaster_id, chatter_id, timeout_duration
+            )
+            logger.info(
+                "[LizardRoulette] Timeout result: user=%s success=%s",
+                chatter_name,
+                timed_out,
             )
 
             if not timed_out:
@@ -283,10 +294,11 @@ class LizardRouletteHandler(SkillHandler):
 
         if response.status_code >= 400:
             logger.warning(
-                "Timeout API returned %s for user %s in #%s",
+                "Timeout API returned %s for user %s in #%s: %s",
                 response.status_code,
                 user_id,
                 channel.twitch_channel_name,
+                response.text,
             )
             return False
 
