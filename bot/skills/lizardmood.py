@@ -585,12 +585,12 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
             "flows": [
                 {
                     "body": "$(streak), $(user). The lizard has seen a lot of players,",
-                    "victim": "but $(rival) was the only one who put up a fight. Until now.",
+                    "victim": "but few put up a fight like $(rival). You might be next.",
                     "self_victim": "and $(user) died and came back better than all of them.",
                 },
                 {
                     "body": "$(user) at $(streak). The lizard puts the gun down —",
-                    "victim": "it only picks it up for worthy challengers. $(rival) was one.",
+                    "victim": "it only picks it up for worthy challengers. $(rival) knows the feeling.",
                     "self_victim": "not out of mercy. Out of respect for what $(user) survived.",
                 },
             ],
