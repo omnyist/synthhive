@@ -41,6 +41,7 @@ class MoodContext:
     bullets_loaded: bool
     chemical: str
     channel_id: str = ""
+    rival: str = ""  # notable player from channel history (top survivor)
 
 
 @dataclass(frozen=True)
@@ -584,12 +585,12 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
             "flows": [
                 {
                     "body": "$(streak), $(user). The lizard has seen a lot of players,",
-                    "victim": "but $(victim) was the only one who put up a fight. Until now.",
+                    "victim": "but $(rival) was the only one who put up a fight. Until now.",
                     "self_victim": "and $(user) died and came back better than all of them.",
                 },
                 {
                     "body": "$(user) at $(streak). The lizard puts the gun down —",
-                    "victim": "it only picks it up for worthy challengers. $(victim) wasn't one.",
+                    "victim": "it only picks it up for worthy challengers. $(rival) was one.",
                     "self_victim": "not out of mercy. Out of respect for what $(user) survived.",
                 },
             ],
@@ -1356,6 +1357,7 @@ def _substitute(message: str, ctx: MoodContext) -> str:
         .replace("$(chemical)", ctx.chemical)
         .replace("$(streak)", str(ctx.streak))
         .replace("$(victim)", ctx.victim)
+        .replace("$(rival)", ctx.rival)
         .replace("$(deaths)", _ordinal(ctx.deaths))
         .replace("$(raw_deaths)", str(ctx.deaths))
     )

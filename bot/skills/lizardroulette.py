@@ -128,6 +128,7 @@ class LizardRouletteHandler(SkillHandler):
                 bullets_loaded=was_bullet,
                 chemical="",
                 channel_id=broadcaster_id,
+                rival=await self._get_rival(channel, chatter_id),
             )
             mood_roll = roll_mood(ctx)
             behavior = MOOD_BEHAVIORS[mood_roll.mood]
@@ -209,6 +210,7 @@ class LizardRouletteHandler(SkillHandler):
                 bullets_loaded=self._bullets.get(broadcaster_id, 0) > 0,
                 chemical=chemical,
                 channel_id=broadcaster_id,
+                rival=await self._get_rival(channel, chatter_id),
             )
             mood_roll = roll_mood(ctx)
             logger.debug(
@@ -226,6 +228,25 @@ class LizardRouletteHandler(SkillHandler):
 
             message = render_survival(mood_roll.mood, ctx)
             await send_reply(payload, message, bot_id=bot.bot_id)
+
+    async def _get_rival(self, channel, exclude_id: str) -> str:
+        """Pick a random rival from the top 5 survivors, excluding the current player."""
+        from core.models import SkillStat
+
+        stats = await sync_to_async(list)(
+            SkillStat.objects.filter(
+                channel=channel,
+                skill_name="lizardroulette",
+            ).exclude(twitch_id=exclude_id)
+        )
+        top = sorted(
+            [s for s in stats if s.stats.get("max_streak", 0) > 0],
+            key=lambda s: s.stats.get("max_streak", 0),
+            reverse=True,
+        )[:5]
+        if not top:
+            return ""
+        return random.choice(top).twitch_username
 
     async def _get_stat(self, channel, twitch_id, stat_key):
         """Read a stat value, returning 0 if not found."""
