@@ -327,9 +327,9 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                     "self_victim": "Then again, the lizard already got $(user) once today.",
                 },
                 {
-                    "body": "$(user) lives. $(chemical) dispensed.",
+                    "body": "$(user) lives. Have some $(chemical).",
                     "victim": "$(victim) didn't get any $(chemical). $(victim) got the gun.",
-                    "self_victim": "Last time, $(user) got the gun instead.",
+                    "self_victim": "The lizard remembers $(user) wasn't so lucky last time.",
                 },
             ],
         },
