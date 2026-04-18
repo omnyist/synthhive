@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: synthhive-server
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://synthhive:synthhive@synthcore-postgres:5432/synthhive
@@ -22,6 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: synthhive-bot
     restart: unless-stopped
     depends_on:
       - server
