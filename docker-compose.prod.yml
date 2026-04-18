@@ -47,8 +47,6 @@ services:
     depends_on:
       - server
       - frontend-build
-    ports:
-      - "7177:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - frontend_dist:/srv/frontend:ro
