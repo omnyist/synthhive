@@ -1257,7 +1257,56 @@ class TestLizardRouletteHandler:
         assert "TestUser" in msg
         assert "bardLizard" in msg
 
-    async def test_timeout_failed_sends_fallback_message(self, channel):
+    async def test_timeout_failed_sends_fallback_message_for_broadcaster(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.twitch_channel_id = "12345"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={
+                "odds": 100,
+                "timeout_failed": "...the gun jammed. $(user) lives another day.",
+                "timeout_delay": 0,
+                "cooldown": 0,
+            },
+        )
+
+        ban_response = MagicMock()
+        ban_response.status_code = 400
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=12345),
+        )
+
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=ban_response,
+        ):
+            await router.event_message(payload)
+
+        calls = payload.broadcaster.send_message.call_args_list
+        assert len(calls) == 2
+        assert "LizardWithAGun" in calls[0].kwargs["message"]
+        assert (
+            calls[1].kwargs["message"]
+            == "...the gun jammed. TestUser lives another day."
+        )
+
+    async def test_timeout_failed_silent_for_non_broadcaster(self, channel):
         channel.owner_access_token = "fake_token"
         channel.save()
 
@@ -1298,12 +1347,8 @@ class TestLizardRouletteHandler:
             await router.event_message(payload)
 
         calls = payload.broadcaster.send_message.call_args_list
-        assert len(calls) == 2
+        assert len(calls) == 1
         assert "LizardWithAGun" in calls[0].kwargs["message"]
-        assert (
-            calls[1].kwargs["message"]
-            == "...the gun jammed. TestUser lives another day."
-        )
 
     async def test_loss_tracks_death_count(self, channel):
         channel.owner_access_token = "fake_token"
