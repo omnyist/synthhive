@@ -4,6 +4,7 @@ import asyncio
 import logging
 import random
 import time
+from collections import deque
 
 from asgiref.sync import sync_to_async
 
@@ -40,10 +41,14 @@ class LizardRouletteHandler(SkillHandler):
 
     name = "lizardroulette"
 
+    INTERVAL_WINDOW = 3  # plays needed to detect scripting
+    INTERVAL_TOLERANCE = 30  # seconds of variance allowed
+
     def __init__(self):
         self._cooldowns: dict[str, float] = {}
         self._bullets: dict[str, int] = {}
         self._last_victim: dict[str, str] = {}
+        self._play_intervals: dict[str, deque[float]] = {}
 
     async def handle(self, payload, args, skill, bot):
         chatter = payload.chatter
@@ -69,6 +74,15 @@ class LizardRouletteHandler(SkillHandler):
                 ).replace("$(remaining)", str(remaining))
                 await send_reply(payload, message, bot_id=bot.bot_id)
             return
+
+        # --- Track play intervals for scripting detection ---
+        if last_used:
+            interval = now - last_used
+            intervals = self._play_intervals.setdefault(
+                cooldown_key, deque(maxlen=self.INTERVAL_WINDOW)
+            )
+            intervals.append(interval)
+        is_scripted = self._detect_scripted(cooldown_key)
 
         self._cooldowns[cooldown_key] = now
 
@@ -129,6 +143,7 @@ class LizardRouletteHandler(SkillHandler):
                 chemical="",
                 channel_id=broadcaster_id,
                 rival=await self._get_rival(channel, chatter_id),
+                is_scripted=is_scripted,
             )
             mood_roll = roll_mood(ctx)
             behavior = MOOD_BEHAVIORS[mood_roll.mood]
@@ -218,6 +233,7 @@ class LizardRouletteHandler(SkillHandler):
                 chemical=chemical,
                 channel_id=broadcaster_id,
                 rival=await self._get_rival(channel, chatter_id),
+                is_scripted=is_scripted,
             )
             mood_roll = roll_mood(ctx)
             logger.debug(
@@ -254,6 +270,14 @@ class LizardRouletteHandler(SkillHandler):
         if not top:
             return ""
         return random.choice(top).twitch_username
+
+    def _detect_scripted(self, cooldown_key: str) -> bool:
+        """Check if the player's recent play intervals are suspiciously consistent."""
+        intervals = self._play_intervals.get(cooldown_key)
+        if not intervals or len(intervals) < self.INTERVAL_WINDOW:
+            return False
+        avg = sum(intervals) / len(intervals)
+        return all(abs(i - avg) <= self.INTERVAL_TOLERANCE for i in intervals)
 
     async def _get_stat(self, channel, twitch_id, stat_key):
         """Read a stat value, returning 0 if not found."""

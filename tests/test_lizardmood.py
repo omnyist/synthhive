@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from unittest.mock import patch
 
 import pytest
@@ -103,6 +104,69 @@ class TestWeightAdjusters:
         roll = roll_mood(ctx)
         for weight in roll.weights.values():
             assert weight >= 0
+
+
+# ---------------------------------------------------------------------------
+# Scripting detection
+# ---------------------------------------------------------------------------
+
+
+class TestScriptingDetection:
+    def test_scripted_boosts_suspicious(self):
+        ctx = _make_ctx(is_scripted=True)
+        roll = roll_mood(ctx)
+        assert roll.weights[Mood.SUSPICIOUS] > 0
+
+    def test_not_scripted_keeps_suspicious_at_zero(self):
+        ctx = _make_ctx(is_scripted=False)
+        roll = roll_mood(ctx)
+        assert roll.weights[Mood.SUSPICIOUS] == 0
+
+    def test_suspicious_death_has_no_countdown(self):
+        ctx = _make_ctx(deaths=50, chatter_name="akk", is_scripted=True)
+        with patch("bot.skills.lizardmood.random.random", return_value=1.0):
+            result = render_death(Mood.SUSPICIOUS, ctx)
+        assert "3, 2, 1" not in result.text
+        assert "THREE" not in result.text
+
+    def test_suspicious_death_is_timeout_first(self):
+        ctx = _make_ctx(deaths=50, chatter_name="akk", is_scripted=True)
+        with patch("bot.skills.lizardmood.random.random", return_value=1.0):
+            result = render_death(Mood.SUSPICIOUS, ctx)
+        assert result.timeout_first is True
+
+    def test_suspicious_survival_references_timing(self):
+        ctx = _make_ctx(
+            outcome="survival", streak=3, chatter_name="akk", is_scripted=True,
+        )
+        with patch("bot.skills.lizardmood.random.random", return_value=1.0):
+            msg = render_survival(Mood.SUSPICIOUS, ctx)
+        assert "akk" in msg
+        assert "bardLizard" in msg
+
+    def test_handler_detects_consistent_intervals(self):
+        from bot.skills.lizardroulette import LizardRouletteHandler
+
+        handler = LizardRouletteHandler()
+        key = "99999:12345"
+        handler._play_intervals[key] = deque([1800, 1805, 1798], maxlen=3)
+        assert handler._detect_scripted(key) is True
+
+    def test_handler_no_detection_with_varied_intervals(self):
+        from bot.skills.lizardroulette import LizardRouletteHandler
+
+        handler = LizardRouletteHandler()
+        key = "99999:12345"
+        handler._play_intervals[key] = deque([1800, 2400, 1200], maxlen=3)
+        assert handler._detect_scripted(key) is False
+
+    def test_handler_no_detection_with_insufficient_data(self):
+        from bot.skills.lizardroulette import LizardRouletteHandler
+
+        handler = LizardRouletteHandler()
+        key = "99999:12345"
+        handler._play_intervals[key] = deque([1800], maxlen=3)
+        assert handler._detect_scripted(key) is False
 
 
 # ---------------------------------------------------------------------------

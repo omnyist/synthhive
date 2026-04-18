@@ -25,6 +25,7 @@ class Mood(Enum):
     CLINICAL = "clinical"
     GLEEFUL = "gleeful"
     DEADPAN = "deadpan"
+    SUSPICIOUS = "suspicious"
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class MoodContext:
     chemical: str
     channel_id: str = ""
     rival: str = ""  # notable player from channel history (top survivor)
+    is_scripted: bool = False  # player detected using a timer
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,7 @@ BASE_WEIGHTS: dict[Mood, int] = {
     Mood.CLINICAL: 5,
     Mood.GLEEFUL: 5,
     Mood.DEADPAN: 5,
+    Mood.SUSPICIOUS: 0,
 }
 
 
@@ -130,11 +133,17 @@ def _adjust_for_first_death(weights: dict[Mood, int], ctx: MoodContext) -> None:
         weights[Mood.BORED] = 0
 
 
+def _adjust_for_scripted(weights: dict[Mood, int], ctx: MoodContext) -> None:
+    if ctx.is_scripted:
+        weights[Mood.SUSPICIOUS] += 40
+
+
 MOOD_ADJUSTERS = [
     _adjust_for_death_count,
     _adjust_for_streak,
     _adjust_for_bullets,
     _adjust_for_first_death,
+    _adjust_for_scripted,
 ]
 
 
@@ -202,6 +211,13 @@ MOOD_BEHAVIORS: dict[Mood, MoodBehavior] = {
         countdown=None,
         include_victim_clause=False,
         emote="LizardWithAGun",
+    ),
+    Mood.SUSPICIOUS: MoodBehavior(
+        timeout_delay_multiplier=0.0,
+        countdown=None,
+        include_victim_clause=False,
+        emote="LizardWithAGun",
+        timeout_first=True,
     ),
 }
 
@@ -904,6 +920,55 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
             ],
         },
     },
+    # ------------------------------------------------------------------
+    # SUSPICIOUS — the lizard noticed the timer. Not playing fair.
+    # ------------------------------------------------------------------
+    Mood.SUSPICIOUS: {
+        (1, 2): {
+            "openers": ["*click*", "The lizard checks its watch.", "Hmm."],
+            "bodies": [
+                "$(user) survives. Right on time.",
+                "$(user) lives. The lizard is starting to notice a pattern.",
+                "$(user) survives. Same time as last time.",
+            ],
+        },
+        (3, 4): {
+            "openers": [
+                "The lizard taps its watch.",
+                "*click* — like clockwork.",
+                "The lizard checks its notes.",
+            ],
+            "bodies": [
+                "$(streak) for $(user). Every 30 minutes. Interesting.",
+                "$(user) at $(streak). The lizard could set a clock by you.",
+                "$(streak), $(user). Your timer went off again.",
+            ],
+        },
+        (5, 7): {
+            "openers": [
+                "The lizard looks up from its clipboard.",
+                "*click* — the lizard isn't surprised.",
+                "Ah, $(user). Right on schedule.",
+            ],
+            "bodies": [
+                "$(streak) survivals, $(user). The lizard knows your schedule now.",
+                "$(user) at $(streak). Do you even look at chat between plays?",
+                "$(streak). $(user). The lizard can predict you to the second.",
+            ],
+        },
+        (8, None): {
+            "openers": [
+                "The lizard doesn't even look up.",
+                "Ah. $(user). The appointment.",
+                "*click* — the lizard already had this penciled in.",
+            ],
+            "bodies": [
+                "$(streak), $(user). The lizard has your next visit scheduled too.",
+                "$(user) at $(streak). The lizard respects the automation, if not the player.",
+                "$(streak). $(user). The lizard wrote a cron job about you.",
+            ],
+        },
+    },
 }
 
 
@@ -1340,6 +1405,53 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
         },
         (100, None): {
             "cores": ["$(raw_deaths).", ".", "$(user). ...$(raw_deaths)."],
+        },
+    },
+    # ------------------------------------------------------------------
+    # SUSPICIOUS — no warning, no countdown, just consequences.
+    # ------------------------------------------------------------------
+    Mood.SUSPICIOUS: {
+        (1, 1): {
+            "cores": [
+                "Right on schedule, $(user).",
+                "$(user). The lizard was expecting you.",
+                "Your alarm went off, $(user). So did the gun.",
+            ],
+        },
+        (2, 9): {
+            "cores": [
+                "$(raw_deaths), $(user). Your timer is very reliable.",
+                "$(user). $(raw_deaths). Like clockwork.",
+                "Right on time, $(user). That's $(raw_deaths).",
+            ],
+        },
+        (10, 24): {
+            "cores": [
+                "$(raw_deaths), $(user). The lizard set its own timer for you.",
+                "$(user). $(raw_deaths). You're more predictable than the lizard's schedule.",
+                "Oh, I'm sorry, did your timer say it was safe? $(raw_deaths), $(user).",
+            ],
+        },
+        (25, 49): {
+            "cores": [
+                "$(raw_deaths). $(user), the lizard doesn't need a timer. It just knows.",
+                "$(user). $(raw_deaths). The lizard penciled you in.",
+                "Right on schedule. $(raw_deaths) for $(user). The lizard had the gun ready.",
+            ],
+        },
+        (50, 99): {
+            "cores": [
+                "$(raw_deaths), $(user). The lizard has your schedule memorized.",
+                "$(user). $(raw_deaths). Your timer went off. So did the lizard's.",
+                "$(raw_deaths). $(user), the lizard doesn't even need you to type the command anymore.",
+            ],
+        },
+        (100, None): {
+            "cores": [
+                "$(raw_deaths). $(user), the lizard automated YOUR timeout too.",
+                "$(user). $(raw_deaths). At this point you're both bots.",
+                "$(raw_deaths), $(user). The lizard wrote a script for you. Only fair.",
+            ],
         },
     },
 }
