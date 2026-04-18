@@ -29,6 +29,6 @@ jobs:
 
       - name: Deploy with Docker
         run: |
-          docker compose up -d --build --remove-orphans
-          docker compose restart caddy
+          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          docker compose -f docker-compose.prod.yml restart caddy
           docker image prune -f
