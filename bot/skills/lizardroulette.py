@@ -179,10 +179,17 @@ class LizardRouletteHandler(SkillHandler):
                 )
 
             if not timed_out:
-                timeout_failed = config.get("timeout_failed")
-                if timeout_failed:
-                    msg = timeout_failed.replace("$(user)", chatter_name)
-                    await send_reply(payload, msg, bot_id=bot.bot_id)
+                if chatter_id == broadcaster_id:
+                    timeout_failed = config.get("timeout_failed")
+                    if timeout_failed:
+                        msg = timeout_failed.replace("$(user)", chatter_name)
+                        await send_reply(payload, msg, bot_id=bot.bot_id)
+                else:
+                    logger.warning(
+                        "[LizardRoulette] Timeout failed for non-broadcaster: user=%s channel=#%s",
+                        chatter_name,
+                        channel.twitch_channel_name,
+                    )
         else:
             streak = await self._update_stat(
                 channel, chatter_id, chatter.name, "streak"
