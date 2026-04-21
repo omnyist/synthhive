@@ -1018,9 +1018,13 @@ class TestLizardRouletteHandler:
 
     def setup_method(self):
         """Clear singleton handler state between tests."""
+        from bot.skills.lizardmood import recency
+
         discover_skills()
         SKILL_REGISTRY["lizardroulette"]._cooldowns.clear()
         SKILL_REGISTRY["lizardroulette"]._bullets.clear()
+        SKILL_REGISTRY["lizardroulette"]._play_intervals.clear()
+        recency.clear()
         SKILL_REGISTRY["lizardroulette"]._last_victim.clear()
 
     def test_discover_skills_registers_lizardroulette(self):
