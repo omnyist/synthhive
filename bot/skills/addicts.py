@@ -92,7 +92,7 @@ class AddictsHandler(SkillHandler):
         parts = []
         for i, (name, count, avg) in enumerate(entries, 1):
             if avg is not None:
-                parts.append(f"{i}. {name} ({count}, avg {_format_interval(avg)})")
+                parts.append(f"{i}. {name} ({count}, every {_format_interval(avg)})")
             else:
                 parts.append(f"{i}. {name} ({count})")
 
