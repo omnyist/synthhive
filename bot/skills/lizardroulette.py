@@ -165,7 +165,8 @@ class LizardRouletteHandler(SkillHandler):
             timeout_duration = config.get("timeout_duration", 600)
 
             if death_msg.timeout_first:
-                # Shoot first, talk later.
+                # Shoot first, talk later. Can't reply — the message
+                # is deleted when the timeout fires.
                 timed_out = await self._timeout_user(
                     channel, broadcaster_id, chatter_id, timeout_duration
                 )
@@ -174,7 +175,10 @@ class LizardRouletteHandler(SkillHandler):
                     chatter_name,
                     timed_out,
                 )
-                await send_reply(payload, death_msg.text, bot_id=bot.bot_id)
+                await payload.broadcaster.send_message(
+                    sender=bot.bot_id,
+                    message=death_msg.text,
+                )
             else:
                 await send_reply(payload, death_msg.text, bot_id=bot.bot_id)
                 logger.info(
