@@ -101,6 +101,14 @@ class BotClient(commands.Bot):
 
         from core.models import Bot as BotModel
 
+        if str(payload.user_id) != str(self.bot_id):
+            logger.debug(
+                "[%s] Ignoring token refresh for user %s (not this bot).",
+                self.bot_name,
+                payload.user_id,
+            )
+            return
+
         try:
             bot = await sync_to_async(BotModel.objects.get)(
                 twitch_user_id=self.bot_id,
