@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 
 import twitchio
@@ -71,15 +72,26 @@ class CommandRouter(commands.Component):
     6. Skill handler fallback (Python-coded complex behaviors)
     """
 
+    _DEDUP_MAX = 100
+
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._registry = create_registry()
         self._global_cooldowns: dict[tuple[str, str], float] = {}
         self._user_cooldowns: dict[tuple[str, str, str], float] = {}
+        self._seen_messages: OrderedDict[str, None] = OrderedDict()
         discover_skills()
 
     @commands.Component.listener()
     async def event_message(self, payload: twitchio.ChatMessage) -> None:
+        # 0. Deduplicate (duplicate EventSub subscriptions)
+        msg_id = str(payload.id)
+        if msg_id in self._seen_messages:
+            return
+        self._seen_messages[msg_id] = None
+        if len(self._seen_messages) > self._DEDUP_MAX:
+            self._seen_messages.popitem(last=False)
+
         # 1. Self-message guard
         if payload.chatter and str(payload.chatter.id) == str(self.bot.bot_id):
             return
