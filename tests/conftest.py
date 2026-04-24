@@ -45,7 +45,7 @@ class MockPayload:
     """Mocks twitchio.ChatMessage for tests."""
 
     text: str = ""
-    id: str = "mock-message-id"
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     chatter: MockChatter = field(default_factory=MockChatter)
     broadcaster: MockBroadcaster = field(default_factory=MockBroadcaster)
     respond: AsyncMock = field(default_factory=AsyncMock)
