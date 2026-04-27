@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import environ
+import sentry_sdk
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -16,6 +17,19 @@ DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Sentry (production only)
+if not DEBUG:
+    sentry_sdk.init(
+        dsn=env("SENTRY_DSN", default=""),
+        environment="production",
+        send_default_pii=True,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+        before_send=lambda event, hint: event
+        if event.get("logger") != "django.security.DisallowedHost"
+        else None,
+    )
 
 # Application definition
 

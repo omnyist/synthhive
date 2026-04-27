@@ -13,6 +13,7 @@ dependencies = [
     "httpx>=0.28.0",
     "psycopg>=3.3.0",
     "redis>=6.0.0",
+    "sentry-sdk[django]>=2.40.0",
     "twitchio>=3.2.1",
     "whitenoise>=6.9.0",
 ]
