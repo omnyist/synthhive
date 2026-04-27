@@ -342,3 +342,10 @@ WhiteNoise does not work under ASGI/Daphne (sync-only middleware). Static files 
 - **Linting**: Ruff (config in `pyproject.toml`). Single-line imports, `from __future__ import annotations` required.
 - **Database**: PostgreSQL 16. All models use UUID primary keys.
 - **Encryption**: django-fernet-encrypted-fields for OAuth tokens.
+
+## Known Issues (from arbiter audit 2026-04-23)
+
+- **Frontend `cn()` utility is broken**: uses `filter(Boolean).join(' ')` which doesn't merge conflicting Tailwind classes. Should use `clsx` + `tailwind-merge` (synthform has the correct implementation).
+- **No shared UI components**: forms, tables, and list layouts are built from raw HTML + inline Tailwind. nyxsis-panel has a full Catalyst component library (28 components) that could be adopted here.
+- **Frontend `apiFetch` could be shared**: the API client in `frontend/src/lib/api.ts` is functionally identical to nyxsis-panel's version. When touching either, consider aligning them.
+- **Biome migration pending**: currently on ESLint. The cluster standard is Biome (decided 2026-04-18). Migrate when next touching frontend config.
