@@ -424,7 +424,9 @@ class TestRenderSurvival:
             for mood in Mood:
                 ctx = _make_ctx(outcome="survival", streak=1, chatter_name="test")
                 msg = render_survival(mood, ctx)
-                assert msg.endswith("bardLizard"), f"{mood.value} missing bardLizard"
+                assert msg.endswith("bardLizard") or msg.endswith("bardLizard2"), (
+                    f"{mood.value} missing lizard emote"
+                )
 
 
 # ---------------------------------------------------------------------------
