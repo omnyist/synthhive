@@ -83,6 +83,7 @@ DATABASES = {
         default="postgresql://synthhive:synthhive@localhost:5432/synthhive"
     )
 }
+DATABASES["default"]["OPTIONS"] = {"pool": True}
 
 # Auth
 

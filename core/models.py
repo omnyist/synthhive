@@ -111,7 +111,7 @@ class Command(models.Model):
         Channel, on_delete=models.CASCADE, related_name="commands"
     )
     name = models.CharField(max_length=100)
-    type = models.CharField(max_length=20, choices=Type.choices, default=Type.TEXT)
+    type = models.CharField(max_length=20, choices=Type, default=Type.TEXT)
     response = models.TextField(blank=True, default="")
     config = models.JSONField(default=dict, blank=True)
 
