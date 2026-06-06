@@ -1542,8 +1542,7 @@ def render_survival(mood: Mood, ctx: MoodContext) -> str:
             elif pool.get("victim_clauses"):
                 parts.append(recency.pick(cid, pool["victim_clauses"]))
 
-    emote = random.choice(["bardLizard", "bardLizard2"])
-    message = " ".join(parts) + f" {emote}"
+    message = " ".join(parts) + " bardLizard"
     return _substitute(message, ctx)
 
 
