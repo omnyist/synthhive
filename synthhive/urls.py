@@ -11,6 +11,7 @@ from django.views.static import serve
 from ninja import NinjaAPI
 
 from core.api_v1 import v1_router
+from synthhive.health import health_check
 
 api = NinjaAPI(urls_namespace="main")
 api.add_router("/v1/", v1_router)
@@ -18,6 +19,7 @@ api.add_router("/v1/", v1_router)
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", api.urls),
+    path("health/", health_check),
     path("auth/", include("core.dashboard_auth_urls")),
     path("setup/", include("core.auth_urls")),
 ]
