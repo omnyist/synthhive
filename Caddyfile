@@ -1,5 +1,5 @@
 :80 {
-	@backend path /api/* /admin/* /auth/* /setup/* /static/*
+	@backend path /api/* /admin/* /auth/* /setup/* /static/* /health/*
 
 	handle @backend {
 		reverse_proxy server:7177 {
