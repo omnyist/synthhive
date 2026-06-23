@@ -1,3 +1,9 @@
+// Shape of a Ninja `@paginate` response (LimitOffsetPagination default).
+export interface Paginated<T> {
+  items: T[]
+  count: number
+}
+
 function getCookie(name: string): string | null {
   const value = `; ${document.cookie}`
   const parts = value.split(`; ${name}=`)

@@ -10,6 +10,7 @@ from django.db import IntegrityError
 from ninja import Router
 from ninja import Schema
 from ninja.errors import HttpError
+from ninja.pagination import paginate
 
 from .models import Alias
 from .models import Channel
@@ -170,6 +171,7 @@ async def me(request):
 
 
 @v1_router.get("/channels/", response=list[ChannelBriefSchema])
+@paginate
 async def list_channels(request):
     """List channels the authenticated user owns."""
     user = await _require_auth(request)
@@ -233,6 +235,7 @@ class CommandUpdateSchema(Schema):
 @v1_router.get(
     "/commands/channels/{channel_slug}/", response=list[CommandSchema]
 )
+@paginate
 async def list_commands(request, channel_slug: str):
     """List all commands for a channel (including disabled)."""
     channel, _ = await _get_user_channel(request, channel_slug)
@@ -349,6 +352,7 @@ class CounterUpdateSchema(Schema):
 @v1_router.get(
     "/counters/channels/{channel_slug}/", response=list[CounterSchema]
 )
+@paginate
 async def list_counters(request, channel_slug: str):
     """List all counters for a channel."""
     channel, _ = await _get_user_channel(request, channel_slug)
@@ -434,6 +438,7 @@ class AliasUpdateSchema(Schema):
 @v1_router.get(
     "/aliases/channels/{channel_slug}/", response=list[AliasSchema]
 )
+@paginate
 async def list_aliases(request, channel_slug: str):
     """List all aliases for a channel."""
     channel, _ = await _get_user_channel(request, channel_slug)

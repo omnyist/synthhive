@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, type Paginated } from '@/lib/api'
 import { CommandList } from '@/components/CommandList'
 import { CommandForm } from '@/components/CommandForm'
 
@@ -30,9 +30,11 @@ function CommandsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isNew, setIsNew] = useState(false)
 
-  const { data: commands = [], isLoading } = useQuery<Command[]>({
+  const { data: commands = [], isLoading } = useQuery({
     queryKey: ['commands', channelSlug],
-    queryFn: () => api<Command[]>(`/api/v1/commands/channels/${channelSlug}/`),
+    queryFn: () =>
+      api<Paginated<Command>>(`/api/v1/commands/channels/${channelSlug}/`),
+    select: (data) => data.items,
   })
 
   const selectedCommand = selectedId ? commands.find((c) => c.id === selectedId) ?? null : null
