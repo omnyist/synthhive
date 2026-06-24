@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { api, type Paginated } from '@/lib/api'
+import { fetchAll } from '@/lib/api'
 import { CounterList } from '@/components/CounterList'
 import { CounterForm } from '@/components/CounterForm'
 
@@ -24,8 +24,7 @@ function CountersPage() {
   const { data: counters = [], isLoading } = useQuery({
     queryKey: ['counters', channelSlug],
     queryFn: () =>
-      api<Paginated<Counter>>(`/api/v1/counters/channels/${channelSlug}/`),
-    select: (data) => data.items,
+      fetchAll<Counter>(`/api/v1/counters/channels/${channelSlug}/`),
   })
 
   const selectedCounter = selectedId ? counters.find((c) => c.id === selectedId) ?? null : null

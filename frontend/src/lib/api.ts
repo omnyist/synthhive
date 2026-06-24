@@ -42,3 +42,18 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 
   return res.json()
 }
+
+// Fetch every page of a `@paginate` endpoint and return the flattened items.
+// The default page size is 100; this walks `offset` until `count` is reached so
+// list views never silently truncate to the first page.
+export async function fetchAll<T>(path: string): Promise<T[]> {
+  const sep = path.includes('?') ? '&' : '?'
+  const first = await api<Paginated<T>>(path)
+  const items = [...first.items]
+  while (items.length < first.count) {
+    const page = await api<Paginated<T>>(`${path}${sep}offset=${items.length}`)
+    if (page.items.length === 0) break
+    items.push(...page.items)
+  }
+  return items
+}

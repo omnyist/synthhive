@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { api, type Paginated } from '@/lib/api'
+import { fetchAll } from '@/lib/api'
 import { AliasList } from '@/components/AliasList'
 import { AliasForm } from '@/components/AliasForm'
 
@@ -23,8 +23,7 @@ function AliasesPage() {
   const { data: aliases = [], isLoading } = useQuery({
     queryKey: ['aliases', channelSlug],
     queryFn: () =>
-      api<Paginated<Alias>>(`/api/v1/aliases/channels/${channelSlug}/`),
-    select: (data) => data.items,
+      fetchAll<Alias>(`/api/v1/aliases/channels/${channelSlug}/`),
   })
 
   const selectedAlias = selectedId ? aliases.find((a) => a.id === selectedId) ?? null : null
