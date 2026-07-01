@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
+from datetime import timedelta
 from typing import Literal
 
 from asgiref.sync import sync_to_async
@@ -16,6 +17,7 @@ from .models import Alias
 from .models import Channel
 from .models import Command
 from .models import Counter
+from .models import Invite
 from .models import TwitchProfile
 
 v1_router = Router()
@@ -498,4 +500,80 @@ async def delete_alias(request, alias_id: uuid.UUID):
     """Delete an alias."""
     alias = await _get_user_alias(request, alias_id)
     await sync_to_async(alias.delete)()
+    return {"success": True}
+
+
+# --- Invites ---
+
+
+class InviteSchema(Schema):
+    id: uuid.UUID
+    code: str
+    status: str
+    created_at: datetime
+    expires_at: datetime
+    used_at: datetime | None
+    completed_at: datetime | None
+    channel_name: str
+
+
+@v1_router.get("/invites/", response=list[InviteSchema])
+async def list_invites(request):
+    """List all invites created by the authenticated user."""
+    user = await _require_auth(request)
+
+    invites = []
+    async for invite in Invite.objects.filter(created_by=user).order_by("-created_at"):
+        invites.append(InviteSchema(
+            id=invite.id,
+            code=invite.code,
+            status=invite.status,
+            created_at=invite.created_at,
+            expires_at=invite.expires_at,
+            used_at=invite.used_at,
+            completed_at=invite.completed_at,
+            channel_name=invite.channel_name,
+        ))
+    return invites
+
+
+@v1_router.post("/invites/", response=InviteSchema)
+async def create_invite(request):
+    """Create a new invite link. Returns the invite with its code."""
+    user = await _require_auth(request)
+
+    is_staff = await sync_to_async(lambda: user.is_staff)()
+    if not is_staff:
+        raise HttpError(403, "Only staff can create invites.")
+
+    from django.utils import timezone
+
+    invite = await sync_to_async(Invite.objects.create)(
+        created_by=user,
+        expires_at=timezone.now() + timedelta(days=7),
+    )
+
+    return InviteSchema(
+        id=invite.id,
+        code=invite.code,
+        status=invite.status,
+        created_at=invite.created_at,
+        expires_at=invite.expires_at,
+        used_at=invite.used_at,
+        completed_at=invite.completed_at,
+        channel_name=invite.channel_name,
+    )
+
+
+@v1_router.delete("/invites/{invite_id}/")
+async def delete_invite(request, invite_id: uuid.UUID):
+    """Delete an invite."""
+    user = await _require_auth(request)
+
+    try:
+        invite = await sync_to_async(Invite.objects.get)(pk=invite_id, created_by=user)
+    except Invite.DoesNotExist:
+        raise HttpError(404, "Invite not found") from None
+
+    await sync_to_async(invite.delete)()
     return {"success": True}

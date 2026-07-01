@@ -218,3 +218,28 @@ def registry():
     from bot.variables import create_registry
 
     return create_registry()
+
+
+@pytest.fixture(autouse=True)
+def _reset_lizard_state():
+    """Reset lizardroulette's in-memory singleton state before every test.
+
+    The handler is a singleton in SKILL_REGISTRY and `recency` is a
+    module-level tracker in lizardmood — both persist for the whole test
+    session. Per-class setup only covers its own tests, so state leaks
+    between test MODULES and causes order-dependent failures. This global
+    autouse reset makes every test start from a clean slate.
+    """
+    from bot.skills import SKILL_REGISTRY
+    from bot.skills import discover_skills
+    from bot.skills.lizardmood import recency
+
+    discover_skills()
+    handler = SKILL_REGISTRY.get("lizardroulette")
+    if handler is not None:
+        handler._cooldowns.clear()
+        handler._bullets.clear()
+        handler._last_victim.clear()
+        handler._play_intervals.clear()
+    recency.clear()
+    yield

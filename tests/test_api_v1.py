@@ -11,6 +11,7 @@ from core.models import Bot
 from core.models import Channel
 from core.models import Command
 from core.models import Counter
+from core.models import Invite
 from core.models import TwitchProfile
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -116,13 +117,13 @@ class TestChannelsEndpoint:
         response = authed_client.get("/api/v1/channels/")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "testchannel"
+        assert data["count"] == 1
+        assert data["items"][0]["name"] == "testchannel"
 
     def test_excludes_other_channels(self, other_client, test_channel):
         response = other_client.get("/api/v1/channels/")
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json()["items"] == []
 
     def test_unauthenticated_returns_401(self, unauthed_client):
         response = unauthed_client.get("/api/v1/channels/")
@@ -139,8 +140,8 @@ class TestCommandList:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
-        names = [c["name"] for c in data]
+        assert data["count"] == 2
+        names = [c["name"] for c in data["items"]]
         assert "lurk" in names
         assert "conch" in names
 
@@ -318,8 +319,8 @@ class TestCounterList:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
-        names = [c["name"] for c in data]
+        assert data["count"] == 2
+        names = [c["name"] for c in data["items"]]
         assert "death" in names
         assert "scare" in names
 
@@ -417,8 +418,8 @@ class TestAliasList:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
-        names = [a["name"] for a in data]
+        assert data["count"] == 2
+        names = [a["name"] for a in data["items"]]
         assert "ct" in names
         assert "fc" in names
 
@@ -502,3 +503,65 @@ class TestAliasDelete:
         response = other_client.delete(f"/api/v1/aliases/{alias.id}/")
         assert response.status_code == 403
         assert Alias.objects.filter(pk=alias.id).exists()
+
+
+@pytest.fixture()
+def staff_client(db):
+    """A test client logged in as a staff user with a TwitchProfile."""
+    user = User.objects.create_user(
+        username="staffer", password="testpass", is_staff=True
+    )
+    TwitchProfile.objects.create(
+        user=user,
+        twitch_id="55555",
+        twitch_username="staffer",
+        twitch_display_name="Staffer",
+        is_approved=True,
+    )
+    c = Client(enforce_csrf_checks=False)
+    c.login(username="staffer", password="testpass")
+    return c
+
+
+class TestInviteCreate:
+    def test_staff_can_create_invite(self, staff_client):
+        response = staff_client.post("/api/v1/invites/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"]
+        assert data["status"] == "pending"
+        assert Invite.objects.filter(code=data["code"]).exists()
+
+    def test_non_staff_forbidden(self, authed_client):
+        response = authed_client.post("/api/v1/invites/")
+        assert response.status_code == 403
+        assert not Invite.objects.exists()
+
+    def test_unauthenticated_returns_401(self, unauthed_client):
+        response = unauthed_client.post("/api/v1/invites/")
+        assert response.status_code == 401
+
+
+class TestInviteList:
+    def test_lists_own_invites(self, staff_client):
+        staff_client.post("/api/v1/invites/")
+        staff_client.post("/api/v1/invites/")
+        response = staff_client.get("/api/v1/invites/")
+        assert response.status_code == 200
+        assert len(response.json()) == 2
+
+
+class TestInviteDelete:
+    def test_deletes_own_invite(self, staff_client):
+        created = staff_client.post("/api/v1/invites/").json()
+        invite = Invite.objects.get(code=created["code"])
+        response = staff_client.delete(f"/api/v1/invites/{invite.id}/")
+        assert response.status_code == 200
+        assert not Invite.objects.filter(pk=invite.id).exists()
+
+    def test_cannot_delete_others_invite(self, staff_client, authed_client):
+        created = staff_client.post("/api/v1/invites/").json()
+        invite = Invite.objects.get(code=created["code"])
+        response = authed_client.delete(f"/api/v1/invites/{invite.id}/")
+        assert response.status_code == 404
+        assert Invite.objects.filter(pk=invite.id).exists()

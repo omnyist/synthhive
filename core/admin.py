@@ -7,8 +7,10 @@ from .models import Bot
 from .models import Channel
 from .models import Command
 from .models import Counter
+from .models import Invite
 from .models import Skill
 from .models import SkillStat
+from .models import TwitchProfile
 
 
 class ChannelInline(admin.TabularInline):
@@ -92,3 +94,24 @@ class AliasAdmin(admin.ModelAdmin):
     list_filter = ("channel",)
     search_fields = ("name", "target")
     ordering = ["channel", "name"]
+
+
+@admin.register(TwitchProfile)
+class TwitchProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "twitch_display_name",
+        "twitch_username",
+        "twitch_id",
+        "is_approved",
+    )
+    list_filter = ("is_approved",)
+    search_fields = ("twitch_username", "twitch_display_name")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(Invite)
+class InviteAdmin(admin.ModelAdmin):
+    list_display = ("code", "status", "created_by", "channel_name", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("code", "channel_name")
+    readonly_fields = ("code", "created_at", "used_at", "completed_at")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 import uuid
 
 from django.conf import settings
@@ -25,11 +26,84 @@ class TwitchProfile(models.Model):
     twitch_username = models.CharField(max_length=100)
     twitch_display_name = models.CharField(max_length=100)
     twitch_avatar = models.CharField(max_length=500, blank=True, default="")
+    is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.twitch_display_name} ({self.twitch_id})"
+
+
+def _generate_invite_code():
+    return secrets.token_urlsafe(8)
+
+
+class Invite(models.Model):
+    """A one-time invite link for onboarding a new tenant.
+
+    The flow is two-step: channel owner OAuth, then bot OAuth.
+    Channel owner tokens are stored temporarily on the invite
+    until the bot is connected and the Channel record is created.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=16, unique=True, default=_generate_invite_code)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_invites",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+
+    used_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="used_invites",
+    )
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    channel_twitch_id = models.CharField(max_length=50, blank=True, default="")
+    channel_name = models.CharField(max_length=100, blank=True, default="")
+    channel_access_token = EncryptedTextField(null=True, blank=True)
+    channel_refresh_token = EncryptedTextField(null=True, blank=True)
+    channel_token_expires_at = models.DateTimeField(null=True, blank=True)
+
+    # Nonce for the bot OAuth step. Stored on the invite (not the session)
+    # so the step works across browsers — the invitee authorizes the bot
+    # account in an incognito window with no shared session.
+    bot_oauth_nonce = models.CharField(max_length=64, blank=True, default="")
+
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Invite {self.code} ({self.status})"
+
+    @property
+    def status(self) -> str:
+        # Expiry gates *starting* onboarding, not finishing it. Once step 1 is
+        # done (used_at set), the invitee can always complete the bot step —
+        # the awaiting_bot state doesn't expire out from under them.
+        if self.completed_at:
+            return "completed"
+        if self.used_at:
+            return "awaiting_bot"
+        if self.expires_at < timezone.now():
+            return "expired"
+        return "pending"
+
+    @property
+    def is_redeemable(self) -> bool:
+        return self.status == "pending"
+
+    @property
+    def is_awaiting_bot(self) -> bool:
+        return self.status == "awaiting_bot"
 
 
 class Bot(models.Model):

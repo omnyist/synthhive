@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Synthhive{% endblock %}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0e0e10;
+            color: #efeff1;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            background: #18181b;
+            border-radius: 12px;
+            padding: 2.5rem;
+            max-width: 480px;
+            width: 100%;
+            margin: 2rem;
+        }
+        .step-indicator {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .step {
+            flex: 1;
+            height: 4px;
+            border-radius: 2px;
+            background: #2f2f35;
+        }
+        .step.active { background: #9146ff; }
+        .step.done { background: #00875a; }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #adadb8;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: background 0.15s;
+        }
+        .btn-twitch { background: #9146ff; color: #fff; }
+        .btn-twitch:hover { background: #772ce8; }
+        .btn-block { display: block; width: 100%; text-align: center; }
+        .copy-box {
+            margin-top: 1.5rem;
+            padding: 1.25rem;
+            background: #0e0e10;
+            border: 1px solid #2f2f35;
+            border-radius: 8px;
+        }
+        .copy-box label {
+            display: block;
+            font-size: 0.8rem;
+            color: #adadb8;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .copy-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .copy-row input {
+            flex: 1;
+            background: #18181b;
+            border: 1px solid #3a3a44;
+            border-radius: 6px;
+            color: #efeff1;
+            padding: 0.6rem 0.75rem;
+            font-size: 0.85rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        .copy-row input:focus {
+            outline: none;
+            border-color: #9146ff;
+        }
+        .btn-copy {
+            background: #2f2f35;
+            color: #efeff1;
+            border: none;
+            border-radius: 6px;
+            padding: 0.6rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s;
+        }
+        .btn-copy:hover { background: #3a3a44; }
+        .btn-copy.copied { background: #00875a; }
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 1.5rem 0;
+            color: #adadb8;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .divider::before, .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #2f2f35;
+        }
+        .success-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #00875a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+        }
+        .error-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #772222;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+        }
+        {% block extra_style %}{% endblock %}
+    </style>
+</head>
+<body>
+    <div class="card">
+        {% block content %}{% endblock %}
+    </div>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,11 @@
+{% extends "core/invite_base.html" %}
+{% block title %}Invite Error — Synthhive{% endblock %}
+
+{% block content %}
+<div class="error-icon">&#10007;</div>
+
+<h1 style="text-align: center;">Something's not right</h1>
+<p class="subtitle" style="text-align: center;">
+    {{ error }}
+</p>
+{% endblock %}

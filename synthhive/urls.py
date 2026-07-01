@@ -21,6 +21,7 @@ urlpatterns = [
     path("api/", api.urls),
     path("health/", health_check),
     path("auth/", include("core.dashboard_auth_urls")),
+    path("invite/", include("core.invite_urls")),
     path("setup/", include("core.auth_urls")),
 ]
 

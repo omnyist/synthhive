@@ -1,0 +1,22 @@
+{% extends "core/invite_base.html" %}
+{% block title %}Setup Complete — Synthhive{% endblock %}
+
+{% block content %}
+<div class="step-indicator">
+    <div class="step done"></div>
+    <div class="step done"></div>
+</div>
+
+<div class="success-icon">&#10003;</div>
+
+<h1 style="text-align: center;">You're all set</h1>
+<p class="subtitle" style="text-align: center;">
+    <strong>{{ bot_name }}</strong> is ready to go in
+    <strong>#{{ channel_name }}</strong>.
+    Head to the dashboard to manage your commands.
+</p>
+
+<a class="btn btn-twitch btn-block" href="/">
+    Go to Dashboard
+</a>
+{% endblock %}

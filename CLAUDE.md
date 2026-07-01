@@ -1,6 +1,6 @@
 # Synthhive
 
-Multi-tenant Twitch bot platform built with Django + TwitchIO 3.x.
+> Multi-tenant Twitch chat-bot platform (Django + TwitchIO 3.x) — runs one bot per channel; web panel for commands/counters/aliases.
 
 ## Architecture
 
@@ -32,6 +32,8 @@ Two Docker containers share the same codebase and PostgreSQL database:
 - **Counter** — A named counter per channel (e.g., death count, scare count). Dedicated model with `IntegerField` for atomic `F()` updates. Readable in command responses via `$(count.get name)`.
 - **SkillStat** — Per-user stats for a skill in a channel. Stores arbitrary stats as JSON (e.g., `{"deaths": 14, "survivals": 22}`). Keyed by `(channel, skill_name, twitch_id)`. Used by lizardroulette for death tracking. Reusable for any skill needing per-user data.
 - **Alias** — A type-agnostic command alias per channel. Resolved early in the message pipeline to rewrite triggers before routing (e.g., `!ct` → `!count death`). Works for all command types and skills.
+- **TwitchProfile** — Links a Django User to their Twitch identity. `is_approved` controls dashboard access (replaces `DASHBOARD_ALLOWED_TWITCH_IDS` env var). Set to `True` via invite flow or data migration. Superusers bypass the gate (bootstrap escape hatch).
+- **Invite** — One-time invite link for onboarding new tenants. Two-step flow: channel owner OAuth (stores tokens on invite temporarily), then bot OAuth (creates Bot + Channel). Statuses: `pending` → `awaiting_bot` → `completed` / `expired`. The bot step's OAuth nonce lives on the `Invite` record (`bot_oauth_nonce`), not the session, so it validates when the invitee finishes in a separate incognito browser. Bot account must differ from the channel account. Invite creation (`POST /api/v1/invites/`) is staff-only.
 
 ## Command Types
 
@@ -336,12 +338,19 @@ WhiteNoise does not work under ASGI/Daphne (sync-only middleware). Static files 
 | Elsydeon | 66977097 | Bot |
 | WorldFriendshipBot | 149214941 | Bot |
 
-## Development
+## Conventions
 
-- **Python 3.13**, managed by `uv`.
-- **Linting**: Ruff (config in `pyproject.toml`). Single-line imports, `from __future__ import annotations` required.
-- **Database**: PostgreSQL 16. All models use UUID primary keys.
-- **Encryption**: django-fernet-encrypted-fields for OAuth tokens.
+@~/Code/global/conventions/django.md
+
+Project-specific deltas (everything else is inherited from the import above and ~/.claude/CLAUDE.md):
+
+- **Commits:** No restriction (synthfunc/synthform are Dev-only; this isn't). Pushing to `main` deploys.
+- **Port:** 7177 (via Caddy). **Redis logical DB:** `/1`.
+- **Two containers** share the codebase: `server` (Daphne API/admin/OAuth) and `bot` (`manage.py runbot`, one BotClient per active bot).
+- **Caddy** reverse-proxies API/admin/auth → `server`, else serves the SPA. No prod host ports (cloudflared ingress).
+- **Static under ASGI:** WhiteNoise is sync-only and doesn't work under Daphne — static is served via Django's `serve` route, not WhiteNoise middleware.
+- Fernet-encrypted OAuth tokens; native Django-6 CSP.
+- **Timestamps:** currently use `auto_now`; converge to the shared `TimestampedModel` (`default=timezone.now`) when next touching models.
 
 ## Known Issues (from arbiter audit 2026-04-23)
 

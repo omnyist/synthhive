@@ -1010,9 +1010,16 @@ def _theatrical_roll(ctx, weight_fn=None):
 class TestLizardRouletteHandler:
     @pytest.fixture(autouse=True)
     def _force_theatrical(self):
-        with patch(
-            "bot.skills.lizardroulette.roll_mood",
-            side_effect=_theatrical_roll,
+        # Force theatrical mood AND suppress the 3% rare-message roll so
+        # integration assertions on message structure (emote, call count,
+        # timeout_first) are deterministic. Rares are covered separately in
+        # test_lizardmood.py.
+        with (
+            patch(
+                "bot.skills.lizardroulette.roll_mood",
+                side_effect=_theatrical_roll,
+            ),
+            patch("bot.skills.lizardmood._try_rare", return_value=None),
         ):
             yield
 

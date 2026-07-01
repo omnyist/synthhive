@@ -1,0 +1,19 @@
+{% extends "core/invite_base.html" %}
+{% block title %}Join Synthhive{% endblock %}
+
+{% block content %}
+<div class="step-indicator">
+    <div class="step active"></div>
+    <div class="step"></div>
+</div>
+
+<h1>Welcome to Synthhive</h1>
+<p class="subtitle">
+    Connect your Twitch channel to get started. This will link your channel
+    and give your bot the permissions it needs to moderate chat.
+</p>
+
+<a class="btn btn-twitch btn-block" href="{{ oauth_url }}">
+    Connect Your Twitch Channel
+</a>
+{% endblock %}
