@@ -1013,13 +1013,19 @@ class TestLizardRouletteHandler:
         # Force theatrical mood AND suppress the 3% rare-message roll so
         # integration assertions on message structure (emote, call count,
         # timeout_first) are deterministic. Rares are covered separately in
-        # test_lizardmood.py.
+        # test_lizardmood.py. Also stub the live check to "live" so the
+        # offline layer stays off and no real /streams call fires; offline
+        # behavior is covered by dedicated tests that override this.
         with (
             patch(
                 "bot.skills.lizardroulette.roll_mood",
                 side_effect=_theatrical_roll,
             ),
             patch("bot.skills.lizardmood._try_rare", return_value=None),
+            patch.object(
+                LizardRouletteHandler, "_is_live", new_callable=AsyncMock,
+                return_value=True,
+            ),
         ):
             yield
 
@@ -2156,7 +2162,10 @@ class TestLizardRouletteHandler:
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "TestUser" in msg
-        for clause in ["wasn't so lucky", "still eating", "seat is still warm",
+        # Victim-only clause markers that must never appear for a self-victim.
+        # ("wasn't so lucky" is intentionally excluded — a valid self_victim
+        # clause reuses that phrase self-referentially.)
+        for clause in ["still eating", "seat is still warm",
                        "watching from", "could never", "seething",
                        "WISHES", "rolling in", "had the decency",
                        "filing a complaint", "died so", "COOKED"]:
@@ -2227,10 +2236,129 @@ class TestLizardRouletteHandler:
         assert stat.stats["streak"] == 1
         assert stat.stats["max_streak"] == 2
 
+    async def test_play_records_lizardplay(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import LizardPlay
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        await router.event_message(payload)
+
+        plays = list(LizardPlay.objects.filter(channel=channel))
+        assert len(plays) == 1
+        play = plays[0]
+        assert play.outcome == "survival"  # odds=0 → always survive
+        assert play.mood == "theatrical"
+        assert play.is_live is True
+        assert play.context["outcome"] == "survival"
+        assert play.context["is_live"] is True
+
+    async def test_capture_failure_does_not_break_game(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        with patch(
+            "core.models.LizardPlay.objects.create",
+            side_effect=Exception("boom"),
+        ):
+            await router.event_message(payload)
+
+        # A capture failure must never swallow the game response.
+        assert payload.broadcaster.send_message.called
+
 
 # --- Streak tier and composition tests ---
 
 
+
+
+# --- Live detection tests ---
+
+
+class TestLizardLiveDetection:
+    def _resp(self, data):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"data": data}
+        return resp
+
+    async def test_live_when_stream_present(self):
+        handler = LizardRouletteHandler()
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=self._resp([{"id": "1"}]),
+        ):
+            assert await handler._is_live(MagicMock(), "99999") is True
+
+    async def test_offline_when_no_stream(self):
+        handler = LizardRouletteHandler()
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=self._resp([]),
+        ):
+            assert await handler._is_live(MagicMock(), "99999") is False
+
+    async def test_result_is_cached(self):
+        handler = LizardRouletteHandler()
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=self._resp([]),
+        ) as tr:
+            await handler._is_live(MagicMock(), "99999")
+            await handler._is_live(MagicMock(), "99999")
+        tr.assert_called_once()
+
+    async def test_assumes_live_on_api_failure_without_caching(self):
+        handler = LizardRouletteHandler()
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as tr:
+            first = await handler._is_live(MagicMock(), "99999")
+            await handler._is_live(MagicMock(), "99999")
+        assert first is True
+        assert tr.call_count == 2  # failures aren't cached → retries
 
 
 # --- LizardBullets component tests ---

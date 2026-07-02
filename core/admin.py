@@ -8,6 +8,7 @@ from .models import Channel
 from .models import Command
 from .models import Counter
 from .models import Invite
+from .models import LizardPlay
 from .models import Skill
 from .models import SkillStat
 from .models import TwitchProfile
@@ -78,6 +79,30 @@ class CounterAdmin(admin.ModelAdmin):
     list_filter = ("channel",)
     search_fields = ("name", "label")
     ordering = ["channel", "name"]
+
+
+@admin.register(LizardPlay)
+class LizardPlayAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "twitch_username",
+        "channel",
+        "outcome",
+        "mood",
+        "is_live",
+        "is_scripted",
+        "was_bullet",
+        "deaths",
+    )
+    list_filter = ("channel", "outcome", "mood", "is_live", "is_scripted")
+    search_fields = ("twitch_username", "twitch_id")
+    ordering = ["-created_at"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(SkillStat)

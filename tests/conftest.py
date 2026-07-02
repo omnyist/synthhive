@@ -241,5 +241,6 @@ def _reset_lizard_state():
         handler._bullets.clear()
         handler._last_victim.clear()
         handler._play_intervals.clear()
+        handler._live_cache.clear()
     recency.clear()
     yield

@@ -16,7 +16,6 @@ from bot.skills.lizardmood import MoodContext
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
 from bot.skills.lizardmood import roll_mood
-from bot.skills.lizardmood import DeathMessage
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
@@ -43,12 +42,14 @@ class LizardRouletteHandler(SkillHandler):
 
     INTERVAL_WINDOW = 3  # plays needed to detect scripting
     INTERVAL_TOLERANCE = 30  # seconds of variance allowed
+    LIVE_CACHE_TTL = 60  # seconds to cache a channel's live status
 
     def __init__(self):
         self._cooldowns: dict[str, float] = {}
         self._bullets: dict[str, int] = {}
         self._last_victim: dict[str, str] = {}
         self._play_intervals: dict[str, deque[float]] = {}
+        self._live_cache: dict[str, tuple[bool, float]] = {}
 
     async def handle(self, payload, args, skill, bot):
         chatter = payload.chatter
@@ -98,6 +99,9 @@ class LizardRouletteHandler(SkillHandler):
             logger.warning("No active channel found for broadcaster %s", broadcaster_id)
             return
 
+        # --- Live status (cached) drives offline messaging + capture ---
+        is_live = await self._is_live(channel, broadcaster_id)
+
         # --- Track play count ---
         await self._update_stat(channel, chatter_id, chatter.name, "plays")
 
@@ -144,6 +148,7 @@ class LizardRouletteHandler(SkillHandler):
                 channel_id=broadcaster_id,
                 rival=await self._get_rival(channel, chatter_id),
                 is_scripted=is_scripted,
+                is_live=is_live,
             )
             mood_roll = roll_mood(ctx)
             behavior = MOOD_BEHAVIORS[mood_roll.mood]
@@ -158,6 +163,9 @@ class LizardRouletteHandler(SkillHandler):
             await self._set_stat(
                 channel, chatter_id, chatter.name,
                 "last_mood", mood_roll.mood.value,
+            )
+            await self._record_play(
+                channel, chatter_id, chatter.name, mood_roll, was_bullet
             )
 
             death_msg = render_death(mood_roll.mood, ctx)
@@ -238,6 +246,7 @@ class LizardRouletteHandler(SkillHandler):
                 channel_id=broadcaster_id,
                 rival=await self._get_rival(channel, chatter_id),
                 is_scripted=is_scripted,
+                is_live=is_live,
             )
             mood_roll = roll_mood(ctx)
             logger.debug(
@@ -251,6 +260,9 @@ class LizardRouletteHandler(SkillHandler):
             await self._set_stat(
                 channel, chatter_id, chatter.name,
                 "last_mood", mood_roll.mood.value,
+            )
+            await self._record_play(
+                channel, chatter_id, chatter.name, mood_roll, was_bullet=False
             )
 
             message = render_survival(mood_roll.mood, ctx)
@@ -274,6 +286,65 @@ class LizardRouletteHandler(SkillHandler):
         if not top:
             return ""
         return random.choice(top).twitch_username
+
+    async def _is_live(self, channel, broadcaster_id: str) -> bool:
+        """Return whether the channel is currently live, cached per channel.
+
+        A channel goes on/offline rarely, so a short TTL cache keeps play
+        volume from hammering the Helix /streams endpoint.
+        """
+        cached = self._live_cache.get(broadcaster_id)
+        now = time.monotonic()
+        if cached and now < cached[1]:
+            return cached[0]
+
+        response = await twitch_request(
+            channel,
+            "GET",
+            f"{TWITCH_API_BASE}/streams",
+            params={"user_id": broadcaster_id},
+        )
+        if response is None or response.status_code != 200:
+            # Unknown → assume live so we don't wrongly taunt during an
+            # API blip. Don't cache failures.
+            return True
+
+        live = len(response.json().get("data", [])) > 0
+        self._live_cache[broadcaster_id] = (live, now + self.LIVE_CACHE_TTL)
+        return live
+
+    async def _record_play(
+        self, channel, twitch_id, username, mood_roll, was_bullet
+    ) -> None:
+        """Append a per-play record for analytics / ML training.
+
+        Fire-and-forget: a capture failure must never break the game.
+        """
+        from dataclasses import asdict
+
+        from core.models import LizardPlay
+
+        ctx = mood_roll.ctx
+        try:
+            await sync_to_async(LizardPlay.objects.create)(
+                channel=channel,
+                twitch_id=twitch_id,
+                twitch_username=username,
+                outcome=ctx.outcome,
+                was_bullet=was_bullet,
+                is_scripted=ctx.is_scripted,
+                is_live=ctx.is_live,
+                mood=mood_roll.mood.value,
+                mood_weights={m.value: w for m, w in mood_roll.weights.items()},
+                deaths=ctx.deaths,
+                streak=ctx.streak,
+                max_streak=ctx.max_streak,
+                context=asdict(ctx),
+            )
+        except Exception:
+            logger.exception(
+                "[LizardRoulette] Failed to record play for %s", username
+            )
 
     def _detect_scripted(self, cooldown_key: str) -> bool:
         """Check if the player's recent play intervals are suspiciously consistent."""

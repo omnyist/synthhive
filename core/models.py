@@ -281,6 +281,49 @@ class SkillStat(models.Model):
         return f"{self.skill_name} stats for {self.twitch_username or self.twitch_id} in #{self.channel.twitch_channel_name}"
 
 
+class LizardPlay(models.Model):
+    """Append-only log of every lizardroulette play.
+
+    One row per play, written at outcome resolution. Captures the mood
+    roll (chosen mood + full weight distribution), the context that drove
+    it, and the outcome — the training signal for engagement-weighted
+    moods. SkillStat holds running totals; this holds the per-play record
+    those totals can't reconstruct.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, related_name="lizard_plays"
+    )
+    twitch_id = models.CharField(max_length=50, db_index=True)
+    twitch_username = models.CharField(max_length=100, blank=True, default="")
+
+    outcome = models.CharField(max_length=20)  # "death" or "survival"
+    was_bullet = models.BooleanField(default=False)
+    is_scripted = models.BooleanField(default=False)
+    is_live = models.BooleanField(default=True)
+
+    mood = models.CharField(max_length=20)
+    mood_weights = models.JSONField(default=dict, blank=True)
+
+    deaths = models.IntegerField(default=0)
+    streak = models.IntegerField(default=0)
+    max_streak = models.IntegerField(default=0)
+
+    context = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["channel", "twitch_id", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.twitch_username} {self.outcome} ({self.mood}) @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
 class Alias(models.Model):
     """A type-agnostic command alias per channel.
 

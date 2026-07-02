@@ -12,12 +12,16 @@ from bot.skills.lizardmood import DEATH_TIER_RANGES
 from bot.skills.lizardmood import MOOD_BEHAVIORS
 from bot.skills.lizardmood import MOOD_DEATH
 from bot.skills.lizardmood import MOOD_SURVIVAL
+from bot.skills.lizardmood import OFFLINE_TAGS
+from bot.skills.lizardmood import OFFLINE_TIMER_DEATHS
+from bot.skills.lizardmood import OFFLINE_TIMER_LINES
 from bot.skills.lizardmood import SURVIVAL_TIER_RANGES
+from bot.skills.lizardmood import DeathMessage
 from bot.skills.lizardmood import Mood
 from bot.skills.lizardmood import MoodContext
 from bot.skills.lizardmood import RecencyTracker
-from bot.skills.lizardmood import DeathMessage
 from bot.skills.lizardmood import _get_tier_key
+from bot.skills.lizardmood import _offline_fragment
 from bot.skills.lizardmood import _ordinal
 from bot.skills.lizardmood import recency
 from bot.skills.lizardmood import render_death
@@ -121,6 +125,73 @@ class TestScriptingDetection:
         ctx = _make_ctx(is_scripted=False)
         roll = roll_mood(ctx)
         assert roll.weights[Mood.SUSPICIOUS] == 0
+
+    def test_scripted_but_offline_does_not_boost_suspicious(self):
+        # Offline, a timer reads as devotion, not suspicion — the offline
+        # message layer handles it instead of the SUSPICIOUS mood.
+        ctx = _make_ctx(is_scripted=True, is_live=False)
+        roll = roll_mood(ctx)
+        assert roll.weights[Mood.SUSPICIOUS] == 0
+
+
+class TestOfflineWeights:
+    # Neutral context (survival, mid deaths, low streak) so only the offline
+    # adjuster moves weights — no first_death/death_count/streak interference.
+    def _neutral(self, **overrides):
+        base = {"outcome": "survival", "deaths": 5, "streak": 1}
+        base.update(overrides)
+        return _make_ctx(**base)
+
+    def test_offline_boosts_deadpan_and_bored(self):
+        roll = roll_mood(self._neutral(is_live=False))
+        assert roll.weights[Mood.DEADPAN] > BASE_WEIGHTS[Mood.DEADPAN]
+        assert roll.weights[Mood.BORED] > BASE_WEIGHTS[Mood.BORED]
+
+    def test_offline_reduces_theatrical(self):
+        roll = roll_mood(self._neutral(is_live=False))
+        assert roll.weights[Mood.THEATRICAL] < BASE_WEIGHTS[Mood.THEATRICAL]
+
+    def test_live_leaves_weights_unshifted_by_offline(self):
+        roll = roll_mood(self._neutral(is_live=True))
+        assert roll.weights[Mood.DEADPAN] == BASE_WEIGHTS[Mood.DEADPAN]
+
+
+class TestOfflineFragment:
+    def test_live_returns_no_fragment(self):
+        assert _offline_fragment(_make_ctx(is_live=True)) is None
+
+    def test_offline_casual_returns_a_tag(self):
+        ctx = _make_ctx(is_live=False, deaths=5)
+        assert _offline_fragment(ctx) in OFFLINE_TAGS
+
+    def test_offline_timer_veteran_returns_timer_line(self):
+        ctx = _make_ctx(
+            is_live=False, is_scripted=True, deaths=OFFLINE_TIMER_DEATHS
+        )
+        assert _offline_fragment(ctx) in OFFLINE_TIMER_LINES
+
+    def test_offline_timer_below_threshold_stays_casual(self):
+        ctx = _make_ctx(
+            is_live=False, is_scripted=True, deaths=OFFLINE_TIMER_DEATHS - 1
+        )
+        assert _offline_fragment(ctx) in OFFLINE_TAGS
+
+    def test_offline_not_scripted_stays_casual(self):
+        ctx = _make_ctx(is_live=False, is_scripted=False, deaths=500)
+        assert _offline_fragment(ctx) in OFFLINE_TAGS
+
+    def test_offline_death_appends_tag_to_message(self):
+        # OFFLINE_TAGS carry no $(...) substitutions, so they survive verbatim.
+        ctx = _make_ctx(is_live=False, deaths=5)
+        with patch("bot.skills.lizardmood.random.random", return_value=1.0):
+            text = render_death(Mood.BORED, ctx).text
+        assert any(tag in text for tag in OFFLINE_TAGS)
+
+    def test_live_death_has_no_offline_tag(self):
+        ctx = _make_ctx(is_live=True, deaths=5)
+        with patch("bot.skills.lizardmood.random.random", return_value=1.0):
+            text = render_death(Mood.BORED, ctx).text
+        assert not any(tag in text for tag in OFFLINE_TAGS)
 
     def test_suspicious_death_has_no_countdown(self):
         ctx = _make_ctx(deaths=50, chatter_name="akk", is_scripted=True)

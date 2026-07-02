@@ -44,6 +44,7 @@ class MoodContext:
     channel_id: str = ""
     rival: str = ""  # notable player from channel history (top survivor)
     is_scripted: bool = False  # player detected using a timer
+    is_live: bool = True  # whether the channel is currently streaming
 
 
 @dataclass(frozen=True)
@@ -134,8 +135,20 @@ def _adjust_for_first_death(weights: dict[Mood, int], ctx: MoodContext) -> None:
 
 
 def _adjust_for_scripted(weights: dict[Mood, int], ctx: MoodContext) -> None:
-    if ctx.is_scripted:
+    # Suspicion is a *live* reaction — timing a play during a live stream
+    # reads as sus. Offline, the same timer reads as devotion, handled by
+    # the offline message layer instead of the SUSPICIOUS mood.
+    if ctx.is_scripted and ctx.is_live:
         weights[Mood.SUSPICIOUS] += 40
+
+
+def _adjust_for_offline(weights: dict[Mood, int], ctx: MoodContext) -> None:
+    # No one's watching — the lizard can't be bothered to perform.
+    if not ctx.is_live:
+        weights[Mood.DEADPAN] += 20
+        weights[Mood.BORED] += 10
+        weights[Mood.THEATRICAL] -= 10
+        weights[Mood.GLEEFUL] -= 3
 
 
 MOOD_ADJUSTERS = [
@@ -144,6 +157,7 @@ MOOD_ADJUSTERS = [
     _adjust_for_bullets,
     _adjust_for_first_death,
     _adjust_for_scripted,
+    _adjust_for_offline,
 ]
 
 
@@ -1501,6 +1515,48 @@ def _try_rare(
     return message
 
 
+# ---------------------------------------------------------------------------
+# Offline layer — the lizard notices when no one is watching
+# ---------------------------------------------------------------------------
+
+# Deaths required before an offline timer-user earns the "devotion" callouts.
+OFFLINE_TIMER_DEATHS = 100
+
+# Casual offline tags — appended to any message when the stream is dark.
+OFFLINE_TAGS: list[str] = [
+    "The stream isn't even on.",
+    "...to an empty channel.",
+    "Nobody saw that, by the way.",
+    "There's no one here. The lizard performs anyway.",
+    "For an audience of exactly zero.",
+    "The chat is empty. Just you and the lizard.",
+]
+
+# Offline + timer + veteran deaths. NOT an accusation — the lizard is
+# quietly moved that someone set a reminder to do this to a dark room.
+OFFLINE_TIMER_LINES: list[str] = [
+    "$(user) set a timer for this. To an empty room. The lizard is almost touched.",
+    "Death $(deaths). No stream, just a reminder that buzzed — and $(user) answered.",
+    "Somewhere a phone lit up: 'post !lr'. $(user) obeyed. The lizard salutes.",
+    "The stream's off. The timer isn't. $(user) is nothing if not devoted.",
+    "$(raw_deaths) deaths, half of them to nobody. That's not a script — that's love.",
+    "An alarm went off and $(user) came running to a dark channel. Respect, genuinely.",
+]
+
+
+def _offline_fragment(ctx: MoodContext) -> str | None:
+    """Return an offline callout fragment, or None when live.
+
+    Timer-using veterans get the affectionate 'devotion' pool; everyone
+    else gets a dry casual tag.
+    """
+    if ctx.is_live:
+        return None
+    if ctx.is_scripted and ctx.deaths >= OFFLINE_TIMER_DEATHS:
+        return recency.pick(ctx.channel_id, OFFLINE_TIMER_LINES)
+    return recency.pick(ctx.channel_id, OFFLINE_TAGS)
+
+
 def render_survival(mood: Mood, ctx: MoodContext) -> str:
     """Compose a survival message for the given mood and context."""
     behavior = MOOD_BEHAVIORS[mood]
@@ -1527,20 +1583,28 @@ def render_survival(mood: Mood, ctx: MoodContext) -> str:
         flow_bodies = [f["body"] for f in flows]
         body = recency.pick(cid, flow_bodies)
         flow = next(f for f in flows if f["body"] == body)
-        if ctx.is_self_victim and "self_victim" in flow:
-            clause = flow["self_victim"]
+        # When the player is their own last victim, never fall back to the
+        # victim clause — it would name them as if they were someone else.
+        # Use the self_victim variant if the flow has one, else no clause.
+        if ctx.is_self_victim:
+            clause = flow.get("self_victim")
         else:
-            clause = flow["victim"]
-        parts = [opener, body, clause]
+            clause = flow.get("victim")
+        parts = [opener, body] + ([clause] if clause else [])
     else:
         body = recency.pick(cid, pool["bodies"])
         parts = [opener, body]
 
         if behavior.include_victim_clause and ctx.victim:
-            if ctx.is_self_victim and pool.get("self_victim_clauses"):
-                parts.append(recency.pick(cid, pool["self_victim_clauses"]))
+            if ctx.is_self_victim:
+                if pool.get("self_victim_clauses"):
+                    parts.append(recency.pick(cid, pool["self_victim_clauses"]))
             elif pool.get("victim_clauses"):
                 parts.append(recency.pick(cid, pool["victim_clauses"]))
+
+    offline = _offline_fragment(ctx)
+    if offline:
+        parts.append(offline)
 
     message = " ".join(parts) + " bardLizard"
     return _substitute(message, ctx)
@@ -1562,6 +1626,10 @@ def render_death(mood: Mood, ctx: MoodContext) -> DeathMessage:
 
     if behavior.countdown:
         parts.append(behavior.countdown)
+
+    offline = _offline_fragment(ctx)
+    if offline:
+        parts.append(offline)
 
     message = " ".join(parts) + f" {behavior.emote}"
     return DeathMessage(
