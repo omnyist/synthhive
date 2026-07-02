@@ -164,21 +164,31 @@ class TestOfflineFragment:
         ctx = _make_ctx(is_live=False, deaths=5)
         assert _offline_fragment(ctx) in OFFLINE_TAGS
 
-    def test_offline_timer_veteran_returns_timer_line(self):
-        ctx = _make_ctx(
-            is_live=False, is_scripted=True, deaths=OFFLINE_TIMER_DEATHS
-        )
-        assert _offline_fragment(ctx) in OFFLINE_TIMER_LINES
+    def test_offline_veteran_can_get_devotion_line(self):
+        # A devotion roll (< chance) on a veteran → devotion line.
+        ctx = _make_ctx(is_live=False, deaths=OFFLINE_TIMER_DEATHS)
+        with patch("bot.skills.lizardmood.random.random", return_value=0.0):
+            assert _offline_fragment(ctx) in OFFLINE_TIMER_LINES
 
-    def test_offline_timer_below_threshold_stays_casual(self):
-        ctx = _make_ctx(
-            is_live=False, is_scripted=True, deaths=OFFLINE_TIMER_DEATHS - 1
-        )
-        assert _offline_fragment(ctx) in OFFLINE_TAGS
+    def test_offline_veteran_sometimes_stays_casual(self):
+        # A non-devotion roll (>= chance) → casual tag (the ~40% mix).
+        ctx = _make_ctx(is_live=False, deaths=OFFLINE_TIMER_DEATHS)
+        with patch("bot.skills.lizardmood.random.random", return_value=0.99):
+            assert _offline_fragment(ctx) in OFFLINE_TAGS
 
-    def test_offline_not_scripted_stays_casual(self):
-        ctx = _make_ctx(is_live=False, is_scripted=False, deaths=500)
-        assert _offline_fragment(ctx) in OFFLINE_TAGS
+    def test_offline_below_threshold_never_devotion(self):
+        # Below threshold → casual even on a devotion roll.
+        ctx = _make_ctx(is_live=False, deaths=OFFLINE_TIMER_DEATHS - 1)
+        with patch("bot.skills.lizardmood.random.random", return_value=0.0):
+            assert _offline_fragment(ctx) in OFFLINE_TAGS
+
+    def test_offline_devotion_no_longer_needs_scripted(self):
+        # is_scripted is irrelevant to devotion now — offline + deaths is it.
+        ctx = _make_ctx(
+            is_live=False, is_scripted=False, deaths=OFFLINE_TIMER_DEATHS
+        )
+        with patch("bot.skills.lizardmood.random.random", return_value=0.0):
+            assert _offline_fragment(ctx) in OFFLINE_TIMER_LINES
 
     def test_offline_death_appends_tag_to_message(self):
         # OFFLINE_TAGS carry no $(...) substitutions, so they survive verbatim.

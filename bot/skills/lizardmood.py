@@ -1519,8 +1519,14 @@ def _try_rare(
 # Offline layer — the lizard notices when no one is watching
 # ---------------------------------------------------------------------------
 
-# Deaths required before an offline timer-user earns the "devotion" callouts.
-OFFLINE_TIMER_DEATHS = 100
+# Deaths required before an offline veteran earns the "devotion" callouts.
+# Nobody but the devoted grinds !lr into a dark channel, so offline + a big
+# death count is the real signal — no timing detection needed.
+OFFLINE_TIMER_DEATHS = 200
+
+# Of qualifying offline veteran plays, how often to use a devotion line vs a
+# casual tag — keeps devotion a surprise rather than their default.
+OFFLINE_DEVOTION_CHANCE = 0.6
 
 # Casual offline tags — appended to any message when the stream is dark.
 OFFLINE_TAGS: list[str] = [
@@ -1547,12 +1553,15 @@ OFFLINE_TIMER_LINES: list[str] = [
 def _offline_fragment(ctx: MoodContext) -> str | None:
     """Return an offline callout fragment, or None when live.
 
-    Timer-using veterans get the affectionate 'devotion' pool; everyone
-    else gets a dry casual tag.
+    Offline veterans (high death count) sometimes get the affectionate
+    'devotion' pool; otherwise everyone gets a dry casual tag.
     """
     if ctx.is_live:
         return None
-    if ctx.is_scripted and ctx.deaths >= OFFLINE_TIMER_DEATHS:
+    if (
+        ctx.deaths >= OFFLINE_TIMER_DEATHS
+        and random.random() < OFFLINE_DEVOTION_CHANCE
+    ):
         return recency.pick(ctx.channel_id, OFFLINE_TIMER_LINES)
     return recency.pick(ctx.channel_id, OFFLINE_TAGS)
 
