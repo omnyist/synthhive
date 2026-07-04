@@ -340,7 +340,7 @@ WhiteNoise does not work under ASGI/Daphne (sync-only middleware). Static files 
 
 ## Conventions
 
-@~/Code/global/conventions/django.md
+@~/Code/standards/conventions/django.md
 
 Project-specific deltas (everything else is inherited from the import above and ~/.claude/CLAUDE.md):
 
