@@ -2268,8 +2268,45 @@ class TestLizardRouletteHandler:
         assert play.outcome == "survival"  # odds=0 → always survive
         assert play.mood == "theatrical"
         assert play.is_live is True
+        assert play.offline_tier == "none"  # live → no offline callout
         assert play.context["outcome"] == "survival"
         assert play.context["is_live"] is True
+
+    async def test_offline_play_records_offline_tier(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import LizardPlay
+        from core.models import Skill
+
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 0, "cooldown": 0},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        # Override the class fixture's live stub — this play is offline.
+        with patch.object(
+            LizardRouletteHandler, "_is_live",
+            new_callable=AsyncMock, return_value=False,
+        ):
+            await router.event_message(payload)
+
+        play = LizardPlay.objects.filter(channel=channel).first()
+        assert play.is_live is False
+        # Fresh user (deaths=0) → below the devotion threshold → casual.
+        assert play.offline_tier == "casual"
 
     async def test_capture_failure_does_not_break_game(self, channel):
         channel.owner_access_token = "fake_token"

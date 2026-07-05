@@ -302,6 +302,9 @@ class LizardPlay(models.Model):
     was_bullet = models.BooleanField(default=False)
     is_scripted = models.BooleanField(default=False)
     is_live = models.BooleanField(default=True)
+    offline_tier = models.CharField(  # "none", "casual", or "devotion"
+        max_length=20, default="none"
+    )
 
     mood = models.CharField(max_length=20)
     mood_weights = models.JSONField(default=dict, blank=True)

@@ -27,6 +27,7 @@ from bot.skills.lizardmood import recency
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
 from bot.skills.lizardmood import roll_mood
+from bot.skills.lizardmood import roll_offline
 
 
 def _render_death_text(mood: Mood, ctx: MoodContext) -> str:
@@ -197,11 +198,45 @@ class TestOfflineFragment:
             text = render_death(Mood.BORED, ctx).text
         assert any(tag in text for tag in OFFLINE_TAGS)
 
+    def test_render_uses_passed_fragment_without_rerolling(self):
+        # A caller-supplied fragment is used verbatim (no internal re-roll).
+        ctx = _make_ctx(is_live=False, deaths=5)
+        text = render_death(
+            Mood.BORED, ctx, offline_fragment="CUSTOM OFFLINE TAG"
+        ).text
+        assert "CUSTOM OFFLINE TAG" in text
+
     def test_live_death_has_no_offline_tag(self):
         ctx = _make_ctx(is_live=True, deaths=5)
         with patch("bot.skills.lizardmood.random.random", return_value=1.0):
             text = render_death(Mood.BORED, ctx).text
         assert not any(tag in text for tag in OFFLINE_TAGS)
+
+
+class TestRollOffline:
+    def test_live_returns_none_tier(self):
+        frag, tier = roll_offline(_make_ctx(is_live=True))
+        assert frag is None
+        assert tier == "none"
+
+    def test_offline_casual_tier(self):
+        frag, tier = roll_offline(_make_ctx(is_live=False, deaths=5))
+        assert frag in OFFLINE_TAGS
+        assert tier == "casual"
+
+    def test_offline_devotion_tier(self):
+        ctx = _make_ctx(is_live=False, deaths=OFFLINE_TIMER_DEATHS)
+        with patch("bot.skills.lizardmood.random.random", return_value=0.0):
+            frag, tier = roll_offline(ctx)
+        assert frag in OFFLINE_TIMER_LINES
+        assert tier == "devotion"
+
+    def test_offline_veteran_non_devotion_roll_is_casual(self):
+        ctx = _make_ctx(is_live=False, deaths=OFFLINE_TIMER_DEATHS)
+        with patch("bot.skills.lizardmood.random.random", return_value=0.99):
+            frag, tier = roll_offline(ctx)
+        assert frag in OFFLINE_TAGS
+        assert tier == "casual"
 
     def test_suspicious_death_has_no_countdown(self):
         ctx = _make_ctx(deaths=50, chatter_name="akk", is_scripted=True)

@@ -1550,24 +1550,39 @@ OFFLINE_TIMER_LINES: list[str] = [
 ]
 
 
-def _offline_fragment(ctx: MoodContext) -> str | None:
-    """Return an offline callout fragment, or None when live.
+def roll_offline(ctx: MoodContext) -> tuple[str | None, str]:
+    """Roll the offline callout once. Returns (fragment, tier).
+
+    tier is "none" (live), "casual", or "devotion". Rolling here (rather
+    than inside render) lets the handler capture the tier that was
+    actually shown and hand the same fragment to the render.
 
     Offline veterans (high death count) sometimes get the affectionate
     'devotion' pool; otherwise everyone gets a dry casual tag.
     """
     if ctx.is_live:
-        return None
+        return None, "none"
     if (
         ctx.deaths >= OFFLINE_TIMER_DEATHS
         and random.random() < OFFLINE_DEVOTION_CHANCE
     ):
-        return recency.pick(ctx.channel_id, OFFLINE_TIMER_LINES)
-    return recency.pick(ctx.channel_id, OFFLINE_TAGS)
+        return recency.pick(ctx.channel_id, OFFLINE_TIMER_LINES), "devotion"
+    return recency.pick(ctx.channel_id, OFFLINE_TAGS), "casual"
 
 
-def render_survival(mood: Mood, ctx: MoodContext) -> str:
-    """Compose a survival message for the given mood and context."""
+def _offline_fragment(ctx: MoodContext) -> str | None:
+    """The offline callout fragment for a render, or None when live."""
+    return roll_offline(ctx)[0]
+
+
+def render_survival(
+    mood: Mood, ctx: MoodContext, offline_fragment: str | None = None
+) -> str:
+    """Compose a survival message for the given mood and context.
+
+    Pass ``offline_fragment`` to reuse an already-rolled offline callout
+    (so the caller can capture its tier); omit it to roll internally.
+    """
     behavior = MOOD_BEHAVIORS[mood]
     tier_key = _get_tier_key(SURVIVAL_TIER_RANGES, ctx.streak)
     pool = MOOD_SURVIVAL[mood][tier_key]
@@ -1611,7 +1626,10 @@ def render_survival(mood: Mood, ctx: MoodContext) -> str:
             elif pool.get("victim_clauses"):
                 parts.append(recency.pick(cid, pool["victim_clauses"]))
 
-    offline = _offline_fragment(ctx)
+    offline = (
+        offline_fragment if offline_fragment is not None
+        else _offline_fragment(ctx)
+    )
     if offline:
         parts.append(offline)
 
@@ -1619,8 +1637,14 @@ def render_survival(mood: Mood, ctx: MoodContext) -> str:
     return _substitute(message, ctx)
 
 
-def render_death(mood: Mood, ctx: MoodContext) -> DeathMessage:
-    """Compose a death message for the given mood and context."""
+def render_death(
+    mood: Mood, ctx: MoodContext, offline_fragment: str | None = None
+) -> DeathMessage:
+    """Compose a death message for the given mood and context.
+
+    Pass ``offline_fragment`` to reuse an already-rolled offline callout
+    (so the caller can capture its tier); omit it to roll internally.
+    """
     behavior = MOOD_BEHAVIORS[mood]
     tier_key = _get_tier_key(DEATH_TIER_RANGES, ctx.deaths)
     pool = MOOD_DEATH[mood][tier_key]
@@ -1636,7 +1660,10 @@ def render_death(mood: Mood, ctx: MoodContext) -> DeathMessage:
     if behavior.countdown:
         parts.append(behavior.countdown)
 
-    offline = _offline_fragment(ctx)
+    offline = (
+        offline_fragment if offline_fragment is not None
+        else _offline_fragment(ctx)
+    )
     if offline:
         parts.append(offline)
 

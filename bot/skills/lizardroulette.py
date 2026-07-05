@@ -16,6 +16,7 @@ from bot.skills.lizardmood import MoodContext
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
 from bot.skills.lizardmood import roll_mood
+from bot.skills.lizardmood import roll_offline
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
@@ -164,11 +165,15 @@ class LizardRouletteHandler(SkillHandler):
                 channel, chatter_id, chatter.name,
                 "last_mood", mood_roll.mood.value,
             )
+            offline_fragment, offline_tier = roll_offline(ctx)
             await self._record_play(
-                channel, chatter_id, chatter.name, mood_roll, was_bullet
+                channel, chatter_id, chatter.name, mood_roll,
+                was_bullet, offline_tier,
             )
 
-            death_msg = render_death(mood_roll.mood, ctx)
+            death_msg = render_death(
+                mood_roll.mood, ctx, offline_fragment=offline_fragment
+            )
             timeout_delay = config.get("timeout_delay", 5) * behavior.timeout_delay_multiplier
             timeout_duration = config.get("timeout_duration", 600)
 
@@ -261,11 +266,15 @@ class LizardRouletteHandler(SkillHandler):
                 channel, chatter_id, chatter.name,
                 "last_mood", mood_roll.mood.value,
             )
+            offline_fragment, offline_tier = roll_offline(ctx)
             await self._record_play(
-                channel, chatter_id, chatter.name, mood_roll, was_bullet=False
+                channel, chatter_id, chatter.name, mood_roll,
+                was_bullet=False, offline_tier=offline_tier,
             )
 
-            message = render_survival(mood_roll.mood, ctx)
+            message = render_survival(
+                mood_roll.mood, ctx, offline_fragment=offline_fragment
+            )
             await send_reply(payload, message, bot_id=bot.bot_id)
 
     async def _get_rival(self, channel, exclude_id: str) -> str:
@@ -314,7 +323,8 @@ class LizardRouletteHandler(SkillHandler):
         return live
 
     async def _record_play(
-        self, channel, twitch_id, username, mood_roll, was_bullet
+        self, channel, twitch_id, username, mood_roll, was_bullet,
+        offline_tier="none",
     ) -> None:
         """Append a per-play record for analytics / ML training.
 
@@ -334,6 +344,7 @@ class LizardRouletteHandler(SkillHandler):
                 was_bullet=was_bullet,
                 is_scripted=ctx.is_scripted,
                 is_live=ctx.is_live,
+                offline_tier=offline_tier,
                 mood=mood_roll.mood.value,
                 mood_weights={m.value: w for m, w in mood_roll.weights.items()},
                 deaths=ctx.deaths,
