@@ -268,6 +268,10 @@ class DungeonHandler(SkillHandler):
             except Exception:
                 logger.exception("Failed to send level-up message")
 
+    async def _sleep(self, seconds: float) -> None:
+        """Indirection over asyncio.sleep so tests can make pauses instant."""
+        await asyncio.sleep(seconds)
+
     async def _run_dungeon(self, game: DungeonGame, config: dict) -> None:
         """Entry timer → resolve dungeon → pay out winners."""
         entry_duration = config.get("entry_duration", 120)
@@ -276,7 +280,7 @@ class DungeonHandler(SkillHandler):
         levels = config.get("levels", DEFAULT_LEVELS)
 
         try:
-            await asyncio.sleep(entry_duration)
+            await self._sleep(entry_duration)
 
             game.phase = "running"
             count = len(game.participants)
@@ -292,7 +296,7 @@ class DungeonHandler(SkillHandler):
             except Exception:
                 logger.exception("Failed to send entry-closed message")
 
-            await asyncio.sleep(3)
+            await self._sleep(3)
 
             # --- Roll survival ---
             survival_chance = level["survival_chance"]
@@ -346,7 +350,7 @@ class DungeonHandler(SkillHandler):
                 )
                 await self._send_broadcast(game, msg)
 
-                await asyncio.sleep(2)
+                await self._sleep(2)
 
                 # --- Results ---
                 if survivors:
@@ -363,7 +367,7 @@ class DungeonHandler(SkillHandler):
                     await self._send_broadcast(game, results_msg)
 
                 if dead:
-                    await asyncio.sleep(1)
+                    await self._sleep(1)
                     loser_list = self._format_name_list(
                         [p.display_name for p in dead]
                     )

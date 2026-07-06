@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import environ
@@ -85,7 +86,12 @@ DATABASES = {
         default="postgresql://synthhive:synthhive@localhost:5432/synthhive"
     )
 }
-if DATABASES["default"]["ENGINE"] != "django.db.backends.sqlite3":
+# Connection pooling in production only. Under pytest the pool's background
+# worker thread holds connections across the test transaction and can wedge
+# event-loop/process teardown, so leave it off for tests (and for SQLite,
+# which rejects the option).
+_UNDER_TEST = "pytest" in sys.modules
+if DATABASES["default"]["ENGINE"] != "django.db.backends.sqlite3" and not _UNDER_TEST:
     DATABASES["default"]["OPTIONS"] = {"pool": True}
 
 # Auth

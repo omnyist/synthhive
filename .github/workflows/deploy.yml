@@ -5,7 +5,39 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: self-hosted
+    # Self-hosted runner is macOS — GH Actions `services:` are Linux-only, so
+    # spin throwaway Postgres/Redis via `docker run` (OrbStack) instead.
+    # Ports are synthhive-specific to avoid colliding with other repos' CI.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Start test services
+        run: |
+          docker rm -f synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
+          docker run -d --name synthhive-ci-pg \
+            -e POSTGRES_DB=synthhive -e POSTGRES_USER=synthhive -e POSTGRES_PASSWORD=synthhive \
+            -p 5443:5432 postgres:16
+          docker run -d --name synthhive-ci-redis -p 6403:6379 redis:alpine
+          timeout 60 sh -c 'until docker exec synthhive-ci-pg pg_isready -U synthhive; do sleep 1; done'
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://synthhive:synthhive@localhost:5443/synthhive
+          REDIS_URL: redis://localhost:6403/0
+        run: uv run --group dev pytest -q
+
+      - name: Stop test services
+        if: always()
+        run: docker rm -f synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
+
   deploy:
+    needs: test
     runs-on: self-hosted
     steps:
       - name: Checkout code

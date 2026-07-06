@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import patch
@@ -20,6 +21,30 @@ def _clear_dungeon_state():
     """Clear singleton handler state between tests."""
     discover_skills()
     handler = SKILL_REGISTRY["dungeon"]
+    handler._games.clear()
+    handler._cooldowns.clear()
+
+
+@pytest.fixture
+async def _dungeon_env():
+    """Async test environment for the dungeon handler.
+
+    Makes the entry-timer and resolution pauses instant (patches _sleep)
+    and, on teardown, cancels + awaits any background game task the test
+    left running. Undrained tasks are what hang event-loop teardown and
+    make the suite un-gateable; this guarantees a clean loop after every
+    async test. Applied only to the async classes (an async autouse
+    fixture collides with the sync helper tests).
+    """
+    handler = SKILL_REGISTRY["dungeon"]
+    with patch.object(DungeonHandler, "_sleep", new_callable=AsyncMock):
+        yield
+        tasks = [g.task for g in list(handler._games.values()) if g.task]
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with contextlib.suppress(BaseException):
+                await task
     handler._games.clear()
     handler._cooldowns.clear()
 
@@ -95,6 +120,7 @@ class TestDungeonHelpers:
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("_dungeon_env")
 class TestDungeonEntryPhase:
     async def test_no_wager_sends_usage(self, channel):
         skill = _make_skill(channel)
@@ -299,6 +325,7 @@ class TestDungeonEntryPhase:
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("_dungeon_env")
 class TestDungeonCooldown:
     async def test_cooldown_blocks_new_game(self, channel):
         skill = _make_skill(channel)
@@ -328,6 +355,7 @@ class TestDungeonCooldown:
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("_dungeon_env")
 class TestDungeonResolution:
     async def test_solo_win_pays_out(self, channel):
         skill = _make_skill(channel)
@@ -477,7 +505,7 @@ class TestDungeonResolution:
         ):
             for i in range(3):
                 payload = MockPayload(
-                    text=f"!dungeon 100",
+                    text="!dungeon 100",
                     chatter=MockChatter(name=f"p{i}", display_name=f"P{i}", id=2000 + i),
                     broadcaster=broadcaster,
                 )
@@ -500,6 +528,7 @@ class TestDungeonResolution:
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("_dungeon_env")
 class TestDungeonLevelSelection:
     async def test_three_players_unlocks_tonberry_cove(self, channel):
         skill = _make_skill(channel)
@@ -542,6 +571,7 @@ class TestDungeonLevelSelection:
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("_dungeon_env")
 class TestDungeonRunningPhaseIgnored:
     async def test_running_phase_ignores_new_entries(self, channel):
         skill = _make_skill(channel)
