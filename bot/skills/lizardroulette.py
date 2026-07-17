@@ -13,6 +13,7 @@ from bot.skills import SkillHandler
 from bot.skills import register_skill
 from bot.skills.lizardmood import MOOD_BEHAVIORS
 from bot.skills.lizardmood import MoodContext
+from bot.skills.lizardmood import render_birthday
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
 from bot.skills.lizardmood import roll_mood
@@ -87,6 +88,12 @@ class LizardRouletteHandler(SkillHandler):
         is_scripted = self._detect_scripted(cooldown_key)
 
         self._cooldowns[cooldown_key] = now
+
+        # --- Birthday mode: holster the gun, just celebrate ---
+        if config.get("birthday_mode"):
+            message = render_birthday(broadcaster_id, chatter_name)
+            await send_reply(payload, message, bot_id=bot.bot_id)
+            return
 
         # --- Look up channel for stat tracking ---
         from core.models import Channel

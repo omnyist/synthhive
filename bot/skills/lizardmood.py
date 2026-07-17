@@ -1575,6 +1575,30 @@ def _offline_fragment(ctx: MoodContext) -> str | None:
     return roll_offline(ctx)[0]
 
 
+# ---------------------------------------------------------------------------
+# Birthday mode — the lizard holsters the gun and celebrates instead
+# ---------------------------------------------------------------------------
+
+BIRTHDAY_MESSAGES: list[str] = [
+    "The lizard lowers the gun. It's Spoonee's birthday — nobody gets shot today. bardLizard 🎂",
+    "Happy birthday, Spoonee! The lizard has called a ceasefire. bardLizard 🎉",
+    "The lizard swaps the revolver for a party popper. It's Spoonee's birthday! bardLizard 🎉",
+    "No timeouts today, $(user) — the lizard is celebrating Spoonee's birthday. bardLizard 🎂",
+    "$(user) pulls the trigger and a little flag unfurls: 'Happy Birthday Spoonee!' bardLizard",
+    "The gun is loaded with confetti today. Happy birthday, Spoonee! bardLizard 🎉",
+    "The lizard sets down the weapon and picks up a slice of cake. It's Spoonee's birthday! bardLizard 🎂",
+    "Ceasefire! It's Spoonee's birthday, and even the lizard knows to behave. bardLizard 🎂",
+    "One gift from the lizard today, Spoonee: mercy for everyone. Happy birthday! bardLizard",
+    "The lizard puts on a tiny party hat instead of shooting. Happy birthday, Spoonee! bardLizard 🎉",
+]
+
+
+def render_birthday(channel_id: str, user: str) -> str:
+    """Pick a birthday message (with recency) and substitute $(user)."""
+    message = recency.pick(channel_id, BIRTHDAY_MESSAGES)
+    return message.replace("$(user)", user)
+
+
 def render_survival(
     mood: Mood, ctx: MoodContext, offline_fragment: str | None = None
 ) -> str:

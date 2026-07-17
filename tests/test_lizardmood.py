@@ -24,6 +24,7 @@ from bot.skills.lizardmood import _get_tier_key
 from bot.skills.lizardmood import _offline_fragment
 from bot.skills.lizardmood import _ordinal
 from bot.skills.lizardmood import recency
+from bot.skills.lizardmood import render_birthday
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
 from bot.skills.lizardmood import roll_mood
@@ -213,6 +214,14 @@ class TestOfflineFragment:
         assert not any(tag in text for tag in OFFLINE_TAGS)
 
 
+class TestRenderBirthday:
+    def test_mentions_birthday(self):
+        assert "birthday" in render_birthday("chan", "Bob").lower()
+
+    def test_substitutes_user(self):
+        assert "$(user)" not in render_birthday("chan", "Bob")
+
+
 class TestRollOffline:
     def test_live_returns_none_tier(self):
         frag, tier = roll_offline(_make_ctx(is_live=True))
@@ -378,6 +387,14 @@ class TestGetTierKey:
 
 
 class TestRenderDeath:
+    @pytest.fixture(autouse=True)
+    def _no_rares(self):
+        # These assert on normal death composition; suppress the 3% rare
+        # roll so RNG state can't flip them (rares are covered separately
+        # in TestRareMessages).
+        with patch("bot.skills.lizardmood._try_rare", return_value=None):
+            yield
+
     def test_theatrical_has_countdown(self):
         ctx = _make_ctx(deaths=5, chatter_name="akk")
         msg = _render_death_text(Mood.THEATRICAL, ctx)

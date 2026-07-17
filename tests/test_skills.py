@@ -2272,6 +2272,43 @@ class TestLizardRouletteHandler:
         assert play.context["outcome"] == "survival"
         assert play.context["is_live"] is True
 
+    async def test_birthday_mode_never_times_out(self, channel):
+        channel.owner_access_token = "fake_token"
+        channel.save()
+
+        from core.models import LizardPlay
+        from core.models import Skill
+
+        # odds=100 would normally be a guaranteed timeout.
+        Skill.objects.create(
+            channel=channel,
+            name="lizardroulette",
+            enabled=True,
+            config={"odds": 100, "cooldown": 0, "birthday_mode": True},
+        )
+
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        from bot.router import CommandRouter
+
+        router = CommandRouter(bot)
+        payload = MockPayload(
+            text="!lizardroulette",
+            broadcaster=MockBroadcaster(id=99999),
+        )
+        with patch(
+            "bot.skills.lizardroulette.twitch_request",
+            new_callable=AsyncMock,
+        ) as mock_tw:
+            await router.event_message(payload)
+
+        # No timeout attempted, and no play recorded — just a message.
+        mock_tw.assert_not_called()
+        assert not LizardPlay.objects.filter(channel=channel).exists()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "birthday" in msg.lower()
+
     async def test_offline_play_records_offline_tier(self, channel):
         channel.owner_access_token = "fake_token"
         channel.save()
