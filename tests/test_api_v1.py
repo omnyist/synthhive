@@ -104,8 +104,13 @@ class TestMeEndpoint:
         data = response.json()
         assert data["twitch_id"] == "99999"
         assert data["twitch_display_name"] == "Avalonstar"
+        assert data["is_staff"] is False
         assert len(data["channels"]) == 1
         assert data["channels"][0]["name"] == "testchannel"
+
+    def test_staff_flag_true_for_staff(self, staff_client):
+        data = staff_client.get("/api/v1/me").json()
+        assert data["is_staff"] is True
 
     def test_unauthenticated_returns_401(self, unauthed_client):
         response = unauthed_client.get("/api/v1/me")

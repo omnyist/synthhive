@@ -14,6 +14,7 @@ interface MeResponse {
   twitch_username: string
   twitch_display_name: string
   twitch_avatar: string
+  is_staff: boolean
   channels: ChannelBrief[]
 }
 
@@ -54,6 +55,7 @@ function Sidebar({ user }: { user: MeResponse }) {
   const isAliases = currentChannel
     ? matchRoute({ to: '/$channelSlug/aliases', params: { channelSlug: currentChannel.name } })
     : false
+  const isInvites = matchRoute({ to: '/invites' })
 
   return (
     <aside className="flex w-48 flex-col border-r border-hive-border bg-hive-surface">
@@ -97,6 +99,18 @@ function Sidebar({ user }: { user: MeResponse }) {
               Aliases
             </Link>
           </>
+        )}
+        {user.is_staff && (
+          <Link
+            to="/invites"
+            className={cn(
+              'rounded px-3 py-1.5 text-sm transition-colors',
+              isInvites
+                ? 'bg-hive-accent-dim/20 text-hive-text'
+                : 'text-hive-muted hover:text-hive-text',
+            )}>
+            Invites
+          </Link>
         )}
       </nav>
       <div className="border-t border-hive-border p-3">

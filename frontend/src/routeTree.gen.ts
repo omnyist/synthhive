@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as InvitesRouteImport } from './routes/invites'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChannelSlugCountersRouteImport } from './routes/$channelSlug/counters'
 import { Route as ChannelSlugCommandsRouteImport } from './routes/$channelSlug/commands'
 import { Route as ChannelSlugAliasesRouteImport } from './routes/$channelSlug/aliases'
 
+const InvitesRoute = InvitesRouteImport.update({
+  id: '/invites',
+  path: '/invites',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,12 +43,14 @@ const ChannelSlugAliasesRoute = ChannelSlugAliasesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/invites': typeof InvitesRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/invites': typeof InvitesRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
@@ -50,6 +58,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/invites': typeof InvitesRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
@@ -58,18 +67,21 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/invites'
     | '/$channelSlug/aliases'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/invites'
     | '/$channelSlug/aliases'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
   id:
     | '__root__'
     | '/'
+    | '/invites'
     | '/$channelSlug/aliases'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
@@ -77,6 +89,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  InvitesRoute: typeof InvitesRoute
   ChannelSlugAliasesRoute: typeof ChannelSlugAliasesRoute
   ChannelSlugCommandsRoute: typeof ChannelSlugCommandsRoute
   ChannelSlugCountersRoute: typeof ChannelSlugCountersRoute
@@ -84,6 +97,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/invites': {
+      id: '/invites'
+      path: '/invites'
+      fullPath: '/invites'
+      preLoaderRoute: typeof InvitesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -117,6 +137,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  InvitesRoute: InvitesRoute,
   ChannelSlugAliasesRoute: ChannelSlugAliasesRoute,
   ChannelSlugCommandsRoute: ChannelSlugCommandsRoute,
   ChannelSlugCountersRoute: ChannelSlugCountersRoute,

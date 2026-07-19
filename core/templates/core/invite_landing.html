@@ -9,11 +9,16 @@
 
 <h1>Welcome to Synthhive</h1>
 <p class="subtitle">
-    Connect your Twitch channel to get started. This will link your channel
-    and give your bot the permissions it needs to moderate chat.
+    Step 1 of 2: connect your <strong>channel</strong>. Make sure you're logged
+    into Twitch as your <strong>streaming account</strong> (the channel the bot
+    will run in) — not your bot account. You'll connect the bot next.
 </p>
 
 <a class="btn btn-twitch btn-block" href="{{ oauth_url }}">
-    Connect Your Twitch Channel
+    Connect My Channel Account
 </a>
+
+<p class="subtitle" style="margin-top: 1rem; font-size: 0.85rem;">
+    Wrong account? Switch accounts on Twitch first, then reopen this link.
+</p>
 {% endblock %}

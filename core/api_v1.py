@@ -139,6 +139,7 @@ class MeSchema(Schema):
     twitch_username: str
     twitch_display_name: str
     twitch_avatar: str
+    is_staff: bool
     channels: list[ChannelBriefSchema]
 
 
@@ -147,6 +148,7 @@ async def me(request):
     """Return the authenticated user's info and their channels."""
     user = await _require_auth(request)
     profile = await _get_profile(user)
+    is_staff = await sync_to_async(lambda: user.is_staff)()
 
     channels = []
     async for channel in Channel.objects.filter(
@@ -165,6 +167,7 @@ async def me(request):
         twitch_username=profile.twitch_username,
         twitch_display_name=profile.twitch_display_name,
         twitch_avatar=profile.twitch_avatar,
+        is_staff=is_staff,
         channels=channels,
     )
 
