@@ -73,6 +73,39 @@ async def invite_landing(request: HttpRequest, code: str) -> HttpResponse:
     })
 
 
+async def invite_restart(request: HttpRequest, code: str) -> HttpResponse:
+    """Reset a mid-flow invite back to step 1 (self-serve recovery).
+
+    POST-only so a link prefetch can't silently wipe an in-progress invite.
+    Lets an invitee who connected the wrong channel account start over
+    without operator help. Completed/expired invites are left untouched.
+    """
+    if request.method != "POST":
+        return HttpResponseRedirect(f"/invite/{code}/")
+
+    try:
+        invite = await sync_to_async(Invite.objects.get)(code=code)
+    except Invite.DoesNotExist:
+        return render(request, "core/invite_error.html", {
+            "error": "This invite link is not valid.",
+        })
+
+    status = await sync_to_async(lambda: invite.status)()
+    if status in ("pending", "awaiting_bot"):
+        invite.used_by = None
+        invite.used_at = None
+        invite.channel_twitch_id = ""
+        invite.channel_name = ""
+        invite.channel_access_token = None
+        invite.channel_refresh_token = None
+        invite.channel_token_expires_at = None
+        invite.bot_oauth_nonce = ""
+        await sync_to_async(invite.save)()
+        logger.info("Invite %s reset to step 1 by invitee", code)
+
+    return HttpResponseRedirect(f"/invite/{code}/")
+
+
 async def invite_connect_bot(request: HttpRequest, code: str) -> HttpResponse:
     """Show the bot connection page for a partially-completed invite."""
     try:

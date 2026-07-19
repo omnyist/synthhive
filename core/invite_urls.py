@@ -11,4 +11,9 @@ urlpatterns = [
         invite_views.invite_connect_bot,
         name="invite_connect_bot",
     ),
+    path(
+        "<str:code>/restart/",
+        invite_views.invite_restart,
+        name="invite_restart",
+    ),
 ]

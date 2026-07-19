@@ -692,6 +692,9 @@ class TestInviteBotOAuth:
         )
 
         assert response.status_code == 400
+        # Renders the actionable mismatch page, not a raw error.
+        assert b"different" in response.content
+        assert b"Start over" in response.content
         invite.refresh_from_db()
         assert invite.completed_at is None
 
@@ -763,3 +766,52 @@ class TestInviteBotOAuth:
         assert Channel.objects.filter(
             bot=existing_bot, twitch_channel_id="78238052"
         ).exists()
+
+
+class TestInviteRestart:
+    def test_restart_resets_awaiting_bot_to_pending(self, client):
+        invite = _awaiting_bot_invite(nonce="bot-nonce-1")
+        assert invite.status == "awaiting_bot"
+
+        response = client.post(f"/invite/{invite.code}/restart/")
+
+        assert response.status_code == 302
+        assert response.url == f"/invite/{invite.code}/"
+        invite.refresh_from_db()
+        assert invite.status == "pending"
+        assert invite.channel_twitch_id == ""
+        assert invite.channel_name == ""
+        assert invite.bot_oauth_nonce == ""
+        assert invite.used_at is None
+
+    def test_restart_get_is_a_noop(self, client):
+        invite = _awaiting_bot_invite(nonce="bot-nonce-1")
+
+        response = client.get(f"/invite/{invite.code}/restart/")
+
+        assert response.status_code == 302
+        invite.refresh_from_db()
+        assert invite.status == "awaiting_bot"  # unchanged — POST-only
+
+    def test_restart_leaves_completed_invite_untouched(self, client):
+        owner = User.objects.create_user(username="owner_c")
+        invite = Invite.objects.create(
+            created_by=owner,
+            expires_at=timezone.now() + timedelta(days=7),
+            channel_twitch_id="78238052",
+            channel_name="spoonee",
+            used_at=timezone.now(),
+            completed_at=timezone.now(),
+        )
+        assert invite.status == "completed"
+
+        client.post(f"/invite/{invite.code}/restart/")
+
+        invite.refresh_from_db()
+        assert invite.status == "completed"
+        assert invite.channel_name == "spoonee"
+
+    def test_restart_bad_code_shows_error(self, client):
+        response = client.post("/invite/nope/restart/")
+        assert response.status_code == 200
+        assert b"not valid" in response.content

@@ -1,0 +1,33 @@
+{% extends "core/invite_base.html" %}
+{% block title %}Wrong Account — Synthhive{% endblock %}
+
+{% block content %}
+<div class="step-indicator">
+    <div class="step done"></div>
+    <div class="step active"></div>
+</div>
+
+<div class="error-icon">&#10007;</div>
+
+<h1 style="text-align: center;">That's your channel account</h1>
+<p class="subtitle" style="text-align: center;">
+    You just signed in as <strong>{{ channel_name }}</strong> — but that's the account
+    you connected as your <strong>channel</strong>. The bot has to be a
+    <strong>different</strong> Twitch account.
+</p>
+<p class="subtitle" style="text-align: center; font-size: 0.85rem;">
+    Go to twitch.tv, sign out, sign back in as your <strong>bot</strong> account,
+    then try the bot step again.
+</p>
+
+<a class="btn btn-twitch btn-block" href="/invite/{{ invite.code }}/connect-bot/">
+    Try the bot step again
+</a>
+
+<form method="post" action="/invite/{{ invite.code }}/restart/" style="margin-top: 1rem;">
+    {% csrf_token %}
+    <button type="submit" class="btn-copy" style="width: 100%;">
+        Wrong channel linked? Start over
+    </button>
+</form>
+{% endblock %}

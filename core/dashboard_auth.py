@@ -294,9 +294,13 @@ async def _handle_invite_bot(
 
     # The bot must be a different Twitch account than the channel owner.
     if twitch_id == invite.channel_twitch_id:
-        return HttpResponseBadRequest(
-            "Your bot must use a different Twitch account than your channel. "
-            "Open the bot link in an incognito window and log in as the bot."
+        from django.shortcuts import render
+
+        return render(
+            request,
+            "core/invite_bot_mismatch.html",
+            {"invite": invite, "channel_name": invite.channel_name},
+            status=400,
         )
 
     expires_at = timezone.now() + timedelta(seconds=expires_in)

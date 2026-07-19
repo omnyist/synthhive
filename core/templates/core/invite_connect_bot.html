@@ -33,6 +33,13 @@
 <a class="btn btn-twitch btn-block" href="{{ oauth_url }}">
     Connect Bot Account
 </a>
+
+<form method="post" action="/invite/{{ invite.code }}/restart/" style="margin-top: 1.5rem;">
+    {% csrf_token %}
+    <button type="submit" class="btn-copy" style="width: 100%;">
+        Not #{{ invite.channel_name }}? Start over
+    </button>
+</form>
 {% endblock %}
 
 {% block scripts %}
