@@ -1,0 +1,21 @@
+{% extends "core/invite_base.html" %}
+{% block title %}Not Authorized — Synthhive{% endblock %}
+
+{% block content %}
+<div class="error-icon">&#10007;</div>
+
+<h1 style="text-align: center;">Account not authorized</h1>
+<p class="subtitle" style="text-align: center;">
+    You're signed in as <strong>{{ display_name }}</strong>, which isn't authorized
+    for the dashboard.
+</p>
+<p class="subtitle" style="text-align: center; font-size: 0.9rem;">
+    The dashboard is for your <strong>channel</strong> account — not your bot. If
+    that's not the account above, go to twitch.tv, sign out, sign back in as your
+    channel account, then try again.
+</p>
+
+<a class="btn btn-twitch btn-block" href="/auth/twitch/login/">
+    Try again
+</a>
+{% endblock %}

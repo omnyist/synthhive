@@ -195,8 +195,13 @@ async def _handle_dashboard_login(
             twitch_display_name,
             twitch_id,
         )
-        return HttpResponseBadRequest(
-            "You are not authorized to access the dashboard."
+        from django.shortcuts import render
+
+        return render(
+            request,
+            "core/not_authorized.html",
+            {"display_name": twitch_display_name},
+            status=400,
         )
 
     await sync_to_async(auth.login)(
@@ -392,6 +397,18 @@ async def _handle_invite_bot(
         bot.name,
         channel.twitch_channel_name,
     )
+
+    # Log this session straight into the dashboard as the channel owner from
+    # step 1. The bot step finishes in the bot's browser window, which was
+    # never signed into the dashboard — without this the new owner would have
+    # to authenticate a third time just to view their own dashboard. The
+    # invite already proved control of both accounts, so this is safe.
+    if invite.used_by:
+        await sync_to_async(auth.login)(
+            request,
+            invite.used_by,
+            backend="django.contrib.auth.backends.ModelBackend",
+        )
 
     from django.shortcuts import render
 

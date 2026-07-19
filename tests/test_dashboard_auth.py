@@ -188,6 +188,7 @@ class TestTwitchCallback:
         )
 
         assert response.status_code == 400
+        assert b"not authorized" in response.content
         assert TwitchProfile.objects.filter(
             twitch_id="99999999", is_approved=False
         ).exists()
@@ -660,6 +661,26 @@ class TestInviteBotOAuth:
         assert invite.completed_at is not None
         assert invite.channel_access_token is None
         assert invite.bot_oauth_nonce == ""
+
+    @patch("core.synthfunc.save_token", new_callable=AsyncMock)
+    @patch("core.dashboard_auth.httpx.AsyncClient")
+    def test_bot_completion_logs_in_channel_owner(
+        self, mock_client_cls, mock_synthfunc, client
+    ):
+        """Finishing the bot step leaves the session logged in as the channel
+        owner — no third authentication to reach the dashboard."""
+        mock_synthfunc.return_value = {"status": "ok"}
+        invite = _awaiting_bot_invite(nonce="bot-nonce-1")
+        owner_id = invite.used_by_id
+
+        mock_client_cls.return_value = _mock_httpx(user_data=BOT_TWITCH_DATA)
+        state = _build_invite_bot_state("bot-nonce-1", invite.code)
+        response = client.get(
+            f"/auth/twitch/callback/?code=test-code&state={state}"
+        )
+
+        assert response.status_code == 200
+        assert client.session.get("_auth_user_id") == str(owner_id)
 
     @patch("core.dashboard_auth.httpx.AsyncClient")
     def test_bot_oauth_rejects_bad_nonce(self, mock_client_cls, client):
