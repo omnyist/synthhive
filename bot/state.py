@@ -1,0 +1,191 @@
+"""Redis-backed bot state — survives deploys, unlike handler dicts.
+
+Every merge deploys and every deploy used to wipe in-memory state:
+cooldowns reset (instant replays), loaded lizard bullets evaporated,
+victim callouts lost their thread. Anything a player would notice
+losing lives here instead. See the state-durability principle: new
+mechanics inherit old patterns, so this module is the pattern to copy.
+
+Every helper fails open — Redis being down degrades to v1 behavior
+(no cooldowns, no bullets, no victim memory) and must never break the
+game itself.
+"""
+
+from __future__ import annotations
+
+import logging
+
+import redis.asyncio as aioredis
+from django.conf import settings
+
+logger = logging.getLogger("bot")
+
+RECENCY_WINDOW = 10  # keep in sync with lizardmood.RECENCY_WINDOW
+
+_client: aioredis.Redis | None = None
+_redis_down = False  # log-spam guard: warn on state change, not per call
+
+
+def get_client() -> aioredis.Redis:
+    """Lazy singleton async Redis client."""
+    global _client
+    if _client is None:
+        _client = aioredis.from_url(
+            settings.REDIS_URL, decode_responses=True
+        )
+    return _client
+
+
+def _note_failure(op: str, exc: Exception) -> None:
+    global _redis_down
+    if not _redis_down:
+        logger.warning("[State] Redis unavailable (%s): %s — failing open", op, exc)
+        _redis_down = True
+
+
+def _note_success() -> None:
+    global _redis_down
+    if _redis_down:
+        logger.info("[State] Redis recovered")
+        _redis_down = False
+
+
+# --- Cooldowns ---
+
+
+async def cooldown_try_acquire(key: str, seconds: int) -> bool:
+    """Atomically start a cooldown. True if acquired (not on cooldown).
+
+    A non-positive duration means no cooldown at all.
+    """
+    if seconds <= 0:
+        return True
+    try:
+        acquired = await get_client().set(key, "1", ex=seconds, nx=True)
+        _note_success()
+        return acquired is True
+    except Exception as exc:
+        _note_failure("cooldown_try_acquire", exc)
+        return True  # fail open: allow the play
+
+
+async def cooldown_remaining(key: str) -> int:
+    """Seconds left on a cooldown, 0 if none."""
+    try:
+        ttl = await get_client().ttl(key)
+        _note_success()
+        return max(ttl, 0)
+    except Exception as exc:
+        _note_failure("cooldown_remaining", exc)
+        return 0
+
+
+async def cooldown_set(key: str, seconds: int) -> None:
+    """Start/refresh a cooldown unconditionally."""
+    if seconds <= 0:
+        return
+    try:
+        await get_client().set(key, "1", ex=seconds)
+        _note_success()
+    except Exception as exc:
+        _note_failure("cooldown_set", exc)
+
+
+async def cooldown_clear(key: str) -> None:
+    try:
+        await get_client().delete(key)
+        _note_success()
+    except Exception as exc:
+        _note_failure("cooldown_clear", exc)
+
+
+# --- Lizard bullets ---
+
+
+def _bullets_key(channel_id: str) -> str:
+    return f"lr:bullets:{channel_id}"
+
+
+async def bullets_get(channel_id: str) -> int:
+    try:
+        val = await get_client().get(_bullets_key(channel_id))
+        _note_success()
+        return int(val) if val else 0
+    except Exception as exc:
+        _note_failure("bullets_get", exc)
+        return 0
+
+
+async def bullets_set(channel_id: str, count: int) -> None:
+    try:
+        await get_client().set(_bullets_key(channel_id), count)
+        _note_success()
+    except Exception as exc:
+        _note_failure("bullets_set", exc)
+
+
+async def bullets_decr(channel_id: str) -> None:
+    try:
+        client = get_client()
+        remaining = await client.decr(_bullets_key(channel_id))
+        if remaining <= 0:
+            await client.delete(_bullets_key(channel_id))
+        _note_success()
+    except Exception as exc:
+        _note_failure("bullets_decr", exc)
+
+
+# --- Last victim (lizardroulette callouts) ---
+
+
+def _victim_key(channel_id: str) -> str:
+    return f"lr:victim:{channel_id}"
+
+
+async def victim_get(channel_id: str) -> str:
+    try:
+        val = await get_client().get(_victim_key(channel_id))
+        _note_success()
+        return val or ""
+    except Exception as exc:
+        _note_failure("victim_get", exc)
+        return ""
+
+
+async def victim_set(channel_id: str, name: str) -> None:
+    try:
+        await get_client().set(_victim_key(channel_id), name)
+        _note_success()
+    except Exception as exc:
+        _note_failure("victim_set", exc)
+
+
+# --- Recency (message-fragment history) ---
+
+
+def _recency_key(channel_id: str) -> str:
+    return f"lr:recency:{channel_id}"
+
+
+async def recency_get(channel_id: str) -> list[str]:
+    """Most-recent-first fragment history for a channel."""
+    try:
+        items = await get_client().lrange(
+            _recency_key(channel_id), 0, RECENCY_WINDOW - 1
+        )
+        _note_success()
+        return items
+    except Exception as exc:
+        _note_failure("recency_get", exc)
+        return []
+
+async def recency_push(channel_id: str, fragments: list[str]) -> None:
+    if not fragments:
+        return
+    try:
+        client = get_client()
+        await client.lpush(_recency_key(channel_id), *fragments)
+        await client.ltrim(_recency_key(channel_id), 0, RECENCY_WINDOW - 1)
+        _note_success()
+    except Exception as exc:
+        _note_failure("recency_push", exc)

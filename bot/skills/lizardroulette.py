@@ -4,15 +4,16 @@ import asyncio
 import logging
 import random
 import time
-from collections import deque
 
 from asgiref.sync import sync_to_async
 
+from bot import state
 from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
 from bot.skills.lizardmood import MOOD_BEHAVIORS
 from bot.skills.lizardmood import MoodContext
+from bot.skills.lizardmood import recency
 from bot.skills.lizardmood import render_birthday
 from bot.skills.lizardmood import render_death
 from bot.skills.lizardmood import render_survival
@@ -47,10 +48,6 @@ class LizardRouletteHandler(SkillHandler):
     LIVE_CACHE_TTL = 60  # seconds to cache a channel's live status
 
     def __init__(self):
-        self._cooldowns: dict[str, float] = {}
-        self._bullets: dict[str, int] = {}
-        self._last_victim: dict[str, str] = {}
-        self._play_intervals: dict[str, deque[float]] = {}
         self._live_cache: dict[str, tuple[bool, float]] = {}
 
     async def handle(self, payload, args, skill, bot):
@@ -63,35 +60,26 @@ class LizardRouletteHandler(SkillHandler):
         chatter_name = chatter.display_name
         config = skill.config or {}
 
-        # --- Per-user cooldown (scoped to channel) ---
+        # --- Per-user cooldown (Redis, survives deploys) ---
         cooldown = config.get("cooldown", 300)
-        now = time.monotonic()
-        cooldown_key = f"{broadcaster_id}:{chatter_id}"
-        last_used = self._cooldowns.get(cooldown_key)
-        if last_used and (now - last_used) < cooldown:
+        cooldown_key = f"lr:cd:{broadcaster_id}:{chatter_id}"
+        if not await state.cooldown_try_acquire(cooldown_key, cooldown):
             cooldown_response = config.get("cooldown_response")
             if cooldown_response:
-                remaining = int(cooldown - (now - last_used))
+                remaining = await state.cooldown_remaining(cooldown_key)
                 message = cooldown_response.replace(
                     "$(user)", chatter_name
                 ).replace("$(remaining)", str(remaining))
                 await send_reply(payload, message, bot_id=bot.bot_id)
             return
 
-        # --- Track play intervals for scripting detection ---
-        if last_used:
-            interval = now - last_used
-            intervals = self._play_intervals.setdefault(
-                cooldown_key, deque(maxlen=self.INTERVAL_WINDOW)
-            )
-            intervals.append(interval)
-        is_scripted = self._detect_scripted(cooldown_key)
-
-        self._cooldowns[cooldown_key] = now
+        # --- Hydrate message-recency history for this channel ---
+        await recency.hydrate(broadcaster_id)
 
         # --- Birthday mode: holster the gun, just celebrate ---
         if config.get("birthday_mode"):
             message = render_birthday(broadcaster_id, chatter_name)
+            await recency.flush(broadcaster_id)
             await send_reply(payload, message, bot_id=bot.bot_id)
             return
 
@@ -107,16 +95,19 @@ class LizardRouletteHandler(SkillHandler):
             logger.warning("No active channel found for broadcaster %s", broadcaster_id)
             return
 
+        # --- Scripting detection from the play journal (survives deploys) ---
+        is_scripted = await self._detect_scripted(channel, chatter_id)
+
         # --- Live status (cached) drives offline messaging + capture ---
         is_live = await self._is_live(channel, broadcaster_id)
 
         # --- Track play count ---
         await self._update_stat(channel, chatter_id, chatter.name, "plays")
 
-        # --- Check for loaded gun ---
-        bullets = self._bullets.get(broadcaster_id, 0)
+        # --- Check for loaded gun (Redis, survives deploys) ---
+        bullets = await state.bullets_get(broadcaster_id)
         if bullets > 0:
-            self._bullets[broadcaster_id] = bullets - 1
+            await state.bullets_decr(broadcaster_id)
             is_loss = True
             was_bullet = True
         else:
@@ -131,8 +122,8 @@ class LizardRouletteHandler(SkillHandler):
             )
             broken_streak = await self._get_stat(channel, chatter_id, "streak")
             await self._set_stat(channel, chatter_id, chatter.name, "streak", 0)
-            previous_victim = self._last_victim.get(broadcaster_id, "")
-            self._last_victim[broadcaster_id] = chatter_name
+            previous_victim = await state.victim_get(broadcaster_id)
+            await state.victim_set(broadcaster_id, chatter_name)
 
             if was_bullet:
                 await self._update_stat(
@@ -181,6 +172,7 @@ class LizardRouletteHandler(SkillHandler):
             death_msg = render_death(
                 mood_roll.mood, ctx, offline_fragment=offline_fragment
             )
+            await recency.flush(broadcaster_id)
             timeout_delay = config.get("timeout_delay", 5) * behavior.timeout_delay_multiplier
             timeout_duration = config.get("timeout_duration", 600)
 
@@ -242,7 +234,7 @@ class LizardRouletteHandler(SkillHandler):
                     channel, chatter_id, chatter.name, "max_streak", streak
                 )
 
-            victim = self._last_victim.get(broadcaster_id, "")
+            victim = await state.victim_get(broadcaster_id)
             chemical = random.choice(CHEMICALS)
 
             ctx = MoodContext(
@@ -253,7 +245,7 @@ class LizardRouletteHandler(SkillHandler):
                 chatter_name=chatter_name,
                 victim=victim,
                 is_self_victim=(victim == chatter_name),
-                bullets_loaded=self._bullets.get(broadcaster_id, 0) > 0,
+                bullets_loaded=False,  # survival implies no bullet was chambered
                 chemical=chemical,
                 channel_id=broadcaster_id,
                 rival=await self._get_rival(channel, chatter_id),
@@ -282,6 +274,7 @@ class LizardRouletteHandler(SkillHandler):
             message = render_survival(
                 mood_roll.mood, ctx, offline_fragment=offline_fragment
             )
+            await recency.flush(broadcaster_id)
             await send_reply(payload, message, bot_id=bot.bot_id)
 
     async def _get_rival(self, channel, exclude_id: str) -> str:
@@ -364,11 +357,25 @@ class LizardRouletteHandler(SkillHandler):
                 "[LizardRoulette] Failed to record play for %s", username
             )
 
-    def _detect_scripted(self, cooldown_key: str) -> bool:
-        """Check if the player's recent play intervals are suspiciously consistent."""
-        intervals = self._play_intervals.get(cooldown_key)
-        if not intervals or len(intervals) < self.INTERVAL_WINDOW:
+    async def _detect_scripted(self, channel, twitch_id: str) -> bool:
+        """Check if recent play intervals are suspiciously consistent.
+
+        Derived from the LizardPlay journal rather than an in-memory dict,
+        so detection survives deploys instead of resetting every merge.
+        """
+        from core.models import LizardPlay
+
+        timestamps = await sync_to_async(list)(
+            LizardPlay.objects.filter(channel=channel, twitch_id=twitch_id)
+            .order_by("-created_at")
+            .values_list("created_at", flat=True)[: self.INTERVAL_WINDOW + 1]
+        )
+        if len(timestamps) < self.INTERVAL_WINDOW + 1:
             return False
+        intervals = [
+            (timestamps[i] - timestamps[i + 1]).total_seconds()
+            for i in range(self.INTERVAL_WINDOW)
+        ]
         avg = sum(intervals) / len(intervals)
         return all(abs(i - avg) <= self.INTERVAL_TOLERANCE for i in intervals)
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import deque
 from unittest.mock import patch
 
 import pytest
@@ -269,29 +268,51 @@ class TestRollOffline:
         assert "akk" in msg
         assert "bardLizard" in msg
 
-    def test_handler_detects_consistent_intervals(self):
+    @staticmethod
+    def _seed_plays(channel, intervals):
+        """Create LizardPlay rows whose gaps (newest-first) are `intervals`."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from core.models import LizardPlay
+
+        when = timezone.now()
+        gaps = [0, *intervals]
+        for gap in gaps:
+            when = when - timedelta(seconds=gap)
+            LizardPlay.objects.create(
+                channel=channel,
+                twitch_id="12345",
+                twitch_username="testuser",
+                outcome="survival",
+                mood="theatrical",
+                created_at=when,
+            )
+
+    @pytest.mark.django_db(transaction=True)
+    async def test_handler_detects_consistent_intervals(self, channel):
         from bot.skills.lizardroulette import LizardRouletteHandler
 
+        self._seed_plays(channel, [1800, 1805, 1798])
         handler = LizardRouletteHandler()
-        key = "99999:12345"
-        handler._play_intervals[key] = deque([1800, 1805, 1798], maxlen=3)
-        assert handler._detect_scripted(key) is True
+        assert await handler._detect_scripted(channel, "12345") is True
 
-    def test_handler_no_detection_with_varied_intervals(self):
+    @pytest.mark.django_db(transaction=True)
+    async def test_handler_no_detection_with_varied_intervals(self, channel):
         from bot.skills.lizardroulette import LizardRouletteHandler
 
+        self._seed_plays(channel, [1800, 2400, 1200])
         handler = LizardRouletteHandler()
-        key = "99999:12345"
-        handler._play_intervals[key] = deque([1800, 2400, 1200], maxlen=3)
-        assert handler._detect_scripted(key) is False
+        assert await handler._detect_scripted(channel, "12345") is False
 
-    def test_handler_no_detection_with_insufficient_data(self):
+    @pytest.mark.django_db(transaction=True)
+    async def test_handler_no_detection_with_insufficient_data(self, channel):
         from bot.skills.lizardroulette import LizardRouletteHandler
 
+        self._seed_plays(channel, [1800])
         handler = LizardRouletteHandler()
-        key = "99999:12345"
-        handler._play_intervals[key] = deque([1800], maxlen=3)
-        assert handler._detect_scripted(key) is False
+        assert await handler._detect_scripted(channel, "12345") is False
 
 
 # ---------------------------------------------------------------------------
@@ -335,7 +356,7 @@ class TestRollMood:
         ctx = _make_ctx()
 
         def zero_all(weights, _ctx):
-            return {m: 0 for m in Mood}
+            return dict.fromkeys(Mood, 0)
 
         roll = roll_mood(ctx, weight_fn=zero_all)
         assert roll.mood == Mood.THEATRICAL

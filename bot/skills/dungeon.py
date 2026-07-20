@@ -10,7 +10,6 @@ import asyncio
 import logging
 import math
 import random
-import time
 import uuid
 from dataclasses import dataclass
 from dataclasses import field
@@ -18,6 +17,7 @@ from dataclasses import field
 from asgiref.sync import sync_to_async
 from django.utils import timezone
 
+from bot import state
 from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
@@ -117,7 +117,6 @@ class DungeonHandler(SkillHandler):
 
     def __init__(self):
         self._games: dict[str, DungeonGame] = {}
-        self._cooldowns: dict[str, float] = {}
 
     async def handle(self, payload, args, skill, bot):
         chatter = payload.chatter
@@ -137,16 +136,16 @@ class DungeonHandler(SkillHandler):
 
         game = self._games.get(broadcaster_id)
 
-        # --- On cooldown ---
-        cooldown = config.get("cooldown", 900)
-        now = time.monotonic()
-        last_completed = self._cooldowns.get(broadcaster_id)
-        if game is None and last_completed and (now - last_completed) < cooldown:
-            remaining = int(cooldown - (now - last_completed))
-            msg = messages.get("cooldown_response", DEFAULT_MESSAGES["cooldown_response"])
-            msg = msg.replace("$(remaining)", str(remaining))
-            await send_reply(payload, msg, bot_id=bot.bot_id)
-            return
+        # --- On cooldown (Redis, survives deploys) ---
+        if game is None:
+            remaining = await state.cooldown_remaining(
+                f"dungeon:cd:{broadcaster_id}"
+            )
+            if remaining > 0:
+                msg = messages.get("cooldown_response", DEFAULT_MESSAGES["cooldown_response"])
+                msg = msg.replace("$(remaining)", str(remaining))
+                await send_reply(payload, msg, bot_id=bot.bot_id)
+                return
 
         # --- Running phase — ignore ---
         if game and game.phase == "running":
@@ -392,7 +391,10 @@ class DungeonHandler(SkillHandler):
         except Exception:
             logger.exception("Dungeon game error for %s", game.broadcaster_id)
         finally:
-            self._cooldowns[game.broadcaster_id] = time.monotonic()
+            await state.cooldown_set(
+                f"dungeon:cd:{game.broadcaster_id}",
+                config.get("cooldown", 900),
+            )
             self._games.pop(game.broadcaster_id, None)
 
     async def _pay_winners(

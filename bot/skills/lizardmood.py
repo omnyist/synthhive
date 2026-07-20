@@ -278,10 +278,19 @@ FLOW_CHANCE = 0.5  # probability of using a paired flow vs independent selection
 
 
 class RecencyTracker:
-    """Track recently used message fragments per channel to avoid repeats."""
+    """Track recently used message fragments per channel to avoid repeats.
+
+    The working copy is in-memory (pick() stays sync for the render
+    functions), backed by Redis so history survives deploys: the handler
+    awaits hydrate() once per channel after startup to seed the deque,
+    and flush() after each render to persist the picks made during it.
+    Persistence failing degrades to in-memory-only — never blocks a play.
+    """
 
     def __init__(self) -> None:
         self._history: dict[str, deque[str]] = {}
+        self._hydrated: set[str] = set()
+        self._dirty: dict[str, list[str]] = {}
 
     def pick(self, channel_id: str, options: list[str]) -> str:
         """Pick a random option, avoiding recently used ones.
@@ -295,14 +304,44 @@ class RecencyTracker:
         fresh = [o for o in options if o not in history]
         choice = random.choice(fresh) if fresh else random.choice(options)
         history.append(choice)
+        self._dirty.setdefault(channel_id, []).append(choice)
         return choice
+
+    async def hydrate(self, channel_id: str) -> None:
+        """Seed in-memory history from Redis, once per channel per process."""
+        if channel_id in self._hydrated:
+            return
+        self._hydrated.add(channel_id)
+        from bot import state
+
+        persisted = await state.recency_get(channel_id)
+        if persisted:
+            history = self._history.setdefault(
+                channel_id, deque(maxlen=RECENCY_WINDOW)
+            )
+            # Redis list is most-recent-first; deque wants oldest-first.
+            for fragment in reversed(persisted):
+                history.append(fragment)
+
+    async def flush(self, channel_id: str) -> None:
+        """Persist picks made since the last flush."""
+        picks = self._dirty.pop(channel_id, [])
+        if not picks:
+            return
+        from bot import state
+
+        await state.recency_push(channel_id, picks)
 
     def clear(self, channel_id: str | None = None) -> None:
         """Clear history. If channel_id is None, clear all."""
         if channel_id is None:
             self._history.clear()
+            self._hydrated.clear()
+            self._dirty.clear()
         else:
             self._history.pop(channel_id, None)
+            self._hydrated.discard(channel_id)
+            self._dirty.pop(channel_id, None)
 
 
 recency = RecencyTracker()

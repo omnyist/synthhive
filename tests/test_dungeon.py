@@ -22,7 +22,6 @@ def _clear_dungeon_state():
     discover_skills()
     handler = SKILL_REGISTRY["dungeon"]
     handler._games.clear()
-    handler._cooldowns.clear()
 
 
 @pytest.fixture
@@ -59,7 +58,6 @@ async def _dungeon_env():
             with contextlib.suppress(BaseException):
                 await task
     handler._games.clear()
-    handler._cooldowns.clear()
 
 
 def _make_skill(channel):
@@ -347,9 +345,9 @@ class TestDungeonCooldown:
         bot.bot_id = "00000"
 
         # Simulate a recent game completion
-        import time
+        from bot import state
 
-        handler._cooldowns["99999"] = time.monotonic()
+        await state.cooldown_set("dungeon:cd:99999", 300)
 
         payload = MockPayload(
             text="!dungeon 500",
@@ -501,8 +499,10 @@ class TestDungeonResolution:
 
         # Game cleared from active games
         assert "99999" not in handler._games
-        # Cooldown set
-        assert "99999" in handler._cooldowns
+        # Cooldown set (Redis)
+        from bot import state
+
+        assert await state.cooldown_remaining("dungeon:cd:99999") > 0
 
     async def test_wipe_outcome_sends_wipe_message(self, channel, _dungeon_env):
         skill = _make_skill(channel)

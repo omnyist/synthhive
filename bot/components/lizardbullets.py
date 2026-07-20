@@ -9,7 +9,7 @@ import random
 from asgiref.sync import sync_to_async
 from twitchio.ext import commands
 
-from bot.skills import SKILL_REGISTRY
+from bot import state
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
@@ -106,11 +106,7 @@ class LizardBullets(commands.Component):
         if random.randint(1, BULLET_ODDS) != 1:
             return
 
-        handler = SKILL_REGISTRY.get("lizardroulette")
-        if handler is None:
-            return
-
-        handler._bullets[broadcaster_id] = CHAMBER_COUNT
+        await state.bullets_set(broadcaster_id, CHAMBER_COUNT)
         logger.info(
             "[LizardBullets] Gun loaded in #%s",
             channel_info["name"],

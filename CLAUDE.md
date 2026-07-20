@@ -80,7 +80,7 @@ Cooldowns are model fields on Command, applied in the common pipeline before typ
 | `cooldown_seconds` | Global | Shared timer — once anyone triggers the command, nobody can use it for N seconds |
 | `user_cooldown_seconds` | Per-user | Each chatter has their own timer |
 
-`config["cooldown_response"]` is the template shown when on cooldown. Supports `$(remaining)` for remaining seconds as a raw number, plus all standard variables like `$(user)`. Omit `cooldown_response` to silently ignore attempts during cooldown. Cooldowns are in-memory and reset on bot restart.
+`config["cooldown_response"]` is the template shown when on cooldown. Supports `$(remaining)` for remaining seconds as a raw number, plus all standard variables like `$(user)`. Omit `cooldown_response` to silently ignore attempts during cooldown. Cooldowns live in Redis (`bot/state.py`) and survive deploys/restarts; if Redis is unavailable the bot fails open (no cooldowns) rather than breaking.
 
 ### Skill Handlers
 
@@ -154,7 +154,7 @@ TwitchIO Components that run background tasks alongside the message pipeline.
 |---|---|---|
 | `CurrencyAccrual` | `bot/components/accrual.py` | Ticks every 5 min while stream is live. Posts to Synthfunc `POST /wallets/accrue`. |
 | `AdAnnounce` | `bot/components/ads.py` | Subscribes to Synthfunc Redis pub/sub (`events:{slug}:ads`). Announces ad warnings, running, ended, enabled, disabled events in chat. Warning intervals configurable per-channel via skill config (`warning_intervals`, default `[60, 5]`). Messages customizable via `config["messages"]`. Uses `create_partialuser()` to send messages without a chat payload. |
-| `LizardBullets` | `bot/components/lizardbullets.py` | Ticks every 30s. Rolls 1/651 per channel per tick to silently load a 6-chamber gun. When loaded, next 6 `!lizardroulette` uses are guaranteed losses. Writes to `LizardRouletteHandler._bullets` dict (in-memory, resets on restart). |
+| `LizardBullets` | `bot/components/lizardbullets.py` | Ticks every 30s. Rolls 1/651 per channel per tick to silently load a 6-chamber gun. When loaded, next 6 `!lizardroulette` uses are guaranteed losses. Bullet state lives in Redis (`bot/state.py`) and survives deploys. |
 | `DungeonRecovery` | `bot/components/dungeonrecovery.py` | Startup sweep (15s after load). Finds `DungeonWager` rows still `pending` from before this process started — orphans of a deploy/crash that killed a mid-flight dungeon game — refunds the principal via Synthfunc `dungeon_refund`, marks them `refunded`, and announces in chat. Failed refunds stay `pending` and retry at the next restart. |
 
 ## Variable System

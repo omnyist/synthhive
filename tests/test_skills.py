@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from bot import state
 from bot.skills import SKILL_REGISTRY
 from bot.skills import SkillHandler
 from bot.skills import discover_skills
@@ -1034,11 +1035,7 @@ class TestLizardRouletteHandler:
         from bot.skills.lizardmood import recency
 
         discover_skills()
-        SKILL_REGISTRY["lizardroulette"]._cooldowns.clear()
-        SKILL_REGISTRY["lizardroulette"]._bullets.clear()
-        SKILL_REGISTRY["lizardroulette"]._play_intervals.clear()
         recency.clear()
-        SKILL_REGISTRY["lizardroulette"]._last_victim.clear()
 
     def test_discover_skills_registers_lizardroulette(self):
         discover_skills()
@@ -1553,8 +1550,8 @@ class TestLizardRouletteHandler:
             },
         )
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        handler._bullets["99999"] = 1
+        SKILL_REGISTRY["lizardroulette"]
+        await state.bullets_set("99999", 1)
 
         ban_response = MagicMock()
         ban_response.status_code = 200
@@ -1599,8 +1596,8 @@ class TestLizardRouletteHandler:
             },
         )
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        handler._bullets["99999"] = 3
+        SKILL_REGISTRY["lizardroulette"]
+        await state.bullets_set("99999", 3)
 
         ban_response = MagicMock()
         ban_response.status_code = 200
@@ -1624,7 +1621,7 @@ class TestLizardRouletteHandler:
         ):
             await router.event_message(payload)
 
-        assert handler._bullets["99999"] == 2
+        assert await state.bullets_get("99999") == 2
 
     async def test_bullets_exhausted_resumes_normal_odds(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1642,8 +1639,8 @@ class TestLizardRouletteHandler:
             },
         )
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        handler._bullets["99999"] = 0
+        SKILL_REGISTRY["lizardroulette"]
+        await state.bullets_set("99999", 0)
 
         bot = MagicMock()
         bot.bot_id = "00000"
@@ -1685,8 +1682,8 @@ class TestLizardRouletteHandler:
             },
         )
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        handler._bullets["99999"] = 1
+        SKILL_REGISTRY["lizardroulette"]
+        await state.bullets_set("99999", 1)
 
         ban_response = MagicMock()
         ban_response.status_code = 200
@@ -2064,8 +2061,8 @@ class TestLizardRouletteHandler:
         ):
             await router.event_message(payload)
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        assert handler._last_victim["99999"] == "VictimUser"
+        SKILL_REGISTRY["lizardroulette"]
+        assert await state.victim_get("99999") == "VictimUser"
 
     async def test_victim_in_success_message(self, channel):
         channel.owner_access_token = "fake_token"
@@ -2080,8 +2077,8 @@ class TestLizardRouletteHandler:
             config={"odds": 0, "cooldown": 0},
         )
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        handler._last_victim["99999"] = "UnluckyPerson"
+        SKILL_REGISTRY["lizardroulette"]
+        await state.victim_set("99999", "UnluckyPerson")
 
         bot = MagicMock()
         bot.bot_id = "00000"
@@ -2143,8 +2140,8 @@ class TestLizardRouletteHandler:
             config={"odds": 0, "cooldown": 0},
         )
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        handler._last_victim["99999"] = "TestUser"
+        SKILL_REGISTRY["lizardroulette"]
+        await state.victim_set("99999", "TestUser")
 
         bot = MagicMock()
         bot.bot_id = "00000"
@@ -2441,7 +2438,6 @@ class TestLizardLiveDetection:
 class TestLizardBulletsComponent:
     def setup_method(self):
         discover_skills()
-        SKILL_REGISTRY["lizardroulette"]._bullets.clear()
 
     def _mock_skill(self, config=None):
         """Return a mock Skill with the given config dict."""
@@ -2474,8 +2470,8 @@ class TestLizardBulletsComponent:
         ):
             await component._tick_channel(mock_bot._channel_map["spoonee"])
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        assert handler._bullets["78238052"] == 6
+        SKILL_REGISTRY["lizardroulette"]
+        assert await state.bullets_get("78238052") == 6
 
     @pytest.mark.asyncio
     async def test_tick_no_load_on_miss(self):
@@ -2502,8 +2498,8 @@ class TestLizardBulletsComponent:
         ):
             await component._tick_channel(mock_bot._channel_map["spoonee"])
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        assert handler._bullets.get("78238052", 0) == 0
+        SKILL_REGISTRY["lizardroulette"]
+        assert await state.bullets_get("78238052") == 0
 
     @pytest.mark.asyncio
     async def test_tick_skips_when_offline(self):
@@ -2530,8 +2526,8 @@ class TestLizardBulletsComponent:
         ):
             await component._tick_channel(mock_bot._channel_map["spoonee"])
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        assert handler._bullets.get("78238052", 0) == 0
+        SKILL_REGISTRY["lizardroulette"]
+        assert await state.bullets_get("78238052") == 0
 
     @pytest.mark.asyncio
     async def test_tick_skips_when_bullets_disabled(self):
@@ -2560,8 +2556,8 @@ class TestLizardBulletsComponent:
         ):
             await component._tick_channel(mock_bot._channel_map["spoonee"])
 
-        handler = SKILL_REGISTRY["lizardroulette"]
-        assert handler._bullets.get("78238052", 0) == 0
+        SKILL_REGISTRY["lizardroulette"]
+        assert await state.bullets_get("78238052") == 0
 
 
 # --- Victims skill tests ---
@@ -2571,9 +2567,6 @@ class TestLizardBulletsComponent:
 class TestVictimsHandler:
     def setup_method(self):
         discover_skills()
-        handler = SKILL_REGISTRY.get("victims")
-        if handler:
-            handler._cooldowns = {}
 
     async def test_no_victims_shows_empty_message(self, channel):
         from core.models import Skill
@@ -2659,9 +2652,6 @@ class TestVictimsHandler:
 class TestSurvivorsHandler:
     def setup_method(self):
         discover_skills()
-        handler = SKILL_REGISTRY.get("survivors")
-        if handler:
-            handler._cooldowns = {}
 
     async def test_no_survivors_shows_empty_message(self, channel):
         from core.models import Skill
@@ -2741,3 +2731,68 @@ class TestSurvivorsHandler:
         assert "playertwo" in msg
         assert "playerthree" not in msg
         assert msg.index("playerone") < msg.index("playertwo")
+
+
+# --- State durability tests (the point of Redis-backed state) ---
+
+
+@pytest.mark.django_db(transaction=True)
+class TestStateDurability:
+    """State must survive a bot restart (deploy). A 'restart' here is a
+    fresh handler instance + cleared in-memory trackers; the (fake)Redis
+    backing persists across them within a test."""
+
+    async def test_cooldown_survives_restart(self, channel):
+        from bot.skills.lizardmood import recency
+        from bot.skills.lizardroulette import LizardRouletteHandler
+
+        skill = MagicMock()
+        skill.config = {"cooldown": 300, "cooldown_response": "wait $(remaining)s"}
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        acquired = await state.cooldown_try_acquire("lr:cd:99999:12345", 300)
+        assert acquired is True
+
+        # "Restart": new handler instance, wiped in-memory state.
+        handler = LizardRouletteHandler()
+        recency.clear()
+
+        payload = MockPayload(
+            text="!lizardroulette", broadcaster=MockBroadcaster(id=99999)
+        )
+        await handler.handle(payload, "", skill, bot)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "wait" in msg  # still on cooldown after the "restart"
+
+    async def test_bullets_survive_restart(self):
+        await state.bullets_set("99999", 2)
+
+        # "Restart" — bullets live in Redis, not on the handler.
+        from bot.skills.lizardroulette import LizardRouletteHandler
+
+        LizardRouletteHandler()
+        assert await state.bullets_get("99999") == 2
+
+        await state.bullets_decr("99999")
+        assert await state.bullets_get("99999") == 1
+
+    async def test_recency_hydrates_after_restart(self):
+        from bot.skills.lizardmood import recency
+
+        await state.recency_push("99999", ["fragment-alpha", "fragment-beta"])
+
+        # "Restart": in-memory history gone, Redis persists.
+        recency.clear()
+        await recency.hydrate("99999")
+
+        history = recency._history.get("99999")
+        assert history is not None
+        assert "fragment-alpha" in history
+        assert "fragment-beta" in history
+
+    async def test_victim_survives_restart(self):
+        await state.victim_set("99999", "UnluckyPerson")
+        # Nothing in-memory to clear — victims live only in Redis now.
+        assert await state.victim_get("99999") == "UnluckyPerson"
