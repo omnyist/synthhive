@@ -11,8 +11,12 @@ import logging
 import math
 import random
 import time
+import uuid
 from dataclasses import dataclass
 from dataclasses import field
+
+from asgiref.sync import sync_to_async
+from django.utils import timezone
 
 from bot.router import send_reply
 from bot.skills import SkillHandler
@@ -103,6 +107,7 @@ class DungeonGame:
     participants: dict[str, DungeonParticipant] = field(default_factory=dict)
     phase: str = "entry"
     task: asyncio.Task | None = None
+    game_key: str = field(default_factory=lambda: uuid.uuid4().hex)
 
 
 class DungeonHandler(SkillHandler):
@@ -224,6 +229,7 @@ class DungeonHandler(SkillHandler):
             )
             game.participants[chatter_id] = participant
             self._games[broadcaster_id] = game
+            await self._journal_wager(skill.channel, game, participant)
 
             entry_duration = config.get("entry_duration", 120)
             msg = messages.get("entry_started", DEFAULT_MESSAGES["entry_started"])
@@ -243,6 +249,7 @@ class DungeonHandler(SkillHandler):
         # --- Join existing game ---
         game.participants[chatter_id] = participant
         game.broadcaster = payload.broadcaster
+        await self._journal_wager(skill.channel, game, participant)
 
         count = len(game.participants)
         msg = messages.get("entry_joined", DEFAULT_MESSAGES["entry_joined"])
@@ -306,6 +313,11 @@ class DungeonHandler(SkillHandler):
             survivors = [p for p in game.participants.values() if p.survived]
             dead = [p for p in game.participants.values() if not p.survived]
             survival_rate = len(survivors) / count if count > 0 else 0
+
+            if dead:
+                await self._mark_wagers(
+                    game.game_key, [p.twitch_id for p in dead], "lost"
+                )
 
             # --- Solo outcomes ---
             if count == 1:
@@ -408,9 +420,82 @@ class DungeonHandler(SkillHandler):
                 reason="dungeon_payout",
             )
             if result is None:
+                # Leave the winners' journal rows pending: recovery will at
+                # least restore their principal at the next restart.
                 logger.warning(
-                    "Failed to pay dungeon winners for %s", game.broadcaster_id
+                    "Failed to pay dungeon winners for %s — wagers left "
+                    "pending for recovery refund",
+                    game.broadcaster_id,
                 )
+                return
+
+            payouts = {
+                p.twitch_id: math.floor(p.wager * level["multiplier"])
+                for p in survivors
+            }
+            await self._mark_wagers(
+                game.game_key, list(payouts), "won", payouts=payouts
+            )
+
+    async def _journal_wager(self, channel_model, game, participant) -> None:
+        """Record a debited wager durably. Failure never blocks the game —
+        it just means we're no safer than before the journal existed."""
+        from core.models import DungeonWager
+
+        try:
+            await sync_to_async(DungeonWager.objects.create)(
+                channel=channel_model,
+                game_key=game.game_key,
+                twitch_id=participant.twitch_id,
+                twitch_username=participant.username,
+                display_name=participant.display_name,
+                wager=participant.wager,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to journal dungeon wager for %s in game %s",
+                participant.display_name,
+                game.game_key,
+            )
+
+    async def _mark_wagers(
+        self,
+        game_key: str,
+        twitch_ids: list[str],
+        status: str,
+        payouts: dict[str, int] | None = None,
+    ) -> None:
+        """Resolve pending journal rows to won/lost via queryset update."""
+        from core.models import DungeonWager
+
+        try:
+            if payouts:
+                for tid in twitch_ids:
+                    await sync_to_async(
+                        DungeonWager.objects.filter(
+                            game_key=game_key,
+                            twitch_id=tid,
+                            status=DungeonWager.Status.PENDING,
+                        ).update
+                    )(
+                        status=status,
+                        payout=payouts.get(tid, 0),
+                        resolved_at=timezone.now(),
+                    )
+            else:
+                await sync_to_async(
+                    DungeonWager.objects.filter(
+                        game_key=game_key,
+                        twitch_id__in=twitch_ids,
+                        status=DungeonWager.Status.PENDING,
+                    ).update
+                )(status=status, resolved_at=timezone.now())
+        except Exception:
+            logger.exception(
+                "Failed to mark dungeon wagers %s for game %s",
+                status,
+                game_key,
+            )
 
     async def _send_broadcast(self, game: DungeonGame, message: str) -> None:
         """Send a non-reply message to the channel."""

@@ -327,6 +327,52 @@ class LizardPlay(models.Model):
         return f"{self.twitch_username} {self.outcome} ({self.mood}) @ {self.created_at:%Y-%m-%d %H:%M}"
 
 
+class DungeonWager(models.Model):
+    """Journal of every dungeon wager, written at debit time.
+
+    The dungeon's live game state is an in-memory asyncio task, so a
+    deploy mid-game would otherwise eat wagers that were already
+    debited. This journal is the durable money record: entries start
+    pending, are marked won/lost at resolution, and any still pending
+    at bot startup are orphans from a killed game — refunded by
+    DungeonRecovery.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        WON = "won", "Won"
+        LOST = "lost", "Lost"
+        REFUNDED = "refunded", "Refunded"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, related_name="dungeon_wagers"
+    )
+    game_key = models.CharField(max_length=32, db_index=True)
+    twitch_id = models.CharField(max_length=50)
+    twitch_username = models.CharField(max_length=100, blank=True, default="")
+    display_name = models.CharField(max_length=100, blank=True, default="")
+    wager = models.PositiveIntegerField()
+    payout = models.PositiveIntegerField(default=0)
+    status = models.CharField(
+        max_length=10, choices=Status, default=Status.PENDING
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["channel", "status"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.display_name or self.twitch_id} wagered {self.wager} "
+            f"({self.status}) in #{self.channel.twitch_channel_name}"
+        )
+
+
 class Alias(models.Model):
     """A type-agnostic command alias per channel.
 

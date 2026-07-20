@@ -29,16 +29,29 @@ def _clear_dungeon_state():
 async def _dungeon_env():
     """Async test environment for the dungeon handler.
 
-    Makes the entry-timer and resolution pauses instant (patches _sleep)
-    and, on teardown, cancels + awaits any background game task the test
-    left running. Undrained tasks are what hang event-loop teardown and
-    make the suite un-gateable; this guarantees a clean loop after every
-    async test. Applied only to the async classes (an async autouse
-    fixture collides with the sync helper tests).
+    Yields an entry gate (asyncio.Event). The entry timer (the _sleep
+    call with the test config's entry_duration=0) blocks on the gate, so
+    the game task cannot race ahead and close entry while a test is
+    still joining players — handle() genuinely suspends on journal DB
+    writes, which hands the loop to the game task. Tests that resolve a
+    game call `.set()` on the gate before awaiting game.task; resolution
+    pauses (3/2/1s) run instantly.
+
+    On teardown, cancels + awaits any background game task the test left
+    running — undrained tasks hang event-loop teardown. Applied only to
+    the async classes (an async autouse fixture collides with the sync
+    helper tests).
     """
     handler = SKILL_REGISTRY["dungeon"]
-    with patch.object(DungeonHandler, "_sleep", new_callable=AsyncMock):
-        yield
+    entry_gate = asyncio.Event()
+
+    async def fake_sleep(self, seconds):
+        if seconds == 0:  # entry timer (test config entry_duration=0)
+            await entry_gate.wait()
+        # resolution pauses: instant
+
+    with patch.object(DungeonHandler, "_sleep", fake_sleep):
+        yield entry_gate
         tasks = [g.task for g in list(handler._games.values()) if g.task]
         for task in tasks:
             task.cancel()
@@ -357,7 +370,7 @@ class TestDungeonCooldown:
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("_dungeon_env")
 class TestDungeonResolution:
-    async def test_solo_win_pays_out(self, channel):
+    async def test_solo_win_pays_out(self, channel, _dungeon_env):
         skill = _make_skill(channel)
         handler = SKILL_REGISTRY["dungeon"]
         bot = MagicMock()
@@ -380,6 +393,7 @@ class TestDungeonResolution:
             await handler.handle(payload, "100", skill, bot)
             # Wait for the background task (entry_duration=0)
             game = handler._games.get("99999")
+            _dungeon_env.set()
             if game and game.task:
                 await game.task
 
@@ -390,7 +404,7 @@ class TestDungeonResolution:
             assert entries[0]["amount"] == "150"
             assert payout_call[1]["reason"] == "dungeon_payout"
 
-    async def test_solo_loss_no_payout(self, channel):
+    async def test_solo_loss_no_payout(self, channel, _dungeon_env):
         skill = _make_skill(channel)
         handler = SKILL_REGISTRY["dungeon"]
         bot = MagicMock()
@@ -412,13 +426,14 @@ class TestDungeonResolution:
         ):
             await handler.handle(payload, "100", skill, bot)
             game = handler._games.get("99999")
+            _dungeon_env.set()
             if game and game.task:
                 await game.task
 
             # Transact called only once (deduct), no payout
             assert mock_transact.call_count == 1
 
-    async def test_group_game_with_mixed_outcomes(self, channel):
+    async def test_group_game_with_mixed_outcomes(self, channel, _dungeon_env):
         skill = _make_skill(channel)
         handler = SKILL_REGISTRY["dungeon"]
         bot = MagicMock()
@@ -446,6 +461,7 @@ class TestDungeonResolution:
                 await handler.handle(payload, str(100 * (i + 1)), skill, bot)
 
             game = handler._games.get("99999")
+            _dungeon_env.set()
             if game and game.task:
                 await game.task
 
@@ -457,7 +473,7 @@ class TestDungeonResolution:
             # 2 survivors (rolls 1 and 1, survival_chance=60 for Tonberry Cove)
             assert len(entries) == 2
 
-    async def test_game_clears_after_completion(self, channel):
+    async def test_game_clears_after_completion(self, channel, _dungeon_env):
         skill = _make_skill(channel)
         handler = SKILL_REGISTRY["dungeon"]
         bot = MagicMock()
@@ -479,6 +495,7 @@ class TestDungeonResolution:
         ):
             await handler.handle(payload, "100", skill, bot)
             game = handler._games.get("99999")
+            _dungeon_env.set()
             if game and game.task:
                 await game.task
 
@@ -487,7 +504,7 @@ class TestDungeonResolution:
         # Cooldown set
         assert "99999" in handler._cooldowns
 
-    async def test_wipe_outcome_sends_wipe_message(self, channel):
+    async def test_wipe_outcome_sends_wipe_message(self, channel, _dungeon_env):
         skill = _make_skill(channel)
         handler = SKILL_REGISTRY["dungeon"]
         bot = MagicMock()
@@ -512,6 +529,7 @@ class TestDungeonResolution:
                 await handler.handle(payload, "100", skill, bot)
 
             game = handler._games.get("99999")
+            _dungeon_env.set()
             if game and game.task:
                 await game.task
 
@@ -530,7 +548,7 @@ class TestDungeonResolution:
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("_dungeon_env")
 class TestDungeonLevelSelection:
-    async def test_three_players_unlocks_tonberry_cove(self, channel):
+    async def test_three_players_unlocks_tonberry_cove(self, channel, _dungeon_env):
         skill = _make_skill(channel)
         handler = SKILL_REGISTRY["dungeon"]
         bot = MagicMock()
@@ -555,6 +573,7 @@ class TestDungeonLevelSelection:
                 await handler.handle(payload, "100", skill, bot)
 
             game = handler._games.get("99999")
+            _dungeon_env.set()
             if game and game.task:
                 await game.task
 
@@ -609,3 +628,238 @@ class TestDungeonRunningPhaseIgnored:
 
         # No message sent (silently ignored)
         payload.broadcaster.send_message.assert_not_called()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("_dungeon_env")
+class TestDungeonWagerJournal:
+    async def test_entry_journals_pending_wager(self, channel):
+        from core.models import DungeonWager
+
+        skill = _make_skill(channel)
+        handler = SKILL_REGISTRY["dungeon"]
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        payload = MockPayload(
+            text="!dungeon 500", broadcaster=MockBroadcaster(id=99999)
+        )
+        with patch(
+            "bot.skills.dungeon.transact_wallets",
+            new_callable=AsyncMock,
+            return_value=_transact_success(),
+        ):
+            await handler.handle(payload, "500", skill, bot)
+            game = handler._games["99999"]
+            wager = DungeonWager.objects.get(game_key=game.game_key)
+            assert wager.status == "pending"
+            assert wager.wager == 500
+            assert wager.channel_id == channel.id
+
+    async def test_solo_loss_marks_wager_lost(self, channel, _dungeon_env):
+        from core.models import DungeonWager
+
+        skill = _make_skill(channel)
+        handler = SKILL_REGISTRY["dungeon"]
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        payload = MockPayload(
+            text="!dungeon 100", broadcaster=MockBroadcaster(id=99999)
+        )
+        with patch(
+            "bot.skills.dungeon.transact_wallets",
+            new_callable=AsyncMock,
+            return_value=_transact_success(),
+        ), patch("bot.skills.dungeon.random.randint", return_value=100):
+            await handler.handle(payload, "100", skill, bot)
+            game = handler._games.get("99999")
+            game_key = game.game_key
+            _dungeon_env.set()
+            if game and game.task:
+                await game.task
+
+        wager = DungeonWager.objects.get(game_key=game_key)
+        assert wager.status == "lost"
+        assert wager.resolved_at is not None
+
+    async def test_solo_win_marks_wager_won_with_payout(self, channel, _dungeon_env):
+        from core.models import DungeonWager
+
+        skill = _make_skill(channel)
+        handler = SKILL_REGISTRY["dungeon"]
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        payload = MockPayload(
+            text="!dungeon 100", broadcaster=MockBroadcaster(id=99999)
+        )
+        with patch(
+            "bot.skills.dungeon.transact_wallets",
+            new_callable=AsyncMock,
+            return_value=_transact_success(),
+        ), patch("bot.skills.dungeon.random.randint", return_value=1):
+            await handler.handle(payload, "100", skill, bot)
+            game = handler._games.get("99999")
+            game_key = game.game_key
+            _dungeon_env.set()
+            if game and game.task:
+                await game.task
+
+        wager = DungeonWager.objects.get(game_key=game_key)
+        assert wager.status == "won"
+        assert wager.payout == 150  # 100 x 1.5 (Cactuar Village)
+
+    async def test_payout_failure_leaves_wager_pending(self, channel, _dungeon_env):
+        from core.models import DungeonWager
+
+        skill = _make_skill(channel)
+        handler = SKILL_REGISTRY["dungeon"]
+        bot = MagicMock()
+        bot.bot_id = "00000"
+
+        payload = MockPayload(
+            text="!dungeon 100", broadcaster=MockBroadcaster(id=99999)
+        )
+        # First transact (debit) succeeds; second (payout) fails.
+        with patch(
+            "bot.skills.dungeon.transact_wallets",
+            new_callable=AsyncMock,
+            side_effect=[_transact_success(), None],
+        ), patch("bot.skills.dungeon.random.randint", return_value=1):
+            await handler.handle(payload, "100", skill, bot)
+            game = handler._games.get("99999")
+            game_key = game.game_key
+            _dungeon_env.set()
+            if game and game.task:
+                await game.task
+
+        wager = DungeonWager.objects.get(game_key=game_key)
+        assert wager.status == "pending"  # recovery refunds it next restart
+
+
+@pytest.mark.django_db(transaction=True)
+class TestDungeonRecovery:
+    def _make_component(self, bot_twitch_id="66977097"):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from bot.components.dungeonrecovery import DungeonRecovery
+
+        bot = MagicMock()
+        bot.bot_id = bot_twitch_id
+        broadcaster = MagicMock()
+        broadcaster.send_message = AsyncMock()
+        bot.create_partialuser.return_value = broadcaster
+        component = DungeonRecovery(bot)
+        # Orphans predate the process; push the cutoff forward so rows
+        # created inside the test count as "before startup".
+        component._cutoff = timezone.now() + timedelta(seconds=5)
+        return component, broadcaster
+
+    def _pending_wager(self, channel, twitch_id="111", name="P1", amount=500):
+        from core.models import DungeonWager
+
+        return DungeonWager.objects.create(
+            channel=channel,
+            game_key="deadgame",
+            twitch_id=twitch_id,
+            twitch_username=name.lower(),
+            display_name=name,
+            wager=amount,
+        )
+
+    async def test_refunds_pending_wagers_and_announces(self, channel):
+
+        w1 = self._pending_wager(channel, "111", "P1", 500)
+        w2 = self._pending_wager(channel, "222", "P2", 200)
+        component, broadcaster = self._make_component()
+
+        with patch(
+            "bot.components.dungeonrecovery.transact_wallets",
+            new_callable=AsyncMock,
+            return_value={"processed": 2, "failed": []},
+        ) as mock_transact:
+            await component._recover_channel(channel)
+
+        entries = mock_transact.call_args[0][1]
+        assert {e["twitch_id"]: e["amount"] for e in entries} == {
+            "111": "500",
+            "222": "200",
+        }
+        assert mock_transact.call_args.kwargs["reason"] == "dungeon_refund"
+
+        w1.refresh_from_db()
+        w2.refresh_from_db()
+        assert w1.status == "refunded"
+        assert w2.status == "refunded"
+
+        msg = broadcaster.send_message.call_args.kwargs["message"]
+        assert "refund" in msg.lower() or "wagers" in msg.lower()
+        assert "P1 (500)" in msg
+
+    async def test_failed_entry_stays_pending(self, channel):
+        w1 = self._pending_wager(channel, "111", "P1", 500)
+        w2 = self._pending_wager(channel, "222", "P2", 200)
+        component, _ = self._make_component()
+
+        with patch(
+            "bot.components.dungeonrecovery.transact_wallets",
+            new_callable=AsyncMock,
+            return_value={
+                "processed": 1,
+                "failed": [{"twitch_id": "222", "error": "not_found"}],
+            },
+        ):
+            await component._recover_channel(channel)
+
+        w1.refresh_from_db()
+        w2.refresh_from_db()
+        assert w1.status == "refunded"
+        assert w2.status == "pending"  # retried at next restart
+
+    async def test_transact_failure_leaves_all_pending(self, channel):
+        w1 = self._pending_wager(channel, "111", "P1", 500)
+        component, broadcaster = self._make_component()
+
+        with patch(
+            "bot.components.dungeonrecovery.transact_wallets",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            await component._recover_channel(channel)
+
+        w1.refresh_from_db()
+        assert w1.status == "pending"
+        broadcaster.send_message.assert_not_called()
+
+    async def test_ignores_wagers_created_after_startup(self, channel):
+        from django.utils import timezone
+
+        w1 = self._pending_wager(channel, "111", "P1", 500)
+        component, _ = self._make_component()
+        # Simulate a wager placed by a game that started after this process.
+        component._cutoff = timezone.now() - timezone.timedelta(minutes=5)
+
+        with patch(
+            "bot.components.dungeonrecovery.transact_wallets",
+            new_callable=AsyncMock,
+        ) as mock_transact:
+            await component._recover_channel(channel)
+
+        mock_transact.assert_not_called()
+        w1.refresh_from_db()
+        assert w1.status == "pending"
+
+    async def test_no_pending_wagers_is_quiet(self, channel):
+        component, broadcaster = self._make_component()
+
+        with patch(
+            "bot.components.dungeonrecovery.transact_wallets",
+            new_callable=AsyncMock,
+        ) as mock_transact:
+            await component._recover_channel(channel)
+
+        mock_transact.assert_not_called()
+        broadcaster.send_message.assert_not_called()
