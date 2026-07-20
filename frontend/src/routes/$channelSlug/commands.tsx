@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { fetchAll } from '@/lib/api'
-import { CommandList } from '@/components/CommandList'
+import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { CommandForm } from '@/components/CommandForm'
+import { CommandList } from '@/components/CommandList'
+import { fetchAll } from '@/lib/api'
 
 interface Command {
   id: string
@@ -32,11 +32,10 @@ function CommandsPage() {
 
   const { data: commands = [], isLoading } = useQuery({
     queryKey: ['commands', channelSlug],
-    queryFn: () =>
-      fetchAll<Command>(`/api/v1/commands/channels/${channelSlug}/`),
+    queryFn: () => fetchAll<Command>(`/api/v1/commands/channels/${channelSlug}/`),
   })
 
-  const selectedCommand = selectedId ? commands.find((c) => c.id === selectedId) ?? null : null
+  const selectedCommand = selectedId ? (commands.find((c) => c.id === selectedId) ?? null) : null
 
   if (isLoading) {
     return (

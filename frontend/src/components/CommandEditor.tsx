@@ -1,14 +1,14 @@
-import { useEffect } from 'react'
+import type { Monaco } from '@monaco-editor/react'
 import Editor from '@monaco-editor/react'
 import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { api } from '@/lib/api'
-import { registerSynthhiveLanguage, LANGUAGE_ID } from '@/lib/monaco-synthhive'
 import {
   ensureCompletionProvider,
   updateCompletionSchema,
   type VariableDescriptor,
 } from '@/lib/monaco-completions'
-import type { Monaco } from '@monaco-editor/react'
+import { LANGUAGE_ID, registerSynthhiveLanguage } from '@/lib/monaco-synthhive'
 
 interface CommandEditorProps {
   value: string

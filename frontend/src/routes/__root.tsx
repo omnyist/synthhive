@@ -1,5 +1,5 @@
-import { createRootRoute, Outlet, Link, useMatchRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { createRootRoute, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -118,9 +118,7 @@ function Sidebar({ user }: { user: MeResponse }) {
           {user.twitch_avatar && (
             <img src={user.twitch_avatar} alt="" className="h-6 w-6 rounded-full" />
           )}
-          <span className="flex-1 truncate text-xs text-hive-text">
-            {user.twitch_display_name}
-          </span>
+          <span className="flex-1 truncate text-xs text-hive-text">{user.twitch_display_name}</span>
         </div>
         <a
           href="/auth/logout/"

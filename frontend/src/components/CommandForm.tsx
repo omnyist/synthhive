@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { CommandEditor } from './CommandEditor'
 
@@ -99,8 +99,7 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
   })
 
   const deleteMutation = useMutation({
-    mutationFn: () =>
-      api(`/api/v1/commands/${command!.id}/`, { method: 'DELETE' }),
+    mutationFn: () => api(`/api/v1/commands/${command!.id}/`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commands', channelSlug] })
       onClose()
@@ -130,6 +129,7 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
         <div className="flex items-center gap-2">
           {!isNew && (
             <button
+              type="button"
               onClick={() => {
                 if (window.confirm(`Delete !${command.name}?`)) {
                   deleteMutation.mutate()
@@ -141,11 +141,13 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
             </button>
           )}
           <button
+            type="button"
             onClick={onClose}
             className="rounded px-3 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
             Cancel
           </button>
           <button
+            type="button"
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
             className="rounded bg-hive-accent-dim px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
@@ -192,9 +194,13 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
         </div>
       )}
 
-      {form.type === 'lottery' && <LotteryConfig form={form} update={update} updateConfig={updateConfig} />}
+      {form.type === 'lottery' && (
+        <LotteryConfig form={form} update={update} updateConfig={updateConfig} />
+      )}
       {form.type === 'random_list' && <RandomListConfig form={form} updateConfig={updateConfig} />}
-      {form.type === 'counter' && <CounterConfig form={form} update={update} updateConfig={updateConfig} />}
+      {form.type === 'counter' && (
+        <CounterConfig form={form} update={update} updateConfig={updateConfig} />
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
@@ -203,7 +209,7 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
             type="number"
             min={0}
             value={form.cooldown_seconds}
-            onChange={(e) => update('cooldown_seconds', parseInt(e.target.value) || 0)}
+            onChange={(e) => update('cooldown_seconds', parseInt(e.target.value, 10) || 0)}
             className="rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none"
           />
         </div>
@@ -213,7 +219,7 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
             type="number"
             min={0}
             value={form.user_cooldown_seconds}
-            onChange={(e) => update('user_cooldown_seconds', parseInt(e.target.value) || 0)}
+            onChange={(e) => update('user_cooldown_seconds', parseInt(e.target.value, 10) || 0)}
             className="rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none"
           />
         </div>
@@ -263,7 +269,7 @@ function LotteryConfig({
           min={1}
           max={100}
           value={odds}
-          onChange={(e) => updateConfig('odds', parseInt(e.target.value) || 1)}
+          onChange={(e) => updateConfig('odds', parseInt(e.target.value, 10) || 1)}
           className="w-24 rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none"
         />
       </div>
@@ -312,7 +318,10 @@ function RandomListConfig({
   }
 
   const removeResponse = (index: number) => {
-    updateConfig('responses', responses.filter((_, i) => i !== index))
+    updateConfig(
+      'responses',
+      responses.filter((_, i) => i !== index),
+    )
   }
 
   return (
@@ -330,6 +339,7 @@ function RandomListConfig({
       <div className="flex flex-col gap-2">
         <label className="text-xs text-hive-muted">Responses</label>
         {responses.map((resp, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: controlled inputs over a parallel string array — no stable IDs exist
           <div key={i} className="flex items-start gap-2">
             <span className="mt-1.5 text-xs text-hive-muted">{i + 1}.</span>
             <input
@@ -339,6 +349,7 @@ function RandomListConfig({
               className="flex-1 rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none"
             />
             <button
+              type="button"
               onClick={() => removeResponse(i)}
               className="mt-0.5 rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10">
               x
@@ -346,6 +357,7 @@ function RandomListConfig({
           </div>
         ))}
         <button
+          type="button"
           onClick={addResponse}
           className="self-start rounded border border-hive-border px-3 py-1 text-xs text-hive-muted transition-colors hover:border-hive-accent hover:text-hive-text">
           + Add Response

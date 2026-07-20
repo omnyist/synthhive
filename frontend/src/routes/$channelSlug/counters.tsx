@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { fetchAll } from '@/lib/api'
-import { CounterList } from '@/components/CounterList'
+import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { CounterForm } from '@/components/CounterForm'
+import { CounterList } from '@/components/CounterList'
+import { fetchAll } from '@/lib/api'
 
 export interface Counter {
   id: string
@@ -23,11 +23,10 @@ function CountersPage() {
 
   const { data: counters = [], isLoading } = useQuery({
     queryKey: ['counters', channelSlug],
-    queryFn: () =>
-      fetchAll<Counter>(`/api/v1/counters/channels/${channelSlug}/`),
+    queryFn: () => fetchAll<Counter>(`/api/v1/counters/channels/${channelSlug}/`),
   })
 
-  const selectedCounter = selectedId ? counters.find((c) => c.id === selectedId) ?? null : null
+  const selectedCounter = selectedId ? (counters.find((c) => c.id === selectedId) ?? null) : null
 
   if (isLoading) {
     return (

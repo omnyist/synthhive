@@ -43,10 +43,7 @@ export function ensureCompletionProvider(monaco: Monaco) {
       const suggestions = _schema.map((desc) => {
         let insertText = desc.example.slice(2, -1)
         if (desc.args_hint) {
-          insertText = insertText.replace(
-            ` ${desc.args_hint}`,
-            ` \${1:${desc.args_hint}}`,
-          )
+          insertText = insertText.replace(` ${desc.args_hint}`, ` \${1:${desc.args_hint}}`)
         }
 
         const label = desc.example
@@ -54,7 +51,7 @@ export function ensureCompletionProvider(monaco: Monaco) {
         return {
           label,
           kind: monaco.languages.CompletionItemKind.Variable,
-          insertText: insertText + ')',
+          insertText: `${insertText})`,
           insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
           detail: desc.description,
           documentation: `Example: ${desc.example}`,

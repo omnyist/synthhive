@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { api } from '@/lib/api'
 
 interface ChannelBrief {

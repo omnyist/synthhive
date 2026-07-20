@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 
 interface Alias {
@@ -70,8 +70,7 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
   })
 
   const deleteMutation = useMutation({
-    mutationFn: () =>
-      api(`/api/v1/aliases/${alias!.id}/`, { method: 'DELETE' }),
+    mutationFn: () => api(`/api/v1/aliases/${alias!.id}/`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['aliases', channelSlug] })
       onClose()
@@ -88,12 +87,11 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto border-l border-hive-border pl-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">
-          {isNew ? 'New Alias' : `Editing: !${alias.name}`}
-        </h3>
+        <h3 className="text-sm font-medium">{isNew ? 'New Alias' : `Editing: !${alias.name}`}</h3>
         <div className="flex items-center gap-2">
           {!isNew && (
             <button
+              type="button"
               onClick={() => {
                 if (window.confirm(`Delete alias !${alias.name}?`)) {
                   deleteMutation.mutate()
@@ -105,11 +103,13 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
             </button>
           )}
           <button
+            type="button"
             onClick={onClose}
             className="rounded px-3 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
             Cancel
           </button>
           <button
+            type="button"
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
             className="rounded bg-hive-accent-dim px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">

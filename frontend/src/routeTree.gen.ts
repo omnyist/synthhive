@@ -9,25 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as InvitesRouteImport } from './routes/invites'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ChannelSlugCountersRouteImport } from './routes/$channelSlug/counters'
-import { Route as ChannelSlugCommandsRouteImport } from './routes/$channelSlug/commands'
+import { Route as InvitesRouteImport } from './routes/invites'
 import { Route as ChannelSlugAliasesRouteImport } from './routes/$channelSlug/aliases'
+import { Route as ChannelSlugCommandsRouteImport } from './routes/$channelSlug/commands'
+import { Route as ChannelSlugCountersRouteImport } from './routes/$channelSlug/counters'
 
-const InvitesRoute = InvitesRouteImport.update({
-  id: '/invites',
-  path: '/invites',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChannelSlugCountersRoute = ChannelSlugCountersRouteImport.update({
-  id: '/$channelSlug/counters',
-  path: '/$channelSlug/counters',
+const InvitesRoute = InvitesRouteImport.update({
+  id: '/invites',
+  path: '/invites',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChannelSlugAliasesRoute = ChannelSlugAliasesRouteImport.update({
+  id: '/$channelSlug/aliases',
+  path: '/$channelSlug/aliases',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChannelSlugCommandsRoute = ChannelSlugCommandsRouteImport.update({
@@ -35,9 +35,9 @@ const ChannelSlugCommandsRoute = ChannelSlugCommandsRouteImport.update({
   path: '/$channelSlug/commands',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChannelSlugAliasesRoute = ChannelSlugAliasesRouteImport.update({
-  id: '/$channelSlug/aliases',
-  path: '/$channelSlug/aliases',
+const ChannelSlugCountersRoute = ChannelSlugCountersRouteImport.update({
+  id: '/$channelSlug/counters',
+  path: '/$channelSlug/counters',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -97,13 +97,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/invites': {
-      id: '/invites'
-      path: '/invites'
-      fullPath: '/invites'
-      preLoaderRoute: typeof InvitesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -111,11 +104,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$channelSlug/counters': {
-      id: '/$channelSlug/counters'
-      path: '/$channelSlug/counters'
-      fullPath: '/$channelSlug/counters'
-      preLoaderRoute: typeof ChannelSlugCountersRouteImport
+    '/invites': {
+      id: '/invites'
+      path: '/invites'
+      fullPath: '/invites'
+      preLoaderRoute: typeof InvitesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$channelSlug/aliases': {
+      id: '/$channelSlug/aliases'
+      path: '/$channelSlug/aliases'
+      fullPath: '/$channelSlug/aliases'
+      preLoaderRoute: typeof ChannelSlugAliasesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$channelSlug/commands': {
@@ -125,11 +125,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChannelSlugCommandsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$channelSlug/aliases': {
-      id: '/$channelSlug/aliases'
-      path: '/$channelSlug/aliases'
-      fullPath: '/$channelSlug/aliases'
-      preLoaderRoute: typeof ChannelSlugAliasesRouteImport
+    '/$channelSlug/counters': {
+      id: '/$channelSlug/counters'
+      path: '/$channelSlug/counters'
+      fullPath: '/$channelSlug/counters'
+      preLoaderRoute: typeof ChannelSlugCountersRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

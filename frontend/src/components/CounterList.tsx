@@ -18,9 +18,7 @@ interface CounterListProps {
 export function CounterList({ counters, selectedId, onSelect, onNew }: CounterListProps) {
   const [search, setSearch] = useState('')
 
-  const filtered = counters.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()),
-  )
+  const filtered = counters.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="flex w-80 shrink-0 flex-col gap-2 overflow-hidden">
@@ -33,6 +31,7 @@ export function CounterList({ counters, selectedId, onSelect, onNew }: CounterLi
           className="flex-1 rounded border border-hive-border bg-hive-surface px-3 py-1.5 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
         />
         <button
+          type="button"
           onClick={onNew}
           className="rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80">
           + New
@@ -41,6 +40,7 @@ export function CounterList({ counters, selectedId, onSelect, onNew }: CounterLi
       <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto">
         {filtered.map((counter) => (
           <button
+            type="button"
             key={counter.id}
             onClick={() => onSelect(counter.id)}
             className={cn(
@@ -50,9 +50,7 @@ export function CounterList({ counters, selectedId, onSelect, onNew }: CounterLi
                 : 'text-hive-muted hover:bg-hive-surface hover:text-hive-text',
             )}>
             <span className="font-mono font-medium">{counter.name}</span>
-            {counter.label && (
-              <span className="text-xs text-hive-muted">{counter.label}</span>
-            )}
+            {counter.label && <span className="text-xs text-hive-muted">{counter.label}</span>}
             <span className="ml-auto font-mono text-xs text-hive-muted">{counter.value}</span>
           </button>
         ))}

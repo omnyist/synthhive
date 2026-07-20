@@ -17,9 +17,10 @@ interface AliasListProps {
 export function AliasList({ aliases, selectedId, onSelect, onNew }: AliasListProps) {
   const [search, setSearch] = useState('')
 
-  const filtered = aliases.filter((a) =>
-    a.name.toLowerCase().includes(search.toLowerCase()) ||
-    a.target.toLowerCase().includes(search.toLowerCase()),
+  const filtered = aliases.filter(
+    (a) =>
+      a.name.toLowerCase().includes(search.toLowerCase()) ||
+      a.target.toLowerCase().includes(search.toLowerCase()),
   )
 
   return (
@@ -33,6 +34,7 @@ export function AliasList({ aliases, selectedId, onSelect, onNew }: AliasListPro
           className="flex-1 rounded border border-hive-border bg-hive-surface px-3 py-1.5 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
         />
         <button
+          type="button"
           onClick={onNew}
           className="rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80">
           + New
@@ -41,6 +43,7 @@ export function AliasList({ aliases, selectedId, onSelect, onNew }: AliasListPro
       <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto">
         {filtered.map((alias) => (
           <button
+            type="button"
             key={alias.id}
             onClick={() => onSelect(alias.id)}
             className={cn(

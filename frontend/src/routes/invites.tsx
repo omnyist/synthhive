@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -100,12 +100,13 @@ function InvitesPage() {
         <div>
           <h2 className="text-sm font-medium text-hive-text">Invites</h2>
           <p className="mt-0.5 text-xs text-hive-muted">
-            Onboard a new channel: create an invite, send the link, and they connect
-            their channel and bot.
+            Onboard a new channel: create an invite, send the link, and they connect their channel
+            and bot.
           </p>
         </div>
         {isStaff && (
           <button
+            type="button"
             onClick={() => createMutation.mutate()}
             disabled={createMutation.isPending}
             className="shrink-0 rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
@@ -137,9 +138,9 @@ function InvitesPage() {
                 )}
                 {isStaff && (
                   <button
+                    type="button"
                     onClick={() =>
-                      window.confirm(`Delete invite ${inv.code}?`) &&
-                      deleteMutation.mutate(inv.id)
+                      window.confirm(`Delete invite ${inv.code}?`) && deleteMutation.mutate(inv.id)
                     }
                     className="ml-auto rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10">
                     Delete
@@ -156,6 +157,7 @@ function InvitesPage() {
                     className="min-w-0 flex-1 rounded border border-hive-border bg-hive-dark px-2 py-1 font-mono text-xs text-hive-muted"
                   />
                   <button
+                    type="button"
                     onClick={() => copyLink(inv)}
                     className={cn(
                       'shrink-0 rounded px-2.5 py-1 text-xs font-medium transition-colors',
@@ -178,9 +180,7 @@ function InvitesPage() {
 
         {invites.length === 0 && (
           <p className="px-3 py-8 text-center text-sm text-hive-muted">
-            {isStaff
-              ? 'No invites yet. Create one to onboard a new channel.'
-              : 'No invites.'}
+            {isStaff ? 'No invites yet. Create one to onboard a new channel.' : 'No invites.'}
           </p>
         )}
       </div>

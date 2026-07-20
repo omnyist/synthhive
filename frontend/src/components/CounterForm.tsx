@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 
 interface Counter {
@@ -74,8 +74,7 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
   })
 
   const deleteMutation = useMutation({
-    mutationFn: () =>
-      api(`/api/v1/counters/${counter!.id}/`, { method: 'DELETE' }),
+    mutationFn: () => api(`/api/v1/counters/${counter!.id}/`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['counters', channelSlug] })
       onClose()
@@ -98,6 +97,7 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
         <div className="flex items-center gap-2">
           {!isNew && (
             <button
+              type="button"
               onClick={() => {
                 if (window.confirm(`Delete counter "${counter.name}"?`)) {
                   deleteMutation.mutate()
@@ -109,11 +109,13 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
             </button>
           )}
           <button
+            type="button"
             onClick={onClose}
             className="rounded px-3 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
             Cancel
           </button>
           <button
+            type="button"
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
             className="rounded bg-hive-accent-dim px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
@@ -152,7 +154,7 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
         <input
           type="number"
           value={form.value}
-          onChange={(e) => update('value', parseInt(e.target.value) || 0)}
+          onChange={(e) => update('value', parseInt(e.target.value, 10) || 0)}
           className="w-32 rounded border border-hive-border bg-hive-surface px-2 py-1 font-mono text-sm text-hive-text focus:border-hive-accent focus:outline-none"
         />
       </div>

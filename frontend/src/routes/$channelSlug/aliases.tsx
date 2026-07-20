@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { fetchAll } from '@/lib/api'
-import { AliasList } from '@/components/AliasList'
+import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { AliasForm } from '@/components/AliasForm'
+import { AliasList } from '@/components/AliasList'
+import { fetchAll } from '@/lib/api'
 
 export interface Alias {
   id: string
@@ -22,11 +22,10 @@ function AliasesPage() {
 
   const { data: aliases = [], isLoading } = useQuery({
     queryKey: ['aliases', channelSlug],
-    queryFn: () =>
-      fetchAll<Alias>(`/api/v1/aliases/channels/${channelSlug}/`),
+    queryFn: () => fetchAll<Alias>(`/api/v1/aliases/channels/${channelSlug}/`),
   })
 
-  const selectedAlias = selectedId ? aliases.find((a) => a.id === selectedId) ?? null : null
+  const selectedAlias = selectedId ? (aliases.find((a) => a.id === selectedId) ?? null) : null
 
   if (isLoading) {
     return (

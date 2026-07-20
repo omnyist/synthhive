@@ -27,9 +27,7 @@ const TYPE_LABELS: Record<string, string> = {
 export function CommandList({ commands, selectedId, onSelect, onNew }: CommandListProps) {
   const [search, setSearch] = useState('')
 
-  const filtered = commands.filter((cmd) =>
-    cmd.name.toLowerCase().includes(search.toLowerCase()),
-  )
+  const filtered = commands.filter((cmd) => cmd.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="flex w-80 shrink-0 flex-col gap-2 overflow-hidden">
@@ -42,6 +40,7 @@ export function CommandList({ commands, selectedId, onSelect, onNew }: CommandLi
           className="flex-1 rounded border border-hive-border bg-hive-surface px-3 py-1.5 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
         />
         <button
+          type="button"
           onClick={onNew}
           className="rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80">
           + New
@@ -50,6 +49,7 @@ export function CommandList({ commands, selectedId, onSelect, onNew }: CommandLi
       <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto">
         {filtered.map((cmd) => (
           <button
+            type="button"
             key={cmd.id}
             onClick={() => onSelect(cmd.id)}
             className={cn(
