@@ -12,7 +12,7 @@ dependencies = [
     "django-ninja>=1.6.2",
     "httpx>=0.28.1",
     "psycopg[pool]>=3.3.4",
-    "redis>=7.4.0,<8",
+    "redis>=8.0.1",
     "sentry-sdk[django]>=2.59.0",
     "twitchio>=3.2.2",
 ]
