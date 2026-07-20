@@ -1425,7 +1425,7 @@ class TestLizardRouletteHandler:
         stat = SkillStat.objects.get(
             channel=channel, skill_name="lizardroulette", twitch_id="12345"
         )
-        assert stat.stats["deaths"] == 2
+        assert stat.deaths == 2
 
     async def test_death_count_persists_in_skillstat(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1471,7 +1471,7 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
         )
-        assert stat.stats["deaths"] == 1
+        assert stat.deaths == 1
         assert stat.twitch_username == "testuser"
 
     async def test_cross_channel_cooldowns_independent(self, bot):
@@ -1712,8 +1712,8 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
         )
-        assert stat.stats["deaths"] == 1
-        assert stat.stats["bullet_deaths"] == 1
+        assert stat.deaths == 1
+        assert stat.bullet_deaths == 1
 
     async def test_tracks_plays_and_survivals(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1747,8 +1747,8 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
         )
-        assert stat.stats["plays"] == 1
-        assert stat.stats["survivals"] == 1
+        assert stat.plays == 1
+        assert stat.survivals == 1
 
     async def test_tracks_streaks_broken(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1769,7 +1769,7 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
             twitch_username="testuser",
-            stats={"streak": 5},
+            streak=5,
         )
 
         ban_response = MagicMock()
@@ -1799,7 +1799,7 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
         )
-        assert stat.stats["streaks_broken"] == 1
+        assert stat.streaks_broken == 1
 
     async def test_tracks_last_mood(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1833,7 +1833,7 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
         )
-        assert stat.stats["last_mood"] == "theatrical"
+        assert stat.last_mood == "theatrical"
 
     async def test_win_increments_streak(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1868,7 +1868,7 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
         )
-        assert stat.stats["streak"] == 3
+        assert stat.streak == 3
 
     async def test_death_resets_streak(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1893,7 +1893,7 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
             twitch_username="testuser",
-            stats={"streak": 5, "deaths": 0},
+            streak=5, deaths=0,
         )
 
         ban_response = MagicMock()
@@ -1922,8 +1922,8 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
         )
-        assert stat.stats["streak"] == 0
-        assert stat.stats["deaths"] == 1
+        assert stat.streak == 0
+        assert stat.deaths == 1
 
     async def test_broken_streak_in_failure_message(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1948,7 +1948,7 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
             twitch_username="testuser",
-            stats={"streak": 7, "deaths": 1},
+            streak=7, deaths=1,
         )
 
         ban_response = MagicMock()
@@ -1978,7 +1978,7 @@ class TestLizardRouletteHandler:
         stat = SkillStat.objects.get(
             channel=channel, skill_name="lizardroulette", twitch_id="12345"
         )
-        assert stat.stats["streak"] == 0
+        assert stat.streak == 0
 
     async def test_streak_tiers_escalate(self, channel):
         channel.owner_access_token = "fake_token"
@@ -1999,7 +1999,7 @@ class TestLizardRouletteHandler:
             skill_name="lizardroulette",
             twitch_id="12345",
             twitch_username="testuser",
-            stats={"streak": 4},
+            streak=4,
         )
 
         bot = MagicMock()
@@ -2201,8 +2201,8 @@ class TestLizardRouletteHandler:
                     await router.event_message(payload)
 
         stat = SkillStat.objects.get(channel=channel, twitch_id="111")
-        assert stat.stats["streak"] == 2
-        assert stat.stats["max_streak"] == 2
+        assert stat.streak == 2
+        assert stat.max_streak == 2
 
         # Die (odds=100 → always lose)
         payload = MockPayload(
@@ -2216,8 +2216,8 @@ class TestLizardRouletteHandler:
                     await router.event_message(payload)
 
         stat.refresh_from_db()
-        assert stat.stats["streak"] == 0
-        assert stat.stats["max_streak"] == 2
+        assert stat.streak == 0
+        assert stat.max_streak == 2
 
         # Survive once more — max_streak should stay at 2
         payload = MockPayload(
@@ -2230,8 +2230,8 @@ class TestLizardRouletteHandler:
                 await router.event_message(payload)
 
         stat.refresh_from_db()
-        assert stat.stats["streak"] == 1
-        assert stat.stats["max_streak"] == 2
+        assert stat.streak == 1
+        assert stat.max_streak == 2
 
     async def test_play_records_lizardplay(self, channel):
         channel.owner_access_token = "fake_token"
@@ -2610,21 +2610,21 @@ class TestVictimsHandler:
             skill_name="lizardroulette",
             twitch_id="111",
             twitch_username="playerone",
-            stats={"deaths": 50, "streak": 0},
+            deaths=50, streak=0,
         )
         SkillStat.objects.create(
             channel=channel,
             skill_name="lizardroulette",
             twitch_id="222",
             twitch_username="playertwo",
-            stats={"deaths": 30, "streak": 2},
+            deaths=30, streak=2,
         )
         SkillStat.objects.create(
             channel=channel,
             skill_name="lizardroulette",
             twitch_id="333",
             twitch_username="playerthree",
-            stats={"deaths": 0, "streak": 5},
+            deaths=0, streak=5,
         )
 
         bot = MagicMock()
@@ -2695,21 +2695,21 @@ class TestSurvivorsHandler:
             skill_name="lizardroulette",
             twitch_id="111",
             twitch_username="playerone",
-            stats={"deaths": 50, "streak": 0, "max_streak": 42},
+            deaths=50, streak=0, max_streak=42,
         )
         SkillStat.objects.create(
             channel=channel,
             skill_name="lizardroulette",
             twitch_id="222",
             twitch_username="playertwo",
-            stats={"deaths": 30, "streak": 2, "max_streak": 15},
+            deaths=30, streak=2, max_streak=15,
         )
         SkillStat.objects.create(
             channel=channel,
             skill_name="lizardroulette",
             twitch_id="333",
             twitch_username="playerthree",
-            stats={"deaths": 10, "streak": 0, "max_streak": 0},
+            deaths=10, streak=0, max_streak=0,
         )
 
         bot = MagicMock()

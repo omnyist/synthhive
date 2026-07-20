@@ -260,8 +260,12 @@ class Counter(models.Model):
 class SkillStat(models.Model):
     """Per-user stats for a skill in a channel.
 
-    Stores arbitrary stats as JSON (e.g., deaths, survivals, wins).
-    Reusable across any skill that needs per-user tracking.
+    Counter-style stats are real integer columns so they can be
+    incremented atomically with F() expressions and ordered/filtered in
+    the database (leaderboards) — the JSON read-modify-write pattern
+    lost increments under concurrency and forced Python-side sorting.
+    The `stats` JSONField remains for future arbitrary per-skill data
+    that isn't counter-shaped.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -271,6 +275,16 @@ class SkillStat(models.Model):
     skill_name = models.CharField(max_length=50)
     twitch_id = models.CharField(max_length=50)
     twitch_username = models.CharField(max_length=100, blank=True, default="")
+
+    plays = models.PositiveIntegerField(default=0)
+    deaths = models.PositiveIntegerField(default=0)
+    survivals = models.PositiveIntegerField(default=0)
+    streak = models.PositiveIntegerField(default=0)
+    max_streak = models.PositiveIntegerField(default=0)
+    bullet_deaths = models.PositiveIntegerField(default=0)
+    streaks_broken = models.PositiveIntegerField(default=0)
+    last_mood = models.CharField(max_length=20, blank=True, default="")
+
     stats = models.JSONField(default=dict, blank=True)
 
     class Meta:

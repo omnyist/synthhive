@@ -107,7 +107,17 @@ class LizardPlayAdmin(admin.ModelAdmin):
 
 @admin.register(SkillStat)
 class SkillStatAdmin(admin.ModelAdmin):
-    list_display = ("skill_name", "twitch_username", "channel", "stats")
+    list_display = (
+        "skill_name",
+        "twitch_username",
+        "channel",
+        "plays",
+        "deaths",
+        "survivals",
+        "streak",
+        "max_streak",
+        "last_mood",
+    )
     list_filter = ("channel", "skill_name")
     search_fields = ("twitch_username", "twitch_id")
     ordering = ["channel", "skill_name", "twitch_username"]

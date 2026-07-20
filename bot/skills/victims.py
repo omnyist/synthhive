@@ -36,20 +36,15 @@ class VictimsHandler(SkillHandler):
         except Channel.DoesNotExist:
             return
 
-        stats = await sync_to_async(list)(
+        victims = await sync_to_async(list)(
             SkillStat.objects.filter(
                 channel=channel,
                 skill_name="lizardroulette",
+                deaths__gt=0,
             )
+            .order_by("-deaths")
+            .values_list("twitch_username", "deaths")[:TOP_N]
         )
-
-        victims = [
-            (s.twitch_username, s.stats.get("deaths", 0))
-            for s in stats
-            if s.stats.get("deaths", 0) > 0
-        ]
-        victims.sort(key=lambda x: x[1], reverse=True)
-        victims = victims[:TOP_N]
 
         if not victims:
             await send_reply(

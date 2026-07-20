@@ -36,20 +36,15 @@ class SurvivorsHandler(SkillHandler):
         except Channel.DoesNotExist:
             return
 
-        stats = await sync_to_async(list)(
+        survivors = await sync_to_async(list)(
             SkillStat.objects.filter(
                 channel=channel,
                 skill_name="lizardroulette",
+                max_streak__gt=0,
             )
+            .order_by("-max_streak")
+            .values_list("twitch_username", "max_streak")[:TOP_N]
         )
-
-        survivors = [
-            (s.twitch_username, s.stats.get("max_streak", 0))
-            for s in stats
-            if s.stats.get("max_streak", 0) > 0
-        ]
-        survivors.sort(key=lambda x: x[1], reverse=True)
-        survivors = survivors[:TOP_N]
 
         if not survivors:
             await send_reply(

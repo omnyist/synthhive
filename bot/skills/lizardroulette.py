@@ -101,8 +101,8 @@ class LizardRouletteHandler(SkillHandler):
         # --- Live status (cached) drives offline messaging + capture ---
         is_live = await self._is_live(channel, broadcaster_id)
 
-        # --- Track play count ---
-        await self._update_stat(channel, chatter_id, chatter.name, "plays")
+        # --- Load this player's stats row (one read; values used below) ---
+        stat = await self._get_or_create_stat(channel, chatter_id, chatter.name)
 
         # --- Check for loaded gun (Redis, survives deploys) ---
         bullets = await state.bullets_get(broadcaster_id)
@@ -117,28 +117,16 @@ class LizardRouletteHandler(SkillHandler):
 
         # --- Resolve outcome ---
         if is_loss:
-            deaths = await self._update_stat(
-                channel, chatter_id, chatter.name, "deaths"
-            )
-            broken_streak = await self._get_stat(channel, chatter_id, "streak")
-            await self._set_stat(channel, chatter_id, chatter.name, "streak", 0)
+            deaths = stat.deaths + 1
+            broken_streak = stat.streak
             previous_victim = await state.victim_get(broadcaster_id)
             await state.victim_set(broadcaster_id, chatter_name)
-
-            if was_bullet:
-                await self._update_stat(
-                    channel, chatter_id, chatter.name, "bullet_deaths"
-                )
-            if broken_streak > 0:
-                await self._update_stat(
-                    channel, chatter_id, chatter.name, "streaks_broken"
-                )
 
             ctx = MoodContext(
                 outcome="death",
                 deaths=deaths,
                 streak=broken_streak,
-                max_streak=await self._get_stat(channel, chatter_id, "max_streak"),
+                max_streak=stat.max_streak,
                 chatter_name=chatter_name,
                 victim=previous_victim,
                 is_self_victim=(previous_victim == chatter_name),
@@ -159,9 +147,13 @@ class LizardRouletteHandler(SkillHandler):
                 deaths,
             )
 
-            await self._set_stat(
-                channel, chatter_id, chatter.name,
-                "last_mood", mood_roll.mood.value,
+            await self._apply_outcome(
+                stat,
+                chatter.name,
+                mood=mood_roll.mood.value,
+                death=True,
+                was_bullet=was_bullet,
+                broke_streak=broken_streak > 0,
             )
             offline_fragment, offline_tier = roll_offline(ctx)
             await self._record_play(
@@ -222,26 +214,17 @@ class LizardRouletteHandler(SkillHandler):
                         channel.twitch_channel_name,
                     )
         else:
-            streak = await self._update_stat(
-                channel, chatter_id, chatter.name, "streak"
-            )
-            await self._update_stat(
-                channel, chatter_id, chatter.name, "survivals"
-            )
-            max_streak = await self._get_stat(channel, chatter_id, "max_streak")
-            if streak > max_streak:
-                await self._set_stat(
-                    channel, chatter_id, chatter.name, "max_streak", streak
-                )
+            streak = stat.streak + 1
+            max_streak = max(stat.max_streak, streak)
 
             victim = await state.victim_get(broadcaster_id)
             chemical = random.choice(CHEMICALS)
 
             ctx = MoodContext(
                 outcome="survival",
-                deaths=await self._get_stat(channel, chatter_id, "deaths"),
+                deaths=stat.deaths,
                 streak=streak,
-                max_streak=max(streak, max_streak),
+                max_streak=max_streak,
                 chatter_name=chatter_name,
                 victim=victim,
                 is_self_victim=(victim == chatter_name),
@@ -261,9 +244,8 @@ class LizardRouletteHandler(SkillHandler):
                 streak,
             )
 
-            await self._set_stat(
-                channel, chatter_id, chatter.name,
-                "last_mood", mood_roll.mood.value,
+            await self._apply_outcome(
+                stat, chatter.name, mood=mood_roll.mood.value, death=False
             )
             offline_fragment, offline_tier = roll_offline(ctx)
             await self._record_play(
@@ -281,20 +263,19 @@ class LizardRouletteHandler(SkillHandler):
         """Pick a random rival from the top 5 survivors, excluding the current player."""
         from core.models import SkillStat
 
-        stats = await sync_to_async(list)(
+        top = await sync_to_async(list)(
             SkillStat.objects.filter(
                 channel=channel,
                 skill_name="lizardroulette",
-            ).exclude(twitch_id=exclude_id)
+                max_streak__gt=0,
+            )
+            .exclude(twitch_id=exclude_id)
+            .order_by("-max_streak")
+            .values_list("twitch_username", flat=True)[:5]
         )
-        top = sorted(
-            [s for s in stats if s.stats.get("max_streak", 0) > 0],
-            key=lambda s: s.stats.get("max_streak", 0),
-            reverse=True,
-        )[:5]
         if not top:
             return ""
-        return random.choice(top).twitch_username
+        return random.choice(top)
 
     async def _is_live(self, channel, broadcaster_id: str) -> bool:
         """Return whether the channel is currently live, cached per channel.
@@ -379,50 +360,58 @@ class LizardRouletteHandler(SkillHandler):
         avg = sum(intervals) / len(intervals)
         return all(abs(i - avg) <= self.INTERVAL_TOLERANCE for i in intervals)
 
-    async def _get_stat(self, channel, twitch_id, stat_key):
-        """Read a stat value, returning 0 if not found."""
+    async def _get_or_create_stat(self, channel, twitch_id, username):
+        """Fetch this player's stats row (creating it on first play)."""
         from core.models import SkillStat
 
-        try:
-            stat = await sync_to_async(SkillStat.objects.get)(
-                channel=channel,
-                skill_name="lizardroulette",
-                twitch_id=twitch_id,
-            )
-            return stat.stats.get(stat_key, 0)
-        except SkillStat.DoesNotExist:
-            return 0
-
-    async def _set_stat(self, channel, twitch_id, username, stat_key, value):
-        """Set a stat to a specific value."""
-        from core.models import SkillStat
-
-        stat, created = await sync_to_async(SkillStat.objects.get_or_create)(
+        stat, _ = await sync_to_async(SkillStat.objects.get_or_create)(
             channel=channel,
             skill_name="lizardroulette",
             twitch_id=twitch_id,
-            defaults={"twitch_username": username, "stats": {stat_key: value}},
+            defaults={"twitch_username": username},
         )
-        if not created:
-            stat.twitch_username = username
-            stat.stats[stat_key] = value
-            await sync_to_async(stat.save)(update_fields=["twitch_username", "stats"])
+        return stat
 
-    async def _update_stat(self, channel, twitch_id, username, stat_key):
-        """Increment a stat and return the new value."""
+    async def _apply_outcome(
+        self,
+        stat,
+        username: str,
+        *,
+        mood: str,
+        death: bool,
+        was_bullet: bool = False,
+        broke_streak: bool = False,
+    ) -> None:
+        """Persist a play's outcome in one atomic queryset update.
+
+        F() expressions make the increments race-safe; Greatest keeps
+        max_streak correct without a read-modify-write.
+        """
+        from django.db.models import F
+        from django.db.models.functions import Greatest
+
         from core.models import SkillStat
 
-        stat, created = await sync_to_async(SkillStat.objects.get_or_create)(
-            channel=channel,
-            skill_name="lizardroulette",
-            twitch_id=twitch_id,
-            defaults={"twitch_username": username, "stats": {stat_key: 1}},
-        )
-        if not created:
-            stat.twitch_username = username
-            stat.stats[stat_key] = stat.stats.get(stat_key, 0) + 1
-            await sync_to_async(stat.save)(update_fields=["twitch_username", "stats"])
-        return stat.stats.get(stat_key, 1)
+        updates = {
+            "plays": F("plays") + 1,
+            "last_mood": mood,
+            "twitch_username": username,
+        }
+        if death:
+            updates["deaths"] = F("deaths") + 1
+            updates["streak"] = 0
+            if was_bullet:
+                updates["bullet_deaths"] = F("bullet_deaths") + 1
+            if broke_streak:
+                updates["streaks_broken"] = F("streaks_broken") + 1
+        else:
+            updates["survivals"] = F("survivals") + 1
+            updates["max_streak"] = Greatest(F("max_streak"), F("streak") + 1)
+            updates["streak"] = F("streak") + 1
+
+        await sync_to_async(
+            SkillStat.objects.filter(pk=stat.pk).update
+        )(**updates)
 
     async def _timeout_user(
         self,
