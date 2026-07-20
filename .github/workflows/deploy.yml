@@ -30,6 +30,11 @@ jobs:
         env:
           DATABASE_URL: postgresql://synthhive:synthhive@localhost:5443/synthhive
           REDIS_URL: redis://localhost:6403/0
+          # The Actions runner binary is x86_64 (Rosetta), so uv would
+          # otherwise download an x86_64 CPython — for which packages like
+          # cryptography no longer ship macOS wheels. Pin the native
+          # arm64 interpreter installed via Homebrew on Saya.
+          UV_PYTHON: /opt/homebrew/bin/python3.14
         run: uv run --group dev pytest -q
 
       - name: Stop test services
