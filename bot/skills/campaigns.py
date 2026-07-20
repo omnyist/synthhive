@@ -10,8 +10,6 @@ Usage:
 from __future__ import annotations
 
 import logging
-from datetime import UTC
-from datetime import datetime
 
 from bot.router import send_reply
 from bot.skills import SkillHandler
@@ -74,7 +72,8 @@ class TimerHandler(SkillHandler):
             )
             return
 
-        if campaign.get("timer_mode") != "countdown":
+        # timer_mode is a boolean on the Synthfunc Campaign model.
+        if not campaign.get("timer_mode"):
             await send_reply(
                 payload,
                 "This campaign doesn't have a timer.",
@@ -232,7 +231,7 @@ class ProgressHandler(SkillHandler):
         milestones = campaign.get("milestones", [])
         unlocked = sum(1 for m in milestones if m.get("is_unlocked"))
         total = len(milestones)
-        pct = int((unlocked / total * 100)) if total > 0 else 0
+        pct = int(unlocked / total * 100) if total > 0 else 0
 
         parts = [f"Progress: {pct}% ({unlocked}/{total} milestones)"]
         parts.append(f"{total_subs} subs, {total_resubs} resubs")
