@@ -123,15 +123,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [REDIS_URL],
-        },
-    },
-}
-
 # Twitch
 
 TWITCH_CLIENT_ID = env("TWITCH_CLIENT_ID", default="")
@@ -141,10 +132,6 @@ TWITCH_CLIENT_SECRET = env("TWITCH_CLIENT_SECRET", default="")
 
 SYNTHFUNC_API_URL = env("SYNTHFUNC_API_URL", default="http://localhost:7178/api")
 SYNTHFUNC_API_KEY = env("SYNTHFUNC_API_KEY", default="")
-
-# Dashboard
-
-DASHBOARD_ALLOWED_TWITCH_IDS = env.list("DASHBOARD_ALLOWED_TWITCH_IDS", default=[])
 
 # Content Security Policy (Django 6.0+)
 
