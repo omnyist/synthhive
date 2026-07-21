@@ -1149,7 +1149,7 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
                 "Death #$(raw_deaths) for $(user). The lizard has retired and been replaced twice since you started.",
                 "$(user). $(raw_deaths) deaths. The lizard wrote a thesis about you.",
                 "THE LIZARD TAKES ANOTHER VICTIM! The victim: $(user). The count: $(raw_deaths)!",
-                "Death #$(raw_deaths)! The crowd goes... on discussing JRPGs, actually.",
+                "Death #$(raw_deaths)! The crowd goes... back to their conversation, actually.",
             ],
             "aftermath": [
                 "The lizard demands blood. The lizard receives $(user). The market is efficient.",
@@ -1514,7 +1514,7 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
             ],
             "aftermath": [
                 "the lizard is normal. this is normal.",
-                "chat did not stop talking about JRPGs.",
+                "chat kept scrolling.",
                 "no further comment.",
                 "LETS GO, presumably.",
             ],
