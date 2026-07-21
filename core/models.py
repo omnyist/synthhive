@@ -321,6 +321,7 @@ class LizardPlay(models.Model):
     )
 
     mood = models.CharField(max_length=20)
+    message = models.TextField(blank=True, default="")
     mood_weights = models.JSONField(default=dict, blank=True)
 
     deaths = models.IntegerField(default=0)

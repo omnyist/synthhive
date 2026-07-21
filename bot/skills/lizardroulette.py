@@ -38,6 +38,7 @@ CHEMICALS = [
     "adrenaline",
     "melatonin",
     "norepinephrine",
+    "gabapentin",
 ]
 
 
@@ -175,15 +176,14 @@ class LizardRouletteHandler(SkillHandler):
                 broke_streak=broken_streak > 0,
             )
             offline_fragment, offline_tier = roll_offline(ctx)
-            await self._record_play(
-                channel, chatter_id, chatter.name, mood_roll,
-                was_bullet, offline_tier,
-            )
-
             death_msg = render_death(
                 mood_roll.mood, ctx, offline_fragment=offline_fragment
             )
             await recency.flush(broadcaster_id)
+            await self._record_play(
+                channel, chatter_id, chatter.name, mood_roll,
+                was_bullet, offline_tier, message=death_msg.text,
+            )
             timeout_delay = config.get("timeout_delay", 5) * behavior.timeout_delay_multiplier
             timeout_duration = config.get("timeout_duration", 600)
 
@@ -267,15 +267,14 @@ class LizardRouletteHandler(SkillHandler):
                 stat, chatter.name, mood=mood_roll.mood.value, death=False
             )
             offline_fragment, offline_tier = roll_offline(ctx)
-            await self._record_play(
-                channel, chatter_id, chatter.name, mood_roll,
-                was_bullet=False, offline_tier=offline_tier,
-            )
-
             message = render_survival(
                 mood_roll.mood, ctx, offline_fragment=offline_fragment
             )
             await recency.flush(broadcaster_id)
+            await self._record_play(
+                channel, chatter_id, chatter.name, mood_roll,
+                was_bullet=False, offline_tier=offline_tier, message=message,
+            )
             await send_reply(payload, message, bot_id=bot.bot_id)
 
     async def _get_rival(self, channel, exclude_id: str) -> str:
@@ -324,7 +323,7 @@ class LizardRouletteHandler(SkillHandler):
 
     async def _record_play(
         self, channel, twitch_id, username, mood_roll, was_bullet,
-        offline_tier="none",
+        offline_tier="none", message="",
     ) -> None:
         """Append a per-play record for analytics / ML training.
 
@@ -346,6 +345,7 @@ class LizardRouletteHandler(SkillHandler):
                 is_live=ctx.is_live,
                 offline_tier=offline_tier,
                 mood=mood_roll.mood.value,
+                message=message,
                 mood_weights={m.value: w for m, w in mood_roll.weights.items()},
                 deaths=ctx.deaths,
                 streak=ctx.streak,

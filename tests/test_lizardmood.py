@@ -812,3 +812,56 @@ class TestOrdinal:
         assert _ordinal(111) == "111th"
         assert _ordinal(112) == "112th"
         assert _ordinal(113) == "113th"
+
+
+class TestAftermathAndAsides:
+    def _expected(self, fragments, ctx):
+        from bot.skills.lizardmood import _substitute
+
+        return [_substitute(f, ctx) for f in fragments]
+
+    def test_death_aftermath_attaches_on_roll(self):
+        ctx = _make_ctx(deaths=150, chatter_name="akk")
+        pool = MOOD_DEATH[Mood.BORED][(100, None)]
+        with (
+            patch("bot.skills.lizardmood._try_rare", return_value=None),
+            patch("bot.skills.lizardmood.random.random", return_value=0.0),
+        ):
+            text = render_death(Mood.BORED, ctx).text
+        assert any(e in text for e in self._expected(pool["aftermath"], ctx))
+
+    def test_death_no_aftermath_when_roll_misses(self):
+        ctx = _make_ctx(deaths=150, chatter_name="akk")
+        pool = MOOD_DEATH[Mood.BORED][(100, None)]
+        with (
+            patch("bot.skills.lizardmood._try_rare", return_value=None),
+            patch("bot.skills.lizardmood.random.random", return_value=1.0),
+        ):
+            text = render_death(Mood.BORED, ctx).text
+        assert not any(e in text for e in self._expected(pool["aftermath"], ctx))
+
+    def test_survival_aside_attaches_on_roll(self):
+        ctx = _make_ctx(
+            outcome="survival", streak=9, deaths=10, chatter_name="akk"
+        )
+        pool = MOOD_SURVIVAL[Mood.BORED][(8, None)]
+        with patch("bot.skills.lizardmood.random.random", return_value=0.0):
+            text = render_survival(Mood.BORED, ctx)
+        assert any(e in text for e in self._expected(pool["asides"], ctx))
+
+    def test_survival_no_aside_when_roll_misses(self):
+        ctx = _make_ctx(
+            outcome="survival", streak=9, deaths=10, chatter_name="akk"
+        )
+        pool = MOOD_SURVIVAL[Mood.BORED][(8, None)]
+        with patch("bot.skills.lizardmood.random.random", return_value=1.0):
+            text = render_survival(Mood.BORED, ctx)
+        assert not any(e in text for e in self._expected(pool["asides"], ctx))
+
+    def test_veteran_death_pools_deepened(self):
+        """The 9-line loop is dead: the three dominant veteran-death moods
+        now have 7 cores + aftermath each."""
+        for mood in (Mood.CLINICAL, Mood.BORED, Mood.DEADPAN):
+            pool = MOOD_DEATH[mood][(100, None)]
+            assert len(pool["cores"]) >= 7, mood
+            assert len(pool.get("aftermath", [])) >= 3, mood

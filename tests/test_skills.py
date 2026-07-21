@@ -1023,6 +1023,8 @@ class TestLizardRouletteHandler:
                 side_effect=_theatrical_roll,
             ),
             patch("bot.skills.lizardmood._try_rare", return_value=None),
+            patch("bot.skills.lizardmood.AFTERMATH_CHANCE", 0),
+            patch("bot.skills.lizardmood.ASIDE_CHANCE", 0),
             patch.object(
                 LizardRouletteHandler, "_is_live", new_callable=AsyncMock,
                 return_value=True,
@@ -2268,6 +2270,9 @@ class TestLizardRouletteHandler:
         assert play.offline_tier == "none"  # live → no offline callout
         assert play.context["outcome"] == "survival"
         assert play.context["is_live"] is True
+        # The rendered message is captured for freshness measurement.
+        assert "bardLizard" in play.message
+        assert "TestUser" in play.message
 
     async def test_birthday_mode_never_times_out(self, channel):
         channel.owner_access_token = "fake_token"

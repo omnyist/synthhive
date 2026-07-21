@@ -275,6 +275,8 @@ def _get_tier_key(tiers: list[TierKey], value: int) -> TierKey:
 
 RECENCY_WINDOW = 10  # remember last N fragments per channel
 FLOW_CHANCE = 0.5  # probability of using a paired flow vs independent selection
+AFTERMATH_CHANCE = 0.45  # chance a death gains an aftermath clause
+ASIDE_CHANCE = 0.4  # chance a tired-mood survival gains a dry aside
 
 
 class RecencyTracker:
@@ -549,6 +551,12 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "$(streak), $(user). The lizard left the room.",
                 "$(user)'s at $(streak). The lizard is on its phone.",
                 "$(streak). The lizard has mentally clocked out.",
+            ],
+            "asides": [
+                "don't make it weird, $(user).",
+                "chat has been notified. chat does not care.",
+                "the gun needed a break anyway.",
+                "the lizard yawned through the whole thing.",
             ],
         },
     },
@@ -829,6 +837,12 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "$(user) at $(streak). This defies the actuarial tables.",
                 "Streak $(streak). The lizard is submitting a variance report.",
             ],
+            "asides": [
+                "Survival logged. Anomaly flagged.",
+                "The lizard double-checked the chamber. Twice.",
+                "This outcome displeases the data.",
+                "Streak integrity: verified. Reluctantly.",
+            ],
         },
     },
     # ------------------------------------------------------------------
@@ -970,6 +984,11 @@ MOOD_SURVIVAL: dict[Mood, dict[TierKey, dict]] = {
                 "$(streak).",
                 "$(user). just. $(streak).",
                 "the lizard has no words. literally.",
+            ],
+            "asides": [
+                "fine.",
+                "the lizard is normal about this.",
+                "noted.",
             ],
         },
     },
@@ -1129,6 +1148,13 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
                 "$(raw_deaths). $(user), you are CLINICALLY addicted to dying. The lizard is speechless.",
                 "Death #$(raw_deaths) for $(user). The lizard has retired and been replaced twice since you started.",
                 "$(user). $(raw_deaths) deaths. The lizard wrote a thesis about you.",
+                "THE LIZARD TAKES ANOTHER VICTIM! The victim: $(user). The count: $(raw_deaths)!",
+                "Death #$(raw_deaths)! The crowd goes... on discussing JRPGs, actually.",
+            ],
+            "aftermath": [
+                "The lizard demands blood. The lizard receives $(user). The market is efficient.",
+                "Somewhere, a phone buzzes with the next reminder. The lizard will be waiting.",
+                "The shadow realm stamps $(user)'s loyalty card.",
             ],
             "rare": [
                 {
@@ -1214,6 +1240,16 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
                 "$(raw_deaths). $(user). The lizard has nothing left to say.",
                 "$(user). $(raw_deaths). ...",
                 "$(raw_deaths). The lizard respects the commitment. No wait, it doesn't.",
+                "bye $(user). again.",
+                "womp womp. $(raw_deaths).",
+                "$(user). you know the way by now.",
+                "F. there. the lizard said it so chat doesn't have to.",
+            ],
+            "aftermath": [
+                "chat didn't even look up.",
+                "the lizard didn't watch it land.",
+                "F's in chat, I guess.",
+                "the lizard considers just handing $(user) the gun.",
             ],
             "rare": [
                 {
@@ -1387,6 +1423,16 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
                 "Death #$(raw_deaths). Subject $(user). The data speaks for itself.",
                 "$(user). $(raw_deaths). The lizard's entire thesis is about you.",
                 "$(raw_deaths) deaths. $(user) IS the dataset.",
+                "Death game elimination #$(raw_deaths): $(user). Projected chat response: one F. Maybe two.",
+                "Cause of death: failure to simply not get shot. Occurrence: $(raw_deaths).",
+                "Trial $(raw_deaths) complete. $(user) remains both the control group and the experiment.",
+                "$(user), eliminated. Filed under: again.",
+            ],
+            "aftermath": [
+                "The lizard was luring $(user) into a false sense of security. It's in the notes.",
+                "Results consistent with the previous $(raw_deaths) trials.",
+                "The lizard denies all allegations of favoritism.",
+                "Recommended countermeasure: just don't get shot.",
             ],
         },
     },
@@ -1457,7 +1503,21 @@ MOOD_DEATH: dict[Mood, dict[TierKey, dict]] = {
             "cores": ["$(raw_deaths).", "...", "$(user)."],
         },
         (100, None): {
-            "cores": ["$(raw_deaths).", ".", "$(user). ...$(raw_deaths)."],
+            "cores": [
+                "$(raw_deaths).",
+                ".",
+                "$(user). ...$(raw_deaths).",
+                "womp womp.",
+                "bye.",
+                "o7",
+                "$(user). f.",
+            ],
+            "aftermath": [
+                "the lizard is normal. this is normal.",
+                "chat did not stop talking about JRPGs.",
+                "no further comment.",
+                "LETS GO, presumably.",
+            ],
         },
     },
     # ------------------------------------------------------------------
@@ -1689,6 +1749,11 @@ def render_survival(
             elif pool.get("victim_clauses"):
                 parts.append(recency.pick(cid, pool["victim_clauses"]))
 
+    # Dry aside — depth for the moods that never do victim clauses.
+    asides = pool.get("asides")
+    if asides and random.random() < ASIDE_CHANCE:
+        parts.append(recency.pick(cid, asides))
+
     offline = (
         offline_fragment if offline_fragment is not None
         else _offline_fragment(ctx)
@@ -1722,6 +1787,11 @@ def render_death(
 
     if behavior.countdown:
         parts.append(behavior.countdown)
+
+    # Aftermath clause — the compositional layer deaths never had.
+    aftermaths = pool.get("aftermath")
+    if aftermaths and random.random() < AFTERMATH_CHANCE:
+        parts.append(recency.pick(cid, aftermaths))
 
     offline = (
         offline_fragment if offline_fragment is not None
