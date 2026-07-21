@@ -344,6 +344,29 @@ async def get_stream_status(tenant_slug: str) -> dict | None:
 # --- Tokens ---
 
 
+async def ensure_tenant(
+    slug: str,
+    name: str,
+    twitch_id: str,
+    twitch_username: str,
+) -> dict | None:
+    """Idempotently provision a Synthfunc tenant for a channel.
+
+    Without a tenant, every Synthfunc integration for the channel
+    silently 404s — accrual, wallets, quotes, and (critically) token
+    custody. Called at invite completion and by `syncsynthfunc`.
+    """
+    return await _post(
+        "/tenants/ensure",
+        {
+            "slug": slug,
+            "name": name,
+            "twitch_id": twitch_id,
+            "twitch_username": twitch_username,
+        },
+    )
+
+
 async def save_token(
     user_id: str,
     access_token: str,

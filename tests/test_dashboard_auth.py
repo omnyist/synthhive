@@ -625,6 +625,18 @@ def _awaiting_bot_invite(nonce="bot-nonce-1", channel_twitch_id="78238052"):
 
 
 class TestInviteBotOAuth:
+    @pytest.fixture(autouse=True)
+    def _mock_ensure_tenant(self):
+        """Bot-step completion provisions a Synthfunc tenant — mock the
+        HTTP call for all tests in this class."""
+        with patch(
+            "core.synthfunc.ensure_tenant",
+            new_callable=AsyncMock,
+            return_value={"slug": "spoonee", "created": True},
+        ) as mock:
+            self.ensure_tenant_mock = mock
+            yield
+
     @patch("core.synthfunc.save_token", new_callable=AsyncMock)
     @patch("core.dashboard_auth.httpx.AsyncClient")
     def test_bot_oauth_works_cross_browser(
@@ -836,3 +848,70 @@ class TestInviteRestart:
         response = client.post("/invite/nope/restart/")
         assert response.status_code == 200
         assert b"not valid" in response.content
+
+
+class TestInviteTenantProvisioning:
+    @pytest.fixture(autouse=True)
+    def _mock_ensure_tenant(self):
+        with patch(
+            "core.synthfunc.ensure_tenant",
+            new_callable=AsyncMock,
+            return_value={"slug": "spoonee", "created": True},
+        ) as mock:
+            self.ensure_tenant_mock = mock
+            yield
+
+    def _complete_bot_step(self, client):
+        invite = _awaiting_bot_invite(nonce="bot-nonce-1")
+        state = _build_invite_bot_state("bot-nonce-1", invite.code)
+        response = client.get(
+            f"/auth/twitch/callback/?code=test-code&state={state}"
+        )
+        return invite, response
+
+    @patch("core.synthfunc.save_token", new_callable=AsyncMock)
+    @patch("core.dashboard_auth.httpx.AsyncClient")
+    def test_completion_provisions_synthfunc_tenant(
+        self, mock_client_cls, mock_save, client
+    ):
+        mock_save.return_value = {"status": "ok"}
+        mock_client_cls.return_value = _mock_httpx(user_data=BOT_TWITCH_DATA)
+
+        _, response = self._complete_bot_step(client)
+
+        assert response.status_code == 200
+        self.ensure_tenant_mock.assert_awaited_once_with(
+            slug="spoonee",
+            name="spoonee",  # falls back to channel name without a profile
+            twitch_id="78238052",
+            twitch_username="spoonee",
+        )
+
+    @patch("core.synthfunc.save_token", new_callable=AsyncMock)
+    @patch("core.dashboard_auth.httpx.AsyncClient")
+    def test_provisioning_failure_does_not_block_onboarding(
+        self, mock_client_cls, mock_save, client
+    ):
+        mock_save.return_value = {"status": "ok"}
+        mock_client_cls.return_value = _mock_httpx(user_data=BOT_TWITCH_DATA)
+        self.ensure_tenant_mock.return_value = None  # synthfunc down/broken
+
+        invite, response = self._complete_bot_step(client)
+
+        assert response.status_code == 200  # onboarding still completes
+        invite.refresh_from_db()
+        assert invite.completed_at is not None
+
+    @patch("core.synthfunc.save_token", new_callable=AsyncMock)
+    @patch("core.dashboard_auth.httpx.AsyncClient")
+    def test_token_push_failure_does_not_block_onboarding(
+        self, mock_client_cls, mock_save, client
+    ):
+        mock_save.return_value = None  # e.g. the old "Tenant not found" 404
+        mock_client_cls.return_value = _mock_httpx(user_data=BOT_TWITCH_DATA)
+
+        invite, response = self._complete_bot_step(client)
+
+        assert response.status_code == 200
+        invite.refresh_from_db()
+        assert invite.completed_at is not None

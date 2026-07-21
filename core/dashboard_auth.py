@@ -353,7 +353,47 @@ async def _handle_invite_bot(
             ]
         )
 
+    from .synthfunc import ensure_tenant as synthfunc_ensure_tenant
     from .synthfunc import save_token as synthfunc_save_token
+
+    # Provision the Synthfunc tenant BEFORE pushing tokens — without it,
+    # the token push (and every other Synthfunc integration: accrual,
+    # wallets, quotes) 404s and the channel runs half-onboarded.
+    owner_display = invite.channel_name
+    try:
+        profile = await sync_to_async(
+            lambda: invite.used_by.twitch_profile if invite.used_by else None
+        )()
+        if profile:
+            owner_display = profile.twitch_display_name
+    except Exception:
+        pass
+
+    try:
+        tenant_result = await synthfunc_ensure_tenant(
+            slug=invite.channel_name,
+            name=owner_display,
+            twitch_id=invite.channel_twitch_id,
+            twitch_username=invite.channel_name,
+        )
+    except Exception:
+        tenant_result = None
+        logger.exception(
+            "Synthfunc tenant provisioning raised for #%s", invite.channel_name
+        )
+    if tenant_result:
+        logger.info(
+            "Synthfunc tenant %s for #%s",
+            "provisioned" if tenant_result.get("created") else "verified",
+            invite.channel_name,
+        )
+    else:
+        logger.error(
+            "Synthfunc tenant provisioning FAILED for #%s — channel will run "
+            "without accrual/wallets/token custody until `syncsynthfunc` "
+            "or a re-login heals it",
+            invite.channel_name,
+        )
 
     # Use the channel token's own remaining lifetime, not the bot token's.
     channel_expires_in = expires_in
@@ -362,19 +402,27 @@ async def _handle_invite_bot(
         channel_expires_in = max(int(remaining), 0)
 
     try:
-        await synthfunc_save_token(
+        push_result = await synthfunc_save_token(
             user_id=invite.channel_twitch_id,
             access_token=invite.channel_access_token,
             refresh_token=invite.channel_refresh_token,
             expires_in=channel_expires_in,
         )
+    except Exception:
+        push_result = None
+        logger.exception(
+            "Failed to push channel owner token to Synthfunc for %s",
+            invite.channel_twitch_id,
+        )
+    if push_result:
         logger.info(
             "Channel owner token pushed to Synthfunc for %s",
             invite.channel_twitch_id,
         )
-    except Exception:
-        logger.exception(
-            "Failed to push channel owner token to Synthfunc for %s",
+    else:
+        logger.error(
+            "Channel owner token push FAILED for %s — Synthfunc has no "
+            "custody of this token; it will go stale ~4h after login",
             invite.channel_twitch_id,
         )
 
