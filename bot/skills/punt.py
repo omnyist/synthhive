@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 
 from asgiref.sync import sync_to_async
+from pydantic import BaseModel
+from pydantic import ConfigDict
 
 from bot.router import send_reply
 from bot.skills import SkillHandler
@@ -18,10 +20,22 @@ from core.twitch import twitch_request
 logger = logging.getLogger("bot")
 
 
+class PuntConfig(BaseModel):
+    """Config schema — validated at every write path. Tenant-neutral
+    defaults; existing rows' flavor was frozen by migration 0016."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    immune: str = "/me can't punt $(user)! They're immune."
+    success: str = "/me punted $(user)!"
+    failure: str = "/me tried to punt $(user) but something went wrong!"
+
+
 class PuntHandler(SkillHandler):
     """!punt — 1-second timeout on the caller."""
 
     name = "punt"
+    config_schema = PuntConfig
 
     async def handle(self, payload, args, skill, bot):
         chatter = payload.chatter
@@ -35,7 +49,7 @@ class PuntHandler(SkillHandler):
         if chatter.moderator or chatter.broadcaster:
             immune_msg = config.get(
                 "immune",
-                "/me can't punt $(user)! They're too kawaii~ avalonEYES",
+                "/me can't punt $(user)! They're immune.",
             )
             immune_msg = immune_msg.replace("$(user)", chatter_name)
             await send_reply(payload, immune_msg, bot_id=bot.bot_id)
@@ -47,7 +61,7 @@ class PuntHandler(SkillHandler):
         if timed_out:
             success_msg = config.get(
                 "success",
-                "/me punted $(user) for their disrespect, lalafell hater. avalonRAGE",
+                "/me punted $(user)!",
             )
         else:
             success_msg = config.get(

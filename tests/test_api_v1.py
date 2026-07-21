@@ -570,3 +570,189 @@ class TestInviteDelete:
         response = authed_client.delete(f"/api/v1/invites/{invite.id}/")
         assert response.status_code == 404
         assert Invite.objects.filter(pk=invite.id).exists()
+
+
+def _make_skill_row(test_channel, name="lizardroulette", **kwargs):
+    from core.models import Skill
+
+    defaults = {"channel": test_channel, "name": name, "enabled": True, "config": {}}
+    defaults.update(kwargs)
+    return Skill.objects.create(**defaults)
+
+
+class TestSkillList:
+    def test_lists_skills(self, authed_client, test_channel):
+        _make_skill_row(test_channel, name="lizardroulette", config={"odds": 20})
+        _make_skill_row(test_channel, name="dungeon", enabled=False)
+
+        response = authed_client.get(
+            f"/api/v1/skills/channels/{test_channel.twitch_channel_name}/"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 2
+        by_name = {s["name"]: s for s in data["items"]}
+        assert by_name["lizardroulette"]["config"] == {"odds": 20}
+        assert by_name["dungeon"]["enabled"] is False
+
+    def test_not_found_for_non_owner(self, other_client, test_channel):
+        response = other_client.get(
+            f"/api/v1/skills/channels/{test_channel.twitch_channel_name}/"
+        )
+        assert response.status_code == 404
+
+
+class TestSkillCreate:
+    def test_creates_skill_with_valid_config(self, authed_client, test_channel):
+        from core.models import Skill
+
+        response = authed_client.post(
+            f"/api/v1/skills/channels/{test_channel.twitch_channel_name}/",
+            data=json.dumps({"name": "lizardroulette", "config": {"odds": 33}}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert Skill.objects.filter(
+            channel=test_channel, name="lizardroulette"
+        ).exists()
+
+    def test_invalid_config_returns_422(self, authed_client, test_channel):
+        response = authed_client.post(
+            f"/api/v1/skills/channels/{test_channel.twitch_channel_name}/",
+            data=json.dumps({"name": "lizardroulette", "config": {"odds": 500}}),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+        assert "odds" in response.json()["detail"]
+
+    def test_typo_key_returns_422(self, authed_client, test_channel):
+        response = authed_client.post(
+            f"/api/v1/skills/channels/{test_channel.twitch_channel_name}/",
+            data=json.dumps(
+                {"name": "lizardroulette", "config": {"cooldown_repsonse": "x"}}
+            ),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+
+    def test_unknown_skill_returns_422(self, authed_client, test_channel):
+        response = authed_client.post(
+            f"/api/v1/skills/channels/{test_channel.twitch_channel_name}/",
+            data=json.dumps({"name": "nonexistent"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+
+    def test_duplicate_returns_409(self, authed_client, test_channel):
+        _make_skill_row(test_channel, name="lizardroulette")
+        response = authed_client.post(
+            f"/api/v1/skills/channels/{test_channel.twitch_channel_name}/",
+            data=json.dumps({"name": "lizardroulette"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 409
+
+
+class TestSkillUpdate:
+    def test_toggles_enabled(self, authed_client, test_channel):
+        skill = _make_skill_row(test_channel, name="lizardroulette")
+        response = authed_client.patch(
+            f"/api/v1/skills/{skill.id}/",
+            data=json.dumps({"enabled": False}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        skill.refresh_from_db()
+        assert skill.enabled is False
+
+    def test_updates_config_with_validation(self, authed_client, test_channel):
+        skill = _make_skill_row(test_channel, name="lizardroulette")
+        response = authed_client.patch(
+            f"/api/v1/skills/{skill.id}/",
+            data=json.dumps({"config": {"odds": 42, "birthday_mode": True}}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        skill.refresh_from_db()
+        assert skill.config == {"odds": 42, "birthday_mode": True}
+
+    def test_invalid_config_rejected_and_unsaved(self, authed_client, test_channel):
+        skill = _make_skill_row(test_channel, name="lizardroulette", config={"odds": 20})
+        response = authed_client.patch(
+            f"/api/v1/skills/{skill.id}/",
+            data=json.dumps({"config": {"odds": -5}}),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+        skill.refresh_from_db()
+        assert skill.config == {"odds": 20}
+
+    def test_forbidden_for_non_owner(self, other_client, test_channel):
+        skill = _make_skill_row(test_channel, name="lizardroulette")
+        response = other_client.patch(
+            f"/api/v1/skills/{skill.id}/",
+            data=json.dumps({"enabled": False}),
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+
+
+class TestSkillDelete:
+    def test_deletes_skill(self, authed_client, test_channel):
+        from core.models import Skill
+
+        skill = _make_skill_row(test_channel, name="lizardroulette")
+        response = authed_client.delete(f"/api/v1/skills/{skill.id}/")
+        assert response.status_code == 200
+        assert not Skill.objects.filter(pk=skill.id).exists()
+
+
+class TestSkillSchemaEndpoint:
+    def test_returns_schemas(self, authed_client):
+        response = authed_client.get("/api/v1/skills/schema/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["lizardroulette"]["properties"]["odds"]["default"] == 16
+        assert data["markov"] is None
+
+    def test_unauthenticated_returns_401(self, unauthed_client):
+        response = unauthed_client.get("/api/v1/skills/schema/")
+        assert response.status_code == 401
+
+
+class TestCommandConfigValidationAPI:
+    def test_create_lottery_with_bad_config_422(self, authed_client, test_channel):
+        response = authed_client.post(
+            f"/api/v1/commands/channels/{test_channel.twitch_channel_name}/",
+            data=json.dumps({
+                "name": "flask",
+                "type": "lottery",
+                "config": {"odds": 500},
+            }),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+
+    def test_create_with_typo_key_422(self, authed_client, test_channel):
+        response = authed_client.post(
+            f"/api/v1/commands/channels/{test_channel.twitch_channel_name}/",
+            data=json.dumps({
+                "name": "conch",
+                "type": "random_list",
+                "config": {"resposnes": ["typo"]},
+            }),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+
+    def test_update_config_validated_against_type(self, authed_client, test_channel):
+        cmd = _make_cmd(test_channel, name="flask", type="lottery",
+                        config={"odds": 10})
+        response = authed_client.patch(
+            f"/api/v1/commands/{cmd.id}/",
+            data=json.dumps({"config": {"odds": 0}}),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+        cmd.refresh_from_db()
+        assert cmd.config == {"odds": 10}

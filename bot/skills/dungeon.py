@@ -16,6 +16,11 @@ from dataclasses import field
 
 from asgiref.sync import sync_to_async
 from django.utils import timezone
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
+from pydantic import field_validator
+from pydantic import model_validator
 
 from bot import state
 from bot.router import send_reply
@@ -33,6 +38,9 @@ DEFAULT_LEVELS = [
     {"name": "Bahamut", "min_players": 18, "survival_chance": 30, "multiplier": 2.5},
 ]
 
+# Tenant-neutral defaults: no channel-specific emotes. Tenant flavor
+# (emotes, currency) belongs in the Skill row's config, not in code —
+# existing tenants' flavor was frozen into their rows by migration 0016.
 DEFAULT_MESSAGES = {
     "entry_started": (
         "$(user) is looking for a party to explore the Dungeon, wagering $(wager) $(currency)! "
@@ -45,34 +53,34 @@ DEFAULT_MESSAGES = {
     ),
     "outcome_wipe": (
         "The party boldly enters the Dungeon...but they are ill prepared. "
-        "They barely make it past the first room when the entire party is MPKed... bardRIP "
-        "It looks like $(level_name) knew they were coming. bardSad"
+        "They barely make it past the first room when the entire party is MPKed... "
+        "It looks like $(level_name) knew they were coming."
     ),
     "outcome_few": (
         "The party doesn't get far into the Dungeon when they are Back Attacked by the "
-        "worst enemy of all...RNG! bardD Most of the party falls prey to RNG's clutches, "
+        "worst enemy of all...RNG! Most of the party falls prey to RNG's clutches, "
         "but a few lucky survivors Flee and make it back to town safely."
     ),
     "outcome_most": (
         "Some of the party fall prey to Random Battles, but those who remain reach "
         "$(level_name)! They raise their Weapons of Magic and Might...and they scrape by! "
-        "bardHype It was a rough fight. They resolve to exit the Dungeon and return another day."
+        "It was a rough fight. They resolve to exit the Dungeon and return another day."
     ),
     "outcome_all": (
         "The party reaches $(level_name)! They raise their Weapons of Magic and Might..."
-        "and they are successful! bardHype The party is balanced well and ready for the fight. "
+        "and they are successful! The party is balanced well and ready for the fight. "
         "$(level_name) is clear (for now...)! Victory and treasure for all!"
     ),
     "outcome_solo_win": (
-        "$(user) dares to enter $(level_name) alone...and they are successful! bardOMG "
+        "$(user) dares to enter $(level_name) alone...and they are successful! "
         "$(user) sneaks in and out, looting treasure chests! Looted $(payout) $(currency)."
     ),
     "outcome_solo_loss": (
-        "$(user) dares to enter $(level_name) alone...and they are unlucky! bardSad "
-        "$(user) trips in the treasure room and finds an awakened Malboro. Game over. bardRIP"
+        "$(user) dares to enter $(level_name) alone...and they are unlucky! "
+        "$(user) trips in the treasure room and finds an awakened Malboro. Game over."
     ),
     "results_winners": "Survivors: $(winner_list) — Payout: $(total_payout) $(currency).",
-    "results_losers": "Fallen: $(loser_list). bardRIP",
+    "results_losers": "Fallen: $(loser_list).",
     "insufficient_funds": "$(user), you don't have enough $(currency) for that wager.",
     "already_joined": "$(user), you're already in the party!",
     "cooldown_response": (
@@ -87,6 +95,46 @@ DEFAULT_MESSAGES = {
     ),
     "level_up": "With this party, we can now venture into $(level_name)!",
 }
+
+
+class DungeonLevel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    min_players: int = Field(ge=1)
+    survival_chance: int = Field(ge=0, le=100)
+    multiplier: float = Field(gt=0)
+
+
+class DungeonConfig(BaseModel):
+    """Config schema — validated at every write path."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entry_duration: int = Field(default=120, ge=0)
+    cooldown: int = Field(default=900, ge=0)
+    min_wager: int = Field(default=10, ge=1)
+    max_wager: int = Field(default=10000, ge=1)
+    currency_name: str = "points"
+    levels: list[DungeonLevel] = Field(
+        default_factory=lambda: [DungeonLevel(**lv) for lv in DEFAULT_LEVELS],
+        min_length=1,
+    )
+    messages: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("messages")
+    @classmethod
+    def _known_message_keys(cls, value: dict[str, str]) -> dict[str, str]:
+        unknown = set(value) - set(DEFAULT_MESSAGES)
+        if unknown:
+            raise ValueError(f"unknown message keys: {sorted(unknown)}")
+        return value
+
+    @model_validator(mode="after")
+    def _wager_bounds(self):
+        if self.max_wager < self.min_wager:
+            raise ValueError("max_wager must be >= min_wager")
+        return self
 
 
 @dataclass
@@ -114,6 +162,7 @@ class DungeonHandler(SkillHandler):
     """!dungeon — Multiplayer dungeon minigame with currency wagering."""
 
     name = "dungeon"
+    config_schema = DungeonConfig
 
     def __init__(self):
         self._games: dict[str, DungeonGame] = {}
@@ -130,7 +179,7 @@ class DungeonHandler(SkillHandler):
         username = chatter.name
         channel_name = skill.channel.twitch_channel_name
         messages = config.get("messages", DEFAULT_MESSAGES)
-        currency = config.get("currency_name", "spoons")
+        currency = config.get("currency_name", "points")
         min_wager = config.get("min_wager", 10)
         max_wager = config.get("max_wager", 10000)
 
@@ -282,7 +331,7 @@ class DungeonHandler(SkillHandler):
         """Entry timer → resolve dungeon → pay out winners."""
         entry_duration = config.get("entry_duration", 120)
         messages = config.get("messages", DEFAULT_MESSAGES)
-        currency = config.get("currency_name", "spoons")
+        currency = config.get("currency_name", "points")
         levels = config.get("levels", DEFAULT_LEVELS)
 
         try:

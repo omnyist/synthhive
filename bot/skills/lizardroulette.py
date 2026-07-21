@@ -6,6 +6,9 @@ import random
 import time
 
 from asgiref.sync import sync_to_async
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
 
 from bot import state
 from bot.router import send_reply
@@ -38,10 +41,26 @@ CHEMICALS = [
 ]
 
 
+class LizardRouletteConfig(BaseModel):
+    """Config schema — validated at every write path."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    odds: int = Field(default=16, ge=1, le=100)
+    cooldown: int = Field(default=300, ge=0)
+    cooldown_response: str | None = None
+    timeout_duration: int = Field(default=600, ge=1)
+    timeout_delay: float = Field(default=5, ge=0)
+    timeout_failed: str | None = None
+    bullets_enabled: bool = True
+    birthday_mode: bool = False
+
+
 class LizardRouletteHandler(SkillHandler):
     """!lizardroulette — Roll the dice. Lose and get timed out."""
 
     name = "lizardroulette"
+    config_schema = LizardRouletteConfig
 
     INTERVAL_WINDOW = 3  # plays needed to detect scripting
     INTERVAL_TOLERANCE = 30  # seconds of variance allowed

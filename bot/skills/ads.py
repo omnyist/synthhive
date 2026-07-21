@@ -12,6 +12,11 @@ import logging
 from datetime import UTC
 from datetime import datetime
 
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
+from pydantic import field_validator
+
 from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
@@ -28,11 +33,38 @@ DEFAULT_MESSAGES = {
     "disable_failed": "Failed to disable ads.",
 }
 
+# The AdAnnounce component reads these keys from the same Skill row.
+COMPONENT_MESSAGE_KEYS = {"warning", "running", "ended", "enabled", "disabled"}
+
+
+class AdsConfig(BaseModel):
+    """Config schema — validated at every write path.
+
+    `messages` accepts both the skill's status keys and the AdAnnounce
+    component's announcement keys, since both read this Skill row.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    duration: int = Field(default=90, ge=1)
+    interval: int = Field(default=30, ge=1)
+    messages: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("messages")
+    @classmethod
+    def _known_message_keys(cls, value: dict[str, str]) -> dict[str, str]:
+        allowed = set(DEFAULT_MESSAGES) | COMPONENT_MESSAGE_KEYS
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown message keys: {sorted(unknown)}")
+        return value
+
 
 class AdsHandler(SkillHandler):
     """!ads — Ad rotation control."""
 
     name = "ads"
+    config_schema = AdsConfig
 
     async def handle(self, payload, args, skill, bot):
         sub = args.strip().lower() if args else ""

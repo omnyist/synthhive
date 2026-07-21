@@ -15,11 +15,11 @@ from __future__ import annotations
 import logging
 import re
 
+from asgiref.sync import sync_to_async
+
 from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
-from asgiref.sync import sync_to_async
-
 from core.synthfunc import create_quote
 from core.synthfunc import get_latest_quote
 from core.synthfunc import get_quote_by_number

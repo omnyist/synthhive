@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+from typing import ClassVar
 
 if TYPE_CHECKING:
     import twitchio
+    from pydantic import BaseModel
     from twitchio.ext import commands
 
     from core.models import Skill
@@ -18,9 +20,16 @@ class SkillHandler:
     Each handler owns a skill name that matches a Skill.name in the DB.
     The CommandRouter dispatches to the handler when a matching skill
     is found and enabled for the channel.
+
+    Handlers with configurable behavior declare a `config_schema`
+    (pydantic model, extra="forbid") — the single source of truth for
+    keys, types, bounds, and tenant-neutral defaults. Config is
+    validated against it at every write path (API, admin); handlers
+    still read config with .get() defaults so sparse rows keep working.
     """
 
     name: str = ""
+    config_schema: ClassVar[type[BaseModel] | None] = None
 
     async def handle(
         self,

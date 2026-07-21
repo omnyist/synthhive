@@ -13,11 +13,14 @@ from ninja import Schema
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
+from .config_validation import validate_command_config
+from .config_validation import validate_skill_config
 from .models import Alias
 from .models import Channel
 from .models import Command
 from .models import Counter
 from .models import Invite
+from .models import Skill
 from .models import TwitchProfile
 
 v1_router = Router()
@@ -263,13 +266,17 @@ async def create_command(
 
     channel, profile = await _get_user_channel(request, channel_slug)
 
+    config, config_error = validate_command_config(data.type, data.config)
+    if config_error:
+        raise HttpError(422, f"Invalid config: {config_error}")
+
     try:
         cmd = await sync_to_async(Command.objects.create)(
             channel=channel,
             name=data.name,
             type=data.type,
             response=data.response,
-            config=data.config,
+            config=config,
             cooldown_seconds=data.cooldown_seconds,
             user_cooldown_seconds=data.user_cooldown_seconds,
             mod_only=data.mod_only,
@@ -303,6 +310,15 @@ async def update_command(
         if value is not None:
             setattr(cmd, field_name, value)
             update_fields.append(field_name)
+
+    if "config" in update_fields or "type" in update_fields:
+        # Validate the resulting type+config combination.
+        config, config_error = validate_command_config(cmd.type, cmd.config)
+        if config_error:
+            raise HttpError(422, f"Invalid config: {config_error}")
+        cmd.config = config
+        if "config" not in update_fields:
+            update_fields.append("config")
 
     if update_fields:
         await sync_to_async(cmd.save)(update_fields=update_fields)
@@ -503,6 +519,128 @@ async def delete_alias(request, alias_id: uuid.UUID):
     """Delete an alias."""
     alias = await _get_user_alias(request, alias_id)
     await sync_to_async(alias.delete)()
+    return {"success": True}
+
+
+# --- Skills ---
+
+
+async def _get_user_skill(request, skill_id: uuid.UUID) -> Skill:
+    """Verify the authenticated user owns this skill's channel, or raise."""
+    user = await _require_auth(request)
+    profile = await _get_profile(user)
+
+    try:
+        skill = await sync_to_async(
+            Skill.objects.select_related("channel").get
+        )(pk=skill_id)
+    except Skill.DoesNotExist:
+        raise HttpError(404, "Skill not found") from None
+
+    if skill.channel.twitch_channel_id != profile.twitch_id:
+        raise HttpError(403, "Not authorized for this channel")
+
+    return skill
+
+
+class SkillSchema(Schema):
+    id: uuid.UUID
+    name: str
+    enabled: bool
+    config: dict
+
+
+class SkillCreateSchema(Schema):
+    name: str
+    enabled: bool = True
+    config: dict = {}
+
+
+class SkillUpdateSchema(Schema):
+    enabled: bool | None = None
+    config: dict | None = None
+
+
+@v1_router.get("/skills/schema/")
+async def skill_config_schemas(request):
+    """JSON schema per registered skill, for config form rendering."""
+    await _require_auth(request)
+
+    from .config_validation import skill_schemas
+
+    return skill_schemas()
+
+
+@v1_router.get("/skills/channels/{channel_slug}/", response=list[SkillSchema])
+@paginate
+async def list_skills(request, channel_slug: str):
+    """List all skills for a channel (including disabled)."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    skills = []
+    async for skill in Skill.objects.filter(channel=channel).order_by("name"):
+        skills.append(skill)
+    return skills
+
+
+@v1_router.post("/skills/channels/{channel_slug}/", response=SkillSchema)
+async def create_skill(request, channel_slug: str, data: SkillCreateSchema):
+    """Enable a skill for a channel."""
+    from bot.skills import SKILL_REGISTRY
+    from bot.skills import discover_skills
+
+    discover_skills()
+    if data.name not in SKILL_REGISTRY:
+        raise HttpError(422, f"Unknown skill '{data.name}'.")
+
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    config, config_error = validate_skill_config(data.name, data.config)
+    if config_error:
+        raise HttpError(422, f"Invalid config: {config_error}")
+
+    try:
+        skill = await sync_to_async(Skill.objects.create)(
+            channel=channel,
+            name=data.name,
+            enabled=data.enabled,
+            config=config,
+        )
+    except IntegrityError:
+        raise HttpError(
+            409, f"Skill '{data.name}' already exists in this channel."
+        ) from None
+
+    return skill
+
+
+@v1_router.patch("/skills/{skill_id}/", response=SkillSchema)
+async def update_skill(request, skill_id: uuid.UUID, data: SkillUpdateSchema):
+    """Update a skill's enabled state or config."""
+    skill = await _get_user_skill(request, skill_id)
+
+    update_fields = []
+    if data.enabled is not None:
+        skill.enabled = data.enabled
+        update_fields.append("enabled")
+    if data.config is not None:
+        config, config_error = validate_skill_config(skill.name, data.config)
+        if config_error:
+            raise HttpError(422, f"Invalid config: {config_error}")
+        skill.config = config
+        update_fields.append("config")
+
+    if update_fields:
+        await sync_to_async(skill.save)(update_fields=update_fields)
+
+    return skill
+
+
+@v1_router.delete("/skills/{skill_id}/")
+async def delete_skill(request, skill_id: uuid.UUID):
+    """Remove a skill from a channel."""
+    skill = await _get_user_skill(request, skill_id)
+    await sync_to_async(skill.delete)()
     return {"success": True}
 
 

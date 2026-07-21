@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from django import forms
 from django.contrib import admin
 
+from .config_validation import validate_command_config
+from .config_validation import validate_skill_config
 from .models import Alias
 from .models import Bot
 from .models import Channel
@@ -48,8 +51,37 @@ class ChannelAdmin(admin.ModelAdmin):
     readonly_fields = ("joined_at",)
 
 
+class CommandAdminForm(forms.ModelForm):
+    class Meta:
+        model = Command
+        fields = [
+            "channel",
+            "name",
+            "type",
+            "response",
+            "config",
+            "enabled",
+            "cooldown_seconds",
+            "user_cooldown_seconds",
+            "mod_only",
+            "created_by",
+        ]
+
+    def clean(self):
+        cleaned = super().clean()
+        cmd_type = cleaned.get("type")
+        config = cleaned.get("config") or {}
+        if cmd_type:
+            normalized, error = validate_command_config(cmd_type, config)
+            if error:
+                raise forms.ValidationError(f"Invalid config: {error}")
+            cleaned["config"] = normalized
+        return cleaned
+
+
 @admin.register(Command)
 class CommandAdmin(admin.ModelAdmin):
+    form = CommandAdminForm
     list_display = (
         "name",
         "type",
@@ -65,8 +97,26 @@ class CommandAdmin(admin.ModelAdmin):
     ordering = ["channel", "name"]
 
 
+class SkillAdminForm(forms.ModelForm):
+    class Meta:
+        model = Skill
+        fields = ["channel", "name", "enabled", "config"]
+
+    def clean(self):
+        cleaned = super().clean()
+        name = cleaned.get("name")
+        config = cleaned.get("config") or {}
+        if name:
+            normalized, error = validate_skill_config(name, config)
+            if error:
+                raise forms.ValidationError(f"Invalid config: {error}")
+            cleaned["config"] = normalized
+        return cleaned
+
+
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
+    form = SkillAdminForm
     list_display = ("name", "channel", "enabled")
     list_filter = ("channel", "enabled")
     search_fields = ("name",)
