@@ -830,3 +830,30 @@ async def bid_war_allocations_api(
     if rows is None:
         raise HttpError(502, "Could not fetch allocations.")
     return rows
+
+
+# --- Event (active campaign, proxied to Synthfunc) ---
+
+
+@v1_router.get("/campaign/channels/{channel_slug}/")
+async def active_campaign_api(request, channel_slug: str):
+    """The channel's active campaign with metrics and milestones, or null."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import get_active_campaign
+
+    campaign = await get_active_campaign(channel.twitch_channel_name)
+    return campaign  # None serializes to null — "no active event" state
+
+
+@v1_router.get("/campaign/channels/{channel_slug}/gifters/")
+async def gift_leaderboard_api(request, channel_slug: str, limit: int = 10):
+    """Top gift-sub contributors for the active campaign."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import get_gift_leaderboard
+
+    leaderboard = await get_gift_leaderboard(
+        channel.twitch_channel_name, limit=min(limit, 50)
+    )
+    return leaderboard or []

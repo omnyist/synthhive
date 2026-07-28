@@ -12,9 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as InvitesRouteImport } from './routes/invites'
 import { Route as ChannelSlugAliasesRouteImport } from './routes/$channelSlug/aliases'
-import { Route as ChannelSlugBidwarsRouteImport } from './routes/$channelSlug/bidwars'
 import { Route as ChannelSlugCommandsRouteImport } from './routes/$channelSlug/commands'
 import { Route as ChannelSlugCountersRouteImport } from './routes/$channelSlug/counters'
+import { Route as ChannelSlugEventRouteImport } from './routes/$channelSlug/event'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -31,11 +31,6 @@ const ChannelSlugAliasesRoute = ChannelSlugAliasesRouteImport.update({
   path: '/$channelSlug/aliases',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChannelSlugBidwarsRoute = ChannelSlugBidwarsRouteImport.update({
-  id: '/$channelSlug/bidwars',
-  path: '/$channelSlug/bidwars',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ChannelSlugCommandsRoute = ChannelSlugCommandsRouteImport.update({
   id: '/$channelSlug/commands',
   path: '/$channelSlug/commands',
@@ -46,31 +41,36 @@ const ChannelSlugCountersRoute = ChannelSlugCountersRouteImport.update({
   path: '/$channelSlug/counters',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChannelSlugEventRoute = ChannelSlugEventRouteImport.update({
+  id: '/$channelSlug/event',
+  path: '/$channelSlug/event',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/invites': typeof InvitesRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
-  '/$channelSlug/bidwars': typeof ChannelSlugBidwarsRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
+  '/$channelSlug/event': typeof ChannelSlugEventRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/invites': typeof InvitesRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
-  '/$channelSlug/bidwars': typeof ChannelSlugBidwarsRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
+  '/$channelSlug/event': typeof ChannelSlugEventRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/invites': typeof InvitesRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
-  '/$channelSlug/bidwars': typeof ChannelSlugBidwarsRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
+  '/$channelSlug/event': typeof ChannelSlugEventRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -78,34 +78,34 @@ export interface FileRouteTypes {
     | '/'
     | '/invites'
     | '/$channelSlug/aliases'
-    | '/$channelSlug/bidwars'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
+    | '/$channelSlug/event'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/invites'
     | '/$channelSlug/aliases'
-    | '/$channelSlug/bidwars'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
+    | '/$channelSlug/event'
   id:
     | '__root__'
     | '/'
     | '/invites'
     | '/$channelSlug/aliases'
-    | '/$channelSlug/bidwars'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
+    | '/$channelSlug/event'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InvitesRoute: typeof InvitesRoute
   ChannelSlugAliasesRoute: typeof ChannelSlugAliasesRoute
-  ChannelSlugBidwarsRoute: typeof ChannelSlugBidwarsRoute
   ChannelSlugCommandsRoute: typeof ChannelSlugCommandsRoute
   ChannelSlugCountersRoute: typeof ChannelSlugCountersRoute
+  ChannelSlugEventRoute: typeof ChannelSlugEventRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -131,13 +131,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChannelSlugAliasesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$channelSlug/bidwars': {
-      id: '/$channelSlug/bidwars'
-      path: '/$channelSlug/bidwars'
-      fullPath: '/$channelSlug/bidwars'
-      preLoaderRoute: typeof ChannelSlugBidwarsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/$channelSlug/commands': {
       id: '/$channelSlug/commands'
       path: '/$channelSlug/commands'
@@ -152,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChannelSlugCountersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$channelSlug/event': {
+      id: '/$channelSlug/event'
+      path: '/$channelSlug/event'
+      fullPath: '/$channelSlug/event'
+      preLoaderRoute: typeof ChannelSlugEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -159,9 +159,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InvitesRoute: InvitesRoute,
   ChannelSlugAliasesRoute: ChannelSlugAliasesRoute,
-  ChannelSlugBidwarsRoute: ChannelSlugBidwarsRoute,
   ChannelSlugCommandsRoute: ChannelSlugCommandsRoute,
   ChannelSlugCountersRoute: ChannelSlugCountersRoute,
+  ChannelSlugEventRoute: ChannelSlugEventRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

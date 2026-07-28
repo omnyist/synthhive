@@ -1,17 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
-interface BidWarOption {
+export interface BidWarOption {
   id: string
   name: string
   position: number
   total: number
 }
 
-interface BidWar {
+export interface BidWar {
   id: string
   title: string
   status: string
@@ -31,74 +30,56 @@ interface Allocation {
 
 const QUICK_PACKS = [1, 5, 10, 25, 50, 100]
 
-export const Route = createFileRoute('/$channelSlug/bidwars')({
-  component: BidWarsPage,
-})
-
-function BidWarsPage() {
-  const { channelSlug } = Route.useParams()
+export function BidWarSection({
+  channelSlug,
+  onError,
+}: {
+  channelSlug: string
+  onError: (message: string | null) => void
+}) {
   const queryClient = useQueryClient()
-  const [error, setError] = useState<string | null>(null)
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['bidwars', channelSlug] })
     queryClient.invalidateQueries({ queryKey: ['bidwar-allocations', channelSlug] })
   }
 
-  const { data: wars = [], isLoading } = useQuery({
+  const { data: wars = [] } = useQuery({
     queryKey: ['bidwars', channelSlug],
     queryFn: () => api<BidWar[]>(`/api/v1/bidwars/channels/${channelSlug}/`),
     retry: false,
   })
 
   const activeWar = wars.find((w) => w.status === 'open') ?? null
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <p className="text-hive-muted">Loading bid wars...</p>
-      </div>
-    )
-  }
+  const pastWars = wars.filter((w) => w.status === 'closed')
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-      <div>
-        <h2 className="text-sm font-medium text-hive-text">Bid Wars</h2>
-        <p className="mt-0.5 text-xs text-hive-muted">
-          Gift subs become points. Allocate each gift batch to a side — allocations are a journal,
-          so mistakes are corrected with an undo entry, never lost.
-        </p>
-      </div>
-
-      {error && <p className="text-sm text-red-400">{error}</p>}
+    <div className="flex flex-col gap-3">
+      <h3 className="text-xs font-medium tracking-wide text-hive-muted uppercase">Bid war</h3>
 
       {activeWar ? (
         <ActiveWar
           channelSlug={channelSlug}
           war={activeWar}
           onChanged={invalidate}
-          onError={setError}
+          onError={onError}
         />
       ) : (
-        <CreateWarForm channelSlug={channelSlug} onCreated={invalidate} onError={setError} />
+        <CreateWarForm channelSlug={channelSlug} onCreated={invalidate} onError={onError} />
       )}
 
-      {wars.filter((w) => w.status === 'closed').length > 0 && (
+      {pastWars.length > 0 && (
         <div className="flex flex-col gap-1">
-          <h3 className="text-xs font-medium tracking-wide text-hive-muted uppercase">Past wars</h3>
-          {wars
-            .filter((w) => w.status === 'closed')
-            .map((w) => (
-              <div
-                key={w.id}
-                className="flex items-center gap-3 rounded border border-hive-border bg-hive-surface px-3 py-2 text-sm">
-                <span className="text-hive-text">{w.title}</span>
-                <span className="ml-auto text-xs text-hive-muted">
-                  {w.options.map((o) => `${o.name} ${o.total}`).join(' · ')}
-                </span>
-              </div>
-            ))}
+          {pastWars.map((w) => (
+            <div
+              key={w.id}
+              className="flex items-center gap-3 rounded border border-hive-border bg-hive-surface px-3 py-2 text-sm">
+              <span className="text-hive-text">{w.title}</span>
+              <span className="ml-auto text-xs text-hive-muted">
+                {w.options.map((o) => `${o.name} ${o.total}`).join(' · ')}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -161,7 +142,7 @@ function ActiveWar({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <h3 className="text-lg font-semibold text-hive-text">{war.title}</h3>
+        <h4 className="text-lg font-semibold text-hive-text">{war.title}</h4>
         <button
           type="button"
           onClick={() => window.confirm(`Close "${war.title}"?`) && closeMutation.mutate()}
@@ -190,9 +171,9 @@ function ActiveWar({
 
       <div className="flex flex-col gap-1">
         <div className="flex items-center">
-          <h3 className="text-xs font-medium tracking-wide text-hive-muted uppercase">
+          <h4 className="text-xs font-medium tracking-wide text-hive-muted uppercase">
             Allocation history
-          </h3>
+          </h4>
           {allocations.length > 0 && (
             <button
               type="button"
