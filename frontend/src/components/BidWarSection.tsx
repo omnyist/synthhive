@@ -262,13 +262,7 @@ function ActiveWar({
             </span>
             <span className="text-hive-text">{a.option_name}</span>
             {a.note && <span className="truncate text-xs text-hive-muted">{a.note}</span>}
-            <span className="ml-auto w-16 shrink-0 text-right text-xs text-hive-muted">
-              {new Date(a.created_at).toLocaleTimeString(undefined, {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </span>
-            <span className="w-12 shrink-0 text-right">
+            <span className="ml-auto w-12 shrink-0 text-right">
               {a.points > 0 && (
                 <button
                   type="button"
@@ -278,6 +272,12 @@ function ActiveWar({
                   undo
                 </button>
               )}
+            </span>
+            <span className="w-16 shrink-0 text-right text-xs text-hive-muted">
+              {new Date(a.created_at).toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </span>
           </div>
         ))}
