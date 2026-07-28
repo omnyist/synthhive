@@ -40,9 +40,13 @@ interface PendingGift {
 export function BidWarSection({
   channelSlug,
   onError,
+  campaignId,
+  readOnly = false,
 }: {
   channelSlug: string
   onError: (message: string | null) => void
+  campaignId?: string
+  readOnly?: boolean
 }) {
   const queryClient = useQueryClient()
 
@@ -52,29 +56,35 @@ export function BidWarSection({
     queryClient.invalidateQueries({ queryKey: ['pending-gifts', channelSlug] })
   }
 
+  const params = readOnly && campaignId ? `?campaign_id=${campaignId}` : ''
   const { data: wars = [] } = useQuery({
-    queryKey: ['bidwars', channelSlug],
-    queryFn: () => api<BidWar[]>(`/api/v1/bidwars/channels/${channelSlug}/`),
+    queryKey: ['bidwars', channelSlug, campaignId ?? 'active'],
+    queryFn: () => api<BidWar[]>(`/api/v1/bidwars/channels/${channelSlug}/${params}`),
     retry: false,
   })
 
   const activeWar = wars.find((w) => w.status === 'open') ?? null
-  const pastWars = wars.filter((w) => w.status === 'closed')
+  const pastWars = readOnly ? wars : wars.filter((w) => w.status === 'closed')
+
+  if (readOnly && wars.length === 0) return null
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-xs font-medium tracking-wide text-hive-muted uppercase">Bid war</h3>
+      <h3 className="text-xs font-medium tracking-wide text-hive-muted uppercase">
+        {readOnly ? 'Bid wars' : 'Bid war'}
+      </h3>
 
-      {activeWar ? (
-        <ActiveWar
-          channelSlug={channelSlug}
-          war={activeWar}
-          onChanged={invalidate}
-          onError={onError}
-        />
-      ) : (
-        <CreateWarForm channelSlug={channelSlug} onCreated={invalidate} onError={onError} />
-      )}
+      {!readOnly &&
+        (activeWar ? (
+          <ActiveWar
+            channelSlug={channelSlug}
+            war={activeWar}
+            onChanged={invalidate}
+            onError={onError}
+          />
+        ) : (
+          <CreateWarForm channelSlug={channelSlug} onCreated={invalidate} onError={onError} />
+        ))}
 
       {pastWars.length > 0 && (
         <div className="flex flex-col gap-1">

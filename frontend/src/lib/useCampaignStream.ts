@@ -14,6 +14,7 @@ export function useCampaignStream(channelSlug: string) {
     const source = new EventSource(`/api/v1/events/channels/${channelSlug}/stream`)
 
     source.onmessage = () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns', channelSlug] })
       queryClient.invalidateQueries({ queryKey: ['campaign', channelSlug] })
       queryClient.invalidateQueries({ queryKey: ['gifters', channelSlug] })
       queryClient.invalidateQueries({ queryKey: ['bidwars', channelSlug] })

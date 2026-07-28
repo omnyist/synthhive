@@ -756,3 +756,125 @@ class TestCommandConfigValidationAPI:
         assert response.status_code == 422
         cmd.refresh_from_db()
         assert cmd.config == {"odds": 10}
+
+
+class TestCampaignCrudProxies:
+    """The campaign CRUD proxies relay Synthfunc responses — including
+    error details like 409 slug conflicts — to the dashboard."""
+
+    @staticmethod
+    def _stub(monkeypatch, name, result):
+        """Patch a core.synthfunc coroutine, capturing call args."""
+        calls = []
+
+        async def fake(*args, **kwargs):
+            calls.append((args, kwargs))
+            return result
+
+        import core.synthfunc
+
+        monkeypatch.setattr(core.synthfunc, name, fake)
+        return calls
+
+    def test_list_campaigns(self, authed_client, test_channel, monkeypatch):
+        self._stub(
+            monkeypatch,
+            "list_campaigns",
+            [{"id": "abc", "name": "25th Anniversary"}],
+        )
+        response = authed_client.get("/api/v1/campaigns/channels/testchannel/")
+        assert response.status_code == 200
+        assert response.json()[0]["name"] == "25th Anniversary"
+
+    def test_list_synthfunc_down_502(self, authed_client, test_channel, monkeypatch):
+        self._stub(monkeypatch, "list_campaigns", None)
+        response = authed_client.get("/api/v1/campaigns/channels/testchannel/")
+        assert response.status_code == 502
+
+    def test_create_relays_409_detail(self, authed_client, test_channel, monkeypatch):
+        self._stub(
+            monkeypatch,
+            "create_campaign",
+            (409, {"detail": "A campaign with slug 'x' already exists."}),
+        )
+        response = authed_client.post(
+            "/api/v1/campaigns/channels/testchannel/",
+            data=json.dumps({
+                "name": "X",
+                "start_date": "2026-08-01T00:00:00Z",
+                "end_date": "2026-08-31T23:59:59Z",
+            }),
+            content_type="application/json",
+        )
+        assert response.status_code == 409
+        assert "already exists" in response.json()["detail"]
+
+    def test_create_passes_through(self, authed_client, test_channel, monkeypatch):
+        calls = self._stub(
+            monkeypatch,
+            "create_campaign",
+            (200, {"id": "new-id", "name": "Awesome August"}),
+        )
+        response = authed_client.post(
+            "/api/v1/campaigns/channels/testchannel/",
+            data=json.dumps({
+                "name": "Awesome August",
+                "start_date": "2026-08-01T00:00:00Z",
+                "end_date": "2026-08-31T23:59:59Z",
+                "is_active": True,
+            }),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.json()["id"] == "new-id"
+        sent = calls[0][0][1]
+        assert sent["is_active"] is True
+
+    def test_detail_404_when_missing(self, authed_client, test_channel, monkeypatch):
+        self._stub(monkeypatch, "get_campaign", None)
+        response = authed_client.get("/api/v1/campaigns/channels/testchannel/some-id/")
+        assert response.status_code == 404
+
+    def test_update_excludes_unset_fields(self, authed_client, test_channel, monkeypatch):
+        calls = self._stub(
+            monkeypatch, "update_campaign", (200, {"id": "abc", "name": "Renamed"})
+        )
+        response = authed_client.patch(
+            "/api/v1/campaigns/channels/testchannel/abc/",
+            data=json.dumps({"name": "Renamed"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert calls[0][0][2] == {"name": "Renamed"}
+
+    def test_milestone_add_and_delete(self, authed_client, test_channel, monkeypatch):
+        add_calls = self._stub(
+            monkeypatch,
+            "create_milestone",
+            (200, {"id": "abc", "milestones": [{"id": "m1"}]}),
+        )
+        response = authed_client.post(
+            "/api/v1/campaigns/channels/testchannel/abc/milestones/",
+            data=json.dumps({"threshold": 500, "title": "Demon's Souls"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert add_calls[0][0][2]["goal_unit"] == "subs"
+
+        self._stub(
+            monkeypatch, "delete_milestone", (200, {"id": "abc", "milestones": []})
+        )
+        response = authed_client.delete(
+            "/api/v1/campaigns/channels/testchannel/milestones/m1/"
+        )
+        assert response.status_code == 200
+        assert response.json()["milestones"] == []
+
+    def test_non_owner_404(self, other_client, test_channel, monkeypatch):
+        self._stub(monkeypatch, "list_campaigns", [])
+        response = other_client.get("/api/v1/campaigns/channels/testchannel/")
+        assert response.status_code == 404
+
+    def test_unauthed_401(self, unauthed_client, test_channel):
+        response = unauthed_client.get("/api/v1/campaigns/channels/testchannel/")
+        assert response.status_code == 401

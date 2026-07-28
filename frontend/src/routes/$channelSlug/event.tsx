@@ -2,37 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { BidWarSection } from '@/components/BidWarSection'
+import type { Campaign, CampaignSummary, Metric, Milestone } from '@/components/EventEditor'
+import { EventEditor } from '@/components/EventEditor'
 import { api } from '@/lib/api'
 import { useCampaignStream } from '@/lib/useCampaignStream'
 import { cn } from '@/lib/utils'
-
-interface Milestone {
-  id: string
-  threshold: number
-  title: string
-  description: string
-  is_unlocked: boolean
-  unlocked_at: string | null
-  is_stretch: boolean
-  goal_unit: string
-}
-
-interface Metric {
-  total_subs: number
-  total_resubs: number
-  total_sub_points: number
-  total_bits: number
-}
-
-interface Campaign {
-  id: string
-  name: string
-  description: string
-  start_date: string
-  end_date: string
-  metric: Metric
-  milestones: Milestone[]
-}
 
 interface Gifter {
   display_name?: string
@@ -42,28 +16,50 @@ interface Gifter {
 
 export const Route = createFileRoute('/$channelSlug/event')({
   component: EventPage,
+  validateSearch: (search: Record<string, unknown>): { campaign?: string } => ({
+    campaign: typeof search.campaign === 'string' ? search.campaign : undefined,
+  }),
 })
 
 function EventPage() {
   const { channelSlug } = Route.useParams()
+  const { campaign: selectedId } = Route.useSearch()
+  const navigate = Route.useNavigate()
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'view' | 'create' | 'edit'>('view')
 
   useCampaignStream(channelSlug)
 
-  const { data: campaign, isLoading } = useQuery({
-    queryKey: ['campaign', channelSlug],
-    queryFn: () => api<Campaign | null>(`/api/v1/campaign/channels/${channelSlug}/`),
+  const { data: campaigns = [], isLoading: listLoading } = useQuery({
+    queryKey: ['campaigns', channelSlug],
+    queryFn: () => api<CampaignSummary[]>(`/api/v1/campaigns/channels/${channelSlug}/`),
     retry: false,
+  })
+
+  const activeId = campaigns.find((c) => c.is_active)?.id ?? null
+  const viewingId = selectedId ?? activeId
+
+  const { data: campaign, isLoading: detailLoading } = useQuery({
+    queryKey: ['campaign', channelSlug, viewingId],
+    queryFn: () => api<Campaign>(`/api/v1/campaigns/channels/${channelSlug}/${viewingId}/`),
+    retry: false,
+    enabled: !!viewingId,
   })
 
   const { data: gifters = [] } = useQuery({
-    queryKey: ['gifters', channelSlug],
-    queryFn: () => api<Gifter[]>(`/api/v1/campaign/channels/${channelSlug}/gifters/`),
+    queryKey: ['gifters', channelSlug, viewingId],
+    queryFn: () =>
+      api<Gifter[]>(`/api/v1/campaign/channels/${channelSlug}/gifters/?campaign_id=${viewingId}`),
     retry: false,
-    enabled: !!campaign,
+    enabled: !!viewingId,
   })
 
-  if (isLoading) {
+  const selectCampaign = (id: string) => {
+    setMode('view')
+    navigate({ search: { campaign: id === activeId ? undefined : id } })
+  }
+
+  if (listLoading || (viewingId && detailLoading && !campaign)) {
     return (
       <div className="flex items-center justify-center p-8">
         <p className="text-hive-muted">Loading event...</p>
@@ -71,13 +67,76 @@ function EventPage() {
     )
   }
 
+  const isPast = !!campaign && !campaign.is_active
+
+  const header = (
+    <div className="flex items-center gap-2">
+      {campaigns.length > 0 && (
+        <select
+          value={viewingId ?? ''}
+          onChange={(e) => e.target.value && selectCampaign(e.target.value)}
+          className="rounded border border-hive-border bg-hive-dark px-2 py-1 text-xs text-hive-text focus:border-hive-accent focus:outline-none">
+          {!viewingId && <option value="">Pick an event…</option>}
+          {campaigns.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+              {c.is_active ? ' (active)' : ''}
+            </option>
+          ))}
+        </select>
+      )}
+      <div className="ml-auto flex gap-1.5">
+        {campaign && mode === 'view' && (
+          <button
+            type="button"
+            onClick={() => setMode('edit')}
+            className="rounded border border-hive-border px-2.5 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
+            Edit
+          </button>
+        )}
+        {mode === 'view' && (
+          <button
+            type="button"
+            onClick={() => setMode('create')}
+            className="rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80">
+            New event
+          </button>
+        )}
+      </div>
+    </div>
+  )
+
+  if (mode !== 'view') {
+    return (
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+        {header}
+        <EventEditor
+          channelSlug={channelSlug}
+          campaign={mode === 'edit' ? (campaign ?? null) : null}
+          onClose={() => setMode('view')}
+          onSaved={(id) => {
+            setMode('view')
+            navigate({ search: { campaign: id === activeId ? undefined : id } })
+          }}
+        />
+      </div>
+    )
+  }
+
   if (!campaign) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8">
-        <p className="text-sm text-hive-text">No active event.</p>
-        <p className="text-xs text-hive-muted">
-          Campaigns are created in the admin — once one is active, everything for it lives here.
-        </p>
+      <div className="flex flex-1 flex-col gap-4 p-4">
+        {header}
+        <div className="flex flex-1 flex-col items-center justify-center gap-2">
+          <p className="text-sm text-hive-text">
+            {campaigns.length > 0 ? 'No active event.' : 'No events yet.'}
+          </p>
+          <p className="text-xs text-hive-muted">
+            {campaigns.length > 0
+              ? 'Pick a past event above, or create a new one.'
+              : 'Create one to start tracking goals, gifts, and bid wars.'}
+          </p>
+        </div>
       </div>
     )
   }
@@ -87,10 +146,17 @@ function EventPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+      {header}
+
       <div>
         <div className="flex items-baseline gap-3">
           <h2 className="text-lg font-semibold text-hive-text">{campaign.name}</h2>
           <span className="text-xs text-hive-muted">{dateRange}</span>
+          {isPast && (
+            <span className="rounded bg-hive-border px-1.5 py-0.5 text-xs text-hive-muted">
+              past event
+            </span>
+          )}
         </div>
         {campaign.description && (
           <p className="mt-0.5 text-xs text-hive-muted">{campaign.description}</p>
@@ -104,11 +170,16 @@ function EventPage() {
         <StatTile label="Bits" value={metric.total_bits} />
       </div>
 
-      <MilestoneBoard milestones={campaign.milestones} metric={metric} />
+      <MilestoneBoard milestones={campaign.milestones} metric={metric} isPast={isPast} />
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <BidWarSection channelSlug={channelSlug} onError={setError} />
+      <BidWarSection
+        channelSlug={channelSlug}
+        onError={setError}
+        campaignId={campaign.id}
+        readOnly={isPast}
+      />
 
       {gifters.length > 0 && (
         <div className="flex flex-col gap-1">
@@ -139,13 +210,22 @@ function StatTile({ label, value }: { label: string; value: number }) {
   )
 }
 
-function MilestoneBoard({ milestones, metric }: { milestones: Milestone[]; metric: Metric }) {
+function MilestoneBoard({
+  milestones,
+  metric,
+  isPast,
+}: {
+  milestones: Milestone[]
+  metric: Metric
+  isPast: boolean
+}) {
   if (milestones.length === 0) return null
 
-  const nextId =
-    milestones.find((m) => !m.is_unlocked && !m.is_stretch)?.id ??
-    milestones.find((m) => !m.is_unlocked)?.id ??
-    null
+  const nextId = isPast
+    ? null
+    : (milestones.find((m) => !m.is_unlocked && !m.is_stretch)?.id ??
+      milestones.find((m) => !m.is_unlocked)?.id ??
+      null)
 
   return (
     <div className="flex flex-col gap-1">

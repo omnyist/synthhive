@@ -740,13 +740,20 @@ class BidWarStatusSchema(Schema):
 
 
 @v1_router.get("/bidwars/channels/{channel_slug}/")
-async def list_bid_wars_api(request, channel_slug: str, status: str | None = None):
-    """List bid wars on the channel's active campaign."""
+async def list_bid_wars_api(
+    request,
+    channel_slug: str,
+    status: str | None = None,
+    campaign_id: str | None = None,
+):
+    """List bid wars on the channel's active (or a specific) campaign."""
     channel, _ = await _get_user_channel(request, channel_slug)
 
     from .synthfunc import get_bid_wars
 
-    wars = await get_bid_wars(channel.twitch_channel_name, status=status)
+    wars = await get_bid_wars(
+        channel.twitch_channel_name, status=status, campaign_id=campaign_id
+    )
     if wars is None:
         raise HttpError(502, "Synthfunc unavailable or no active campaign.")
     return wars
@@ -849,14 +856,16 @@ async def active_campaign_api(request, channel_slug: str):
 
 
 @v1_router.get("/campaign/channels/{channel_slug}/gifters/")
-async def gift_leaderboard_api(request, channel_slug: str, limit: int = 10):
-    """Top gift-sub contributors for the active campaign."""
+async def gift_leaderboard_api(
+    request, channel_slug: str, limit: int = 10, campaign_id: str | None = None
+):
+    """Top gift-sub contributors for the active (or a specific) campaign."""
     channel, _ = await _get_user_channel(request, channel_slug)
 
     from .synthfunc import get_gift_leaderboard
 
     leaderboard = await get_gift_leaderboard(
-        channel.twitch_channel_name, limit=min(limit, 50)
+        channel.twitch_channel_name, limit=min(limit, 50), campaign_id=campaign_id
     )
     return leaderboard or []
 
@@ -870,3 +879,148 @@ async def pending_gifts_api(request, channel_slug: str):
 
     gifts = await get_pending_gifts(channel.twitch_channel_name)
     return gifts or []
+
+
+# --- Campaign CRUD (proxied to Synthfunc; session-auth, channel-scoped) ---
+
+
+class CampaignCreateSchema(Schema):
+    name: str
+    description: str = ""
+    start_date: str
+    end_date: str
+    is_active: bool = False
+
+
+class CampaignUpdateSchema(Schema):
+    name: str | None = None
+    description: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    is_active: bool | None = None
+
+
+class MilestoneCreateSchema(Schema):
+    threshold: int
+    title: str
+    description: str = ""
+    goal_unit: str = "subs"
+    is_stretch: bool = False
+
+
+class MilestoneUpdateSchema(Schema):
+    threshold: int | None = None
+    title: str | None = None
+    description: str | None = None
+    goal_unit: str | None = None
+    is_stretch: bool | None = None
+
+
+def _relay(status: int, body: dict | list | None):
+    """Pass a Synthfunc response through, relaying its error details."""
+    if status == 0:
+        raise HttpError(502, "Synthfunc unavailable.")
+    if status >= 400:
+        detail = body.get("detail") if isinstance(body, dict) else None
+        raise HttpError(status, str(detail or "Synthfunc request failed."))
+    return body
+
+
+@v1_router.get("/campaigns/channels/{channel_slug}/")
+async def list_campaigns_api(request, channel_slug: str):
+    """All campaigns for the channel, with headline totals."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import list_campaigns
+
+    rows = await list_campaigns(channel.twitch_channel_name)
+    if rows is None:
+        raise HttpError(502, "Could not fetch campaigns.")
+    return rows
+
+
+@v1_router.post("/campaigns/channels/{channel_slug}/")
+async def create_campaign_api(request, channel_slug: str, data: CampaignCreateSchema):
+    """Create a campaign (optionally activating it immediately)."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import create_campaign
+
+    if not data.name.strip():
+        raise HttpError(422, "Name is required.")
+
+    status, body = await create_campaign(
+        channel.twitch_channel_name, data.model_dump()
+    )
+    return _relay(status, body)
+
+
+@v1_router.get("/campaigns/channels/{channel_slug}/{campaign_id}/")
+async def campaign_detail_api(request, channel_slug: str, campaign_id: str):
+    """Full detail for any campaign — including past events."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import get_campaign
+
+    campaign = await get_campaign(channel.twitch_channel_name, campaign_id)
+    if campaign is None:
+        raise HttpError(404, "Campaign not found.")
+    return campaign
+
+
+@v1_router.patch("/campaigns/channels/{channel_slug}/{campaign_id}/")
+async def update_campaign_api(
+    request, channel_slug: str, campaign_id: str, data: CampaignUpdateSchema
+):
+    """Update campaign fields; activating deactivates the others."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import update_campaign
+
+    status, body = await update_campaign(
+        channel.twitch_channel_name, campaign_id, data.model_dump(exclude_none=True)
+    )
+    return _relay(status, body)
+
+
+@v1_router.post("/campaigns/channels/{channel_slug}/{campaign_id}/milestones/")
+async def create_milestone_api(
+    request, channel_slug: str, campaign_id: str, data: MilestoneCreateSchema
+):
+    """Add a goal to a campaign. Returns the updated campaign."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import create_milestone
+
+    status, body = await create_milestone(
+        channel.twitch_channel_name, campaign_id, data.model_dump()
+    )
+    return _relay(status, body)
+
+
+@v1_router.patch("/campaigns/channels/{channel_slug}/milestones/{milestone_id}/")
+async def update_milestone_api(
+    request, channel_slug: str, milestone_id: str, data: MilestoneUpdateSchema
+):
+    """Edit a goal. Returns the updated campaign."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import update_milestone
+
+    status, body = await update_milestone(
+        channel.twitch_channel_name, milestone_id, data.model_dump(exclude_none=True)
+    )
+    return _relay(status, body)
+
+
+@v1_router.delete("/campaigns/channels/{channel_slug}/milestones/{milestone_id}/")
+async def delete_milestone_api(request, channel_slug: str, milestone_id: str):
+    """Remove a goal. Returns the updated campaign."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import delete_milestone
+
+    status, body = await delete_milestone(
+        channel.twitch_channel_name, milestone_id
+    )
+    return _relay(status, body)

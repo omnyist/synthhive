@@ -284,13 +284,16 @@ async def get_campaign_metrics(campaign_id: str, tenant_slug: str) -> dict | Non
     )
 
 
-async def get_gift_leaderboard(tenant_slug: str, limit: int = 10) -> list | None:
-    """Get the gift leaderboard for the active campaign."""
-    return await _get(
-        "/campaigns/active/gifts/leaderboard",
-        {"limit": limit},
-        tenant_slug=tenant_slug,
+async def get_gift_leaderboard(
+    tenant_slug: str, limit: int = 10, campaign_id: str | None = None
+) -> list | None:
+    """Get the gift leaderboard for the active (or a specific) campaign."""
+    path = (
+        f"/campaigns/{campaign_id}/gifts/leaderboard"
+        if campaign_id
+        else "/campaigns/active/gifts/leaderboard"
     )
+    return await _get(path, {"limit": limit}, tenant_slug=tenant_slug)
 
 
 # --- Members ---
@@ -377,11 +380,19 @@ async def _patch(
 
 
 async def get_bid_wars(
-    tenant_slug: str, status: str | None = None
+    tenant_slug: str,
+    status: str | None = None,
+    campaign_id: str | None = None,
 ) -> list | None:
-    """List bid wars on the tenant's active campaign."""
-    params = {"status": status} if status else None
-    return await _get("/campaigns/bidwars/", params=params, tenant_slug=tenant_slug)
+    """List bid wars on the active (or a specific) campaign."""
+    params: dict[str, Any] = {}
+    if status:
+        params["status"] = status
+    if campaign_id:
+        params["campaign_id"] = campaign_id
+    return await _get(
+        "/campaigns/bidwars/", params=params or None, tenant_slug=tenant_slug
+    )
 
 
 async def create_bid_war(
@@ -448,6 +459,109 @@ async def get_bid_war_allocations(
     return await _get(
         f"/campaigns/bidwars/{bid_war_id}/allocations/",
         params={"limit": limit},
+        tenant_slug=tenant_slug,
+    )
+
+
+# --- Campaign CRUD (dashboard event management) ---
+
+
+async def _send(
+    method: str,
+    path: str,
+    data: dict[str, Any] | None = None,
+    tenant_slug: str | None = None,
+) -> tuple[int, dict | list | None]:
+    """Request Synthfunc, preserving the status code so callers can relay
+    validation errors (409 slug/threshold conflicts) to the dashboard.
+
+    Returns (0, None) if Synthfunc is unreachable.
+    """
+    url_path = f"/{tenant_slug}{path}" if tenant_slug else path
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.request(
+                method,
+                f"{settings.SYNTHFUNC_API_URL}{url_path}",
+                headers=_headers(),
+                json=data,
+                timeout=10.0,
+            )
+
+        _mark_recovered()
+
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        return response.status_code, body
+
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        _mark_down(exc, url_path)
+        return 0, None
+
+    except httpx.HTTPError:
+        logger.exception("HTTP error during Synthfunc %s %s", method, url_path)
+        return 0, None
+
+
+async def list_campaigns(tenant_slug: str) -> list | None:
+    """All campaigns for the tenant, with headline totals."""
+    return await _get("/campaigns/", tenant_slug=tenant_slug)
+
+
+async def get_campaign(tenant_slug: str, campaign_id: str) -> dict | None:
+    """Full detail for any campaign — including past events."""
+    return await _get(f"/campaigns/{campaign_id}", tenant_slug=tenant_slug)
+
+
+async def create_campaign(
+    tenant_slug: str, data: dict[str, Any]
+) -> tuple[int, dict | list | None]:
+    """Create a campaign (optionally activating it immediately)."""
+    return await _send("POST", "/campaigns/", data, tenant_slug=tenant_slug)
+
+
+async def update_campaign(
+    tenant_slug: str, campaign_id: str, data: dict[str, Any]
+) -> tuple[int, dict | list | None]:
+    """Update campaign fields; is_active=True deactivates the others."""
+    return await _send(
+        "PATCH", f"/campaigns/{campaign_id}", data, tenant_slug=tenant_slug
+    )
+
+
+async def create_milestone(
+    tenant_slug: str, campaign_id: str, data: dict[str, Any]
+) -> tuple[int, dict | list | None]:
+    """Add a goal to a campaign. Returns the updated campaign."""
+    return await _send(
+        "POST",
+        f"/campaigns/{campaign_id}/milestones/",
+        data,
+        tenant_slug=tenant_slug,
+    )
+
+
+async def update_milestone(
+    tenant_slug: str, milestone_id: str, data: dict[str, Any]
+) -> tuple[int, dict | list | None]:
+    """Edit a goal. Returns the updated campaign."""
+    return await _send(
+        "PATCH",
+        f"/campaigns/milestones/{milestone_id}",
+        data,
+        tenant_slug=tenant_slug,
+    )
+
+
+async def delete_milestone(
+    tenant_slug: str, milestone_id: str
+) -> tuple[int, dict | list | None]:
+    """Remove a goal. Returns the updated campaign."""
+    return await _send(
+        "DELETE",
+        f"/campaigns/milestones/{milestone_id}",
         tenant_slug=tenant_slug,
     )
 
