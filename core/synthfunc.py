@@ -407,12 +407,36 @@ async def set_bid_war_status(
 
 
 async def allocate_bid_war_points(
-    tenant_slug: str, bid_war_id: str, option_id: str, points: int, note: str = ""
+    tenant_slug: str,
+    bid_war_id: str,
+    option_id: str,
+    points: int | None = None,
+    note: str = "",
+    source_event_id: str | None = None,
 ) -> dict | None:
-    """Append a point allocation (negative = correction)."""
+    """Append a point allocation.
+
+    Event-sourced (source_event_id set): points come from the gift
+    batch server-side; pass negative points to reverse. Manual: points
+    required, negative = correction.
+    """
+    data: dict = {"option_id": option_id, "note": note}
+    if points is not None:
+        data["points"] = points
+    if source_event_id:
+        data["source_event_id"] = source_event_id
     return await _post(
         f"/campaigns/bidwars/{bid_war_id}/allocations/",
-        {"option_id": option_id, "points": points, "note": note},
+        data,
+        tenant_slug=tenant_slug,
+    )
+
+
+async def get_pending_gifts(tenant_slug: str, limit: int = 100) -> list | None:
+    """Gift batches awaiting bid war allocation."""
+    return await _get(
+        "/campaigns/bidwars/pending-gifts/",
+        params={"limit": limit},
         tenant_slug=tenant_slug,
     )
 

@@ -25,10 +25,17 @@ interface Allocation {
   option_name: string
   points: number
   note: string
+  source_event_id: string | null
   created_at: string
 }
 
-const QUICK_PACKS = [1, 5, 10, 25, 50, 100]
+interface PendingGift {
+  event_id: string
+  gifter: string
+  count: number
+  tier: number | null
+  timestamp: string
+}
 
 export function BidWarSection({
   channelSlug,
@@ -42,6 +49,7 @@ export function BidWarSection({
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['bidwars', channelSlug] })
     queryClient.invalidateQueries({ queryKey: ['bidwar-allocations', channelSlug] })
+    queryClient.invalidateQueries({ queryKey: ['pending-gifts', channelSlug] })
   }
 
   const { data: wars = [] } = useQuery({
@@ -99,6 +107,13 @@ function ActiveWar({
 }) {
   const leader = Math.max(...war.options.map((o) => o.total))
 
+  const { data: pendingGifts = [] } = useQuery({
+    queryKey: ['pending-gifts', channelSlug],
+    queryFn: () => api<PendingGift[]>(`/api/v1/bidwars/channels/${channelSlug}/pending-gifts/`),
+    retry: false,
+    refetchInterval: 30_000, // new gifts appear without a manual refresh
+  })
+
   const { data: allocations = [] } = useQuery({
     queryKey: ['bidwar-allocations', channelSlug, war.id],
     queryFn: () =>
@@ -107,7 +122,12 @@ function ActiveWar({
   })
 
   const allocateMutation = useMutation({
-    mutationFn: (input: { option_id: string; points: number; note: string }) =>
+    mutationFn: (input: {
+      option_id: string
+      points?: number
+      note?: string
+      source_event_id?: string
+    }) =>
       api<BidWar>(`/api/v1/bidwars/channels/${channelSlug}/${war.id}/allocations/`, {
         method: 'POST',
         body: JSON.stringify(input),
@@ -129,13 +149,12 @@ function ActiveWar({
     onError: (e: Error) => onError(e.message),
   })
 
-  const undoLast = () => {
-    const last = allocations[0]
-    if (!last) return
+  const undo = (a: Allocation) => {
     allocateMutation.mutate({
-      option_id: last.option_id,
-      points: -last.points,
-      note: `undo: ${last.note || `${last.points} to ${last.option_name}`}`,
+      option_id: a.option_id,
+      points: -a.points,
+      note: `undo: ${a.note || `${a.points} to ${a.option_name}`}`,
+      source_event_id: a.source_event_id ?? undefined,
     })
   }
 
@@ -157,40 +176,83 @@ function ActiveWar({
           war.options.length === 2 ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-3',
         )}>
         {war.options.map((option) => (
-          <OptionCard
+          <div
             key={option.id}
-            option={option}
-            isLeading={option.total === leader && leader > 0}
-            disabled={allocateMutation.isPending}
-            onAllocate={(points, note) =>
-              allocateMutation.mutate({ option_id: option.id, points, note })
-            }
-          />
+            className={cn(
+              'flex flex-col gap-1 rounded-lg border p-4',
+              option.total === leader && leader > 0
+                ? 'border-hive-accent bg-hive-accent-dim/10'
+                : 'border-hive-border bg-hive-surface',
+            )}>
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-medium text-hive-text">{option.name}</span>
+              {option.total === leader && leader > 0 && (
+                <span className="text-xs text-hive-accent">leading</span>
+              )}
+            </div>
+            <span className="font-mono text-4xl font-bold text-hive-text">{option.total}</span>
+          </div>
         ))}
       </div>
 
       <div className="flex flex-col gap-1">
-        <div className="flex items-center">
-          <h4 className="text-xs font-medium tracking-wide text-hive-muted uppercase">
-            Allocation history
-          </h4>
-          {allocations.length > 0 && (
-            <button
-              type="button"
-              onClick={undoLast}
-              disabled={allocateMutation.isPending}
-              className="ml-auto rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10 disabled:opacity-50">
-              Undo last
-            </button>
-          )}
-        </div>
+        <h4 className="text-xs font-medium tracking-wide text-hive-muted uppercase">
+          Pending gifts
+        </h4>
+        {pendingGifts.length === 0 && (
+          <p className="py-2 text-sm text-hive-muted">
+            No unallocated gift batches. New gifts land here automatically.
+          </p>
+        )}
+        {pendingGifts.map((g) => (
+          <div
+            key={g.event_id}
+            className="flex items-center gap-3 rounded border border-hive-border bg-hive-surface px-3 py-2 text-sm">
+            <span className="font-mono font-bold text-hive-text">×{g.count}</span>
+            <span className="text-hive-text">{g.gifter}</span>
+            {g.tier != null && g.tier > 1 && (
+              <span className="rounded bg-hive-border px-1.5 py-0.5 text-xs text-hive-muted">
+                T{g.tier}
+              </span>
+            )}
+            <span className="text-xs text-hive-muted">
+              {new Date(g.timestamp).toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+            <div className="ml-auto flex gap-1.5">
+              {war.options.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={allocateMutation.isPending}
+                  onClick={() =>
+                    allocateMutation.mutate({
+                      option_id: option.id,
+                      source_event_id: g.event_id,
+                    })
+                  }
+                  className="rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
+                  → {option.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <h4 className="text-xs font-medium tracking-wide text-hive-muted uppercase">
+          Allocation history
+        </h4>
         {allocations.length === 0 && (
-          <p className="py-3 text-center text-sm text-hive-muted">No allocations yet.</p>
+          <p className="py-2 text-center text-sm text-hive-muted">No allocations yet.</p>
         )}
         {allocations.map((a) => (
           <div
             key={a.id}
-            className="flex items-center gap-3 rounded px-3 py-1.5 text-sm hover:bg-hive-surface">
+            className="group flex items-center gap-3 rounded px-3 py-1.5 text-sm hover:bg-hive-surface">
             <span
               className={cn(
                 'w-14 text-right font-mono',
@@ -206,85 +268,88 @@ function ActiveWar({
                 minute: '2-digit',
               })}
             </span>
+            {a.points > 0 && (
+              <button
+                type="button"
+                disabled={allocateMutation.isPending}
+                onClick={() => undo(a)}
+                className="shrink-0 rounded px-2 py-0.5 text-xs text-red-400 opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50">
+                undo
+              </button>
+            )}
           </div>
         ))}
       </div>
+
+      <ManualAdjustment
+        options={war.options}
+        disabled={allocateMutation.isPending}
+        onAllocate={(optionId, points, note) =>
+          allocateMutation.mutate({ option_id: optionId, points, note })
+        }
+      />
     </div>
   )
 }
 
-function OptionCard({
-  option,
-  isLeading,
+function ManualAdjustment({
+  options,
   disabled,
   onAllocate,
 }: {
-  option: BidWarOption
-  isLeading: boolean
+  options: BidWarOption[]
   disabled: boolean
-  onAllocate: (points: number, note: string) => void
+  onAllocate: (optionId: string, points: number, note: string) => void
 }) {
-  const [custom, setCustom] = useState('')
+  const [optionId, setOptionId] = useState(options[0]?.id ?? '')
+  const [points, setPoints] = useState('')
   const [note, setNote] = useState('')
 
-  const submit = (points: number) => {
-    if (!points || Number.isNaN(points)) return
-    onAllocate(points, note.trim())
-    setCustom('')
-    setNote('')
-  }
+  const parsed = parseInt(points, 10)
 
   return (
-    <div
-      className={cn(
-        'flex flex-col gap-3 rounded-lg border p-4',
-        isLeading
-          ? 'border-hive-accent bg-hive-accent-dim/10'
-          : 'border-hive-border bg-hive-surface',
-      )}>
-      <div className="flex items-baseline gap-2">
-        <span className="text-sm font-medium text-hive-text">{option.name}</span>
-        {isLeading && <span className="text-xs text-hive-accent">leading</span>}
-      </div>
-      <span className="font-mono text-4xl font-bold text-hive-text">{option.total}</span>
-
-      <div className="flex flex-wrap gap-1.5">
-        {QUICK_PACKS.map((n) => (
-          <button
-            key={n}
-            type="button"
-            disabled={disabled}
-            onClick={() => submit(n)}
-            className="rounded bg-hive-border px-2.5 py-1 font-mono text-xs text-hive-text transition-colors hover:bg-hive-accent-dim hover:text-white disabled:opacity-50">
-            +{n}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-1.5">
+    <details className="rounded border border-hive-border">
+      <summary className="cursor-pointer px-3 py-2 text-xs text-hive-muted select-none">
+        Manual adjustment (for gifts outside the queue)
+      </summary>
+      <div className="flex gap-1.5 border-t border-hive-border p-3">
+        <select
+          value={optionId}
+          onChange={(e) => setOptionId(e.target.value)}
+          className="rounded border border-hive-border bg-hive-dark px-2 py-1 text-xs text-hive-text focus:border-hive-accent focus:outline-none">
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
         <input
           type="number"
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-          placeholder="custom"
-          className="w-20 rounded border border-hive-border bg-hive-dark px-2 py-1 font-mono text-xs text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+          value={points}
+          onChange={(e) => setPoints(e.target.value)}
+          placeholder="points (± allowed)"
+          className="w-32 rounded border border-hive-border bg-hive-dark px-2 py-1 font-mono text-xs text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
         />
         <input
           type="text"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="note (e.g. gifter name)"
+          placeholder="note"
           className="min-w-0 flex-1 rounded border border-hive-border bg-hive-dark px-2 py-1 text-xs text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
         />
         <button
           type="button"
-          disabled={disabled || !custom}
-          onClick={() => submit(parseInt(custom, 10))}
+          disabled={disabled || !parsed || !optionId}
+          onClick={() => {
+            onAllocate(optionId, parsed, note.trim())
+            setPoints('')
+            setNote('')
+          }}
           className="shrink-0 rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
           Add
         </button>
       </div>
-    </div>
+    </details>
   )
 }
 

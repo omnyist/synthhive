@@ -730,8 +730,9 @@ class BidWarCreateSchema(Schema):
 
 class BidWarAllocateSchema(Schema):
     option_id: str
-    points: int
+    points: int | None = None
     note: str = ""
+    source_event_id: str | None = None
 
 
 class BidWarStatusSchema(Schema):
@@ -800,15 +801,16 @@ async def allocate_bid_war_api(
 
     from .synthfunc import allocate_bid_war_points
 
-    if data.points == 0:
+    if data.points == 0 and not data.source_event_id:
         raise HttpError(422, "Points must be non-zero.")
 
     war = await allocate_bid_war_points(
         channel.twitch_channel_name,
         bid_war_id,
         data.option_id,
-        data.points,
-        data.note,
+        points=data.points,
+        note=data.note,
+        source_event_id=data.source_event_id,
     )
     if war is None:
         raise HttpError(502, "Could not record allocation.")
@@ -857,3 +859,14 @@ async def gift_leaderboard_api(request, channel_slug: str, limit: int = 10):
         channel.twitch_channel_name, limit=min(limit, 50)
     )
     return leaderboard or []
+
+
+@v1_router.get("/bidwars/channels/{channel_slug}/pending-gifts/")
+async def pending_gifts_api(request, channel_slug: str):
+    """Gift batches awaiting allocation on the active campaign."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import get_pending_gifts
+
+    gifts = await get_pending_gifts(channel.twitch_channel_name)
+    return gifts or []
