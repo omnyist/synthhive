@@ -262,21 +262,23 @@ function ActiveWar({
             </span>
             <span className="text-hive-text">{a.option_name}</span>
             {a.note && <span className="truncate text-xs text-hive-muted">{a.note}</span>}
-            <span className="ml-auto shrink-0 text-xs text-hive-muted">
+            <span className="ml-auto w-16 shrink-0 text-right text-xs text-hive-muted">
               {new Date(a.created_at).toLocaleTimeString(undefined, {
                 hour: '2-digit',
                 minute: '2-digit',
               })}
             </span>
-            {a.points > 0 && (
-              <button
-                type="button"
-                disabled={allocateMutation.isPending}
-                onClick={() => undo(a)}
-                className="shrink-0 rounded px-2 py-0.5 text-xs text-red-400 opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50">
-                undo
-              </button>
-            )}
+            <span className="w-12 shrink-0 text-right">
+              {a.points > 0 && (
+                <button
+                  type="button"
+                  disabled={allocateMutation.isPending}
+                  onClick={() => undo(a)}
+                  className="rounded px-2 py-0.5 text-xs text-red-400 opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50">
+                  undo
+                </button>
+              )}
+            </span>
           </div>
         ))}
       </div>
