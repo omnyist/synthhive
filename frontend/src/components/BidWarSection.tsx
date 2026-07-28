@@ -111,7 +111,7 @@ function ActiveWar({
     queryKey: ['pending-gifts', channelSlug],
     queryFn: () => api<PendingGift[]>(`/api/v1/bidwars/channels/${channelSlug}/pending-gifts/`),
     retry: false,
-    refetchInterval: 30_000, // new gifts appear without a manual refresh
+    refetchInterval: 120_000, // slow backstop — SSE drives freshness
   })
 
   const { data: allocations = [] } = useQuery({

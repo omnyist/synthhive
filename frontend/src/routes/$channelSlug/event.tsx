@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { BidWarSection } from '@/components/BidWarSection'
 import { api } from '@/lib/api'
+import { useCampaignStream } from '@/lib/useCampaignStream'
 import { cn } from '@/lib/utils'
 
 interface Milestone {
@@ -46,6 +47,8 @@ export const Route = createFileRoute('/$channelSlug/event')({
 function EventPage() {
   const { channelSlug } = Route.useParams()
   const [error, setError] = useState<string | null>(null)
+
+  useCampaignStream(channelSlug)
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ['campaign', channelSlug],
