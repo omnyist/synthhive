@@ -91,3 +91,28 @@ class TestStreamGenerator:
             assert chunk.startswith("data: ")
             assert "campaign:bidwar" in chunk
             await gen.aclose()
+
+
+class TestOverlayStream:
+    """Key-authed SSE variant for OBS browser sources."""
+
+    async def test_wrong_key_403(self, channel):
+        from django.test import AsyncClient
+
+        client = AsyncClient()
+        response = await client.get(
+            f"/api/v1/overlay/channels/{channel.twitch_channel_name}/stream",
+            {"key": "00000000-0000-0000-0000-000000000000"},
+        )
+        assert response.status_code == 403
+
+    async def test_valid_key_streams(self, channel):
+        from django.test import AsyncClient
+
+        client = AsyncClient()
+        response = await client.get(
+            f"/api/v1/overlay/channels/{channel.twitch_channel_name}/stream",
+            {"key": str(channel.overlay_key)},
+        )
+        assert response.status_code == 200
+        assert response["Content-Type"] == "text/event-stream"

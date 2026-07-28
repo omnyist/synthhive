@@ -1,5 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { createRootRoute, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
+import {
+  createRootRoute,
+  Link,
+  Outlet,
+  useMatchRoute,
+  useRouterState,
+} from '@tanstack/react-router'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +29,18 @@ export const Route = createRootRoute({
 })
 
 function RootLayout() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+
+  // Overlay routes are OBS browser sources: no session, no chrome —
+  // and crucially no /me query, whose 401 would bounce OBS to OAuth.
+  if (pathname.startsWith('/overlay/')) {
+    return <Outlet />
+  }
+
+  return <DashboardLayout />
+}
+
+function DashboardLayout() {
   const { data: user } = useQuery<MeResponse>({
     queryKey: ['me'],
     queryFn: () => api<MeResponse>('/api/v1/me'),

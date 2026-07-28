@@ -878,3 +878,64 @@ class TestCampaignCrudProxies:
     def test_unauthed_401(self, unauthed_client, test_channel):
         response = unauthed_client.get("/api/v1/campaigns/channels/testchannel/")
         assert response.status_code == 401
+
+
+class TestOverlayEndpoints:
+    """Overlay endpoints are gated by the channel's overlay key —
+    capability-URL auth for OBS browser sources, no session."""
+
+    @staticmethod
+    def _stub(monkeypatch, name, result):
+        async def fake(*args, **kwargs):
+            return result
+
+        import core.synthfunc
+
+        monkeypatch.setattr(core.synthfunc, name, fake)
+
+    def test_valid_key_serves_campaign(self, unauthed_client, test_channel, monkeypatch):
+        self._stub(monkeypatch, "get_active_campaign", {"name": "Awesome August 2026"})
+        response = unauthed_client.get(
+            f"/api/v1/overlay/channels/testchannel/campaign/?key={test_channel.overlay_key}"
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == "Awesome August 2026"
+
+    def test_wrong_key_403(self, unauthed_client, test_channel):
+        response = unauthed_client.get(
+            "/api/v1/overlay/channels/testchannel/campaign/?key=00000000-0000-0000-0000-000000000000"
+        )
+        assert response.status_code == 403
+
+    def test_missing_key_403(self, unauthed_client, test_channel):
+        response = unauthed_client.get("/api/v1/overlay/channels/testchannel/campaign/")
+        assert response.status_code == 403
+
+    def test_bidwars_with_key(self, unauthed_client, test_channel, monkeypatch):
+        self._stub(monkeypatch, "get_bid_wars", [{"title": "Fire vs Ice"}])
+        response = unauthed_client.get(
+            f"/api/v1/overlay/channels/testchannel/bidwars/?key={test_channel.overlay_key}"
+        )
+        assert response.status_code == 200
+        assert response.json()[0]["title"] == "Fire vs Ice"
+
+    def test_urls_requires_session(self, unauthed_client, test_channel):
+        response = unauthed_client.get("/api/v1/overlay/channels/testchannel/urls/")
+        assert response.status_code == 401
+
+    def test_urls_returns_key_and_widgets(self, authed_client, test_channel):
+        response = authed_client.get("/api/v1/overlay/channels/testchannel/urls/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["overlay_key"] == str(test_channel.overlay_key)
+        assert any("goals" in w["path"] for w in data["widgets"])
+        assert all(data["overlay_key"] in w["path"] for w in data["widgets"])
+
+    def test_channels_get_distinct_keys(self, test_bot, test_channel):
+        other = Channel.objects.create(
+            bot=test_bot,
+            twitch_channel_id="88888",
+            twitch_channel_name="otherchannel",
+            is_active=True,
+        )
+        assert other.overlay_key != test_channel.overlay_key

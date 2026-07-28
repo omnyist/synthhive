@@ -12,6 +12,7 @@ itself.
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 
@@ -50,6 +51,33 @@ async def campaign_stream(request: HttpRequest, channel_slug: str):
     )()
     if channel is None:
         return JsonResponse({"detail": "Channel not found"}, status=404)
+
+    response = StreamingHttpResponse(
+        _event_generator(channel_slug),
+        content_type="text/event-stream",
+    )
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response
+
+
+async def overlay_stream(request: HttpRequest, channel_slug: str):
+    """SSE stream of campaign events, gated by the channel's overlay
+    key instead of a session — for OBS browser-source widgets."""
+    from .models import Channel
+
+    key = request.GET.get("key", "")
+    channel = await sync_to_async(
+        Channel.objects.filter(
+            twitch_channel_name=channel_slug, is_active=True
+        ).first
+    )()
+    if (
+        channel is None
+        or not key
+        or not hmac.compare_digest(str(channel.overlay_key), key.lower())
+    ):
+        return JsonResponse({"detail": "Invalid overlay key."}, status=403)
 
     response = StreamingHttpResponse(
         _event_generator(channel_slug),

@@ -12,6 +12,7 @@ from ninja import NinjaAPI
 
 from core.api_v1 import v1_router
 from core.event_stream import campaign_stream
+from core.event_stream import overlay_stream
 from synthhive.health import health_check
 
 api = NinjaAPI(urls_namespace="main")
@@ -23,6 +24,11 @@ urlpatterns = [
         "api/v1/events/channels/<slug:channel_slug>/stream",
         campaign_stream,
         name="campaign_stream",
+    ),
+    path(
+        "api/v1/overlay/channels/<slug:channel_slug>/stream",
+        overlay_stream,
+        name="overlay_stream",
     ),
     path("api/", api.urls),
     path("health/", health_check),

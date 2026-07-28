@@ -9,6 +9,7 @@ import {
   MilestoneFields,
   useGoalMutations,
 } from '@/components/EventEditor'
+import { OverlayUrls } from '@/components/OverlayUrls'
 import { api } from '@/lib/api'
 import { useCampaignStream } from '@/lib/useCampaignStream'
 import { cn } from '@/lib/utils'
@@ -220,6 +221,8 @@ function EventPage() {
           ))}
         </div>
       )}
+
+      <OverlayUrls channelSlug={channelSlug} />
     </div>
   )
 }

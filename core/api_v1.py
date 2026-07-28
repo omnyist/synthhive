@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import re
 import uuid
 from datetime import datetime
@@ -1024,3 +1025,78 @@ async def delete_milestone_api(request, channel_slug: str, milestone_id: str):
         channel.twitch_channel_name, milestone_id
     )
     return _relay(status, body)
+
+
+# --- Overlay (capability-URL auth for OBS browser sources) ---
+#
+# These endpoints are read-only mirrors of the campaign data, gated by
+# the channel's overlay_key instead of a dashboard session — a browser
+# source can't (and shouldn't) hold a login. Everything served here is
+# already public in chat: goal progress, war standings, gifter names.
+
+
+async def _get_overlay_channel(channel_slug: str, key: str) -> Channel:
+    """Resolve a channel by slug + overlay key, or 403."""
+    channel = await sync_to_async(
+        Channel.objects.filter(
+            twitch_channel_name=channel_slug, is_active=True
+        ).first
+    )()
+    if (
+        channel is None
+        or not key
+        or not hmac.compare_digest(str(channel.overlay_key), key.lower())
+    ):
+        raise HttpError(403, "Invalid overlay key.")
+    return channel
+
+
+@v1_router.get("/overlay/channels/{channel_slug}/campaign/")
+async def overlay_campaign_api(request, channel_slug: str, key: str = ""):
+    """The active campaign for overlay widgets, or null."""
+    channel = await _get_overlay_channel(channel_slug, key)
+
+    from .synthfunc import get_active_campaign
+
+    return await get_active_campaign(channel.twitch_channel_name)
+
+
+@v1_router.get("/overlay/channels/{channel_slug}/bidwars/")
+async def overlay_bid_wars_api(request, channel_slug: str, key: str = ""):
+    """Bid wars on the active campaign, for overlay widgets."""
+    channel = await _get_overlay_channel(channel_slug, key)
+
+    from .synthfunc import get_bid_wars
+
+    wars = await get_bid_wars(channel.twitch_channel_name)
+    return wars or []
+
+
+@v1_router.get("/overlay/channels/{channel_slug}/gifters/")
+async def overlay_gifters_api(request, channel_slug: str, key: str = "", limit: int = 5):
+    """Top gifters on the active campaign, for overlay widgets."""
+    channel = await _get_overlay_channel(channel_slug, key)
+
+    from .synthfunc import get_gift_leaderboard
+
+    leaderboard = await get_gift_leaderboard(
+        channel.twitch_channel_name, limit=min(limit, 25)
+    )
+    return leaderboard or []
+
+
+@v1_router.get("/overlay/channels/{channel_slug}/urls/")
+async def overlay_urls_api(request, channel_slug: str):
+    """The channel's overlay key and widget paths (session auth — this
+    is where the owner copies their OBS browser-source URLs from)."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    key = str(channel.overlay_key)
+    slug = channel.twitch_channel_name
+    return {
+        "overlay_key": key,
+        "widgets": [
+            {"name": "Goals", "path": f"/overlay/{slug}/goals?key={key}"},
+            {"name": "Bid war", "path": f"/overlay/{slug}/bidwar?key={key}"},
+        ],
+    }

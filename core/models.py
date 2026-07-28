@@ -151,6 +151,11 @@ class Channel(models.Model):
     is_active = models.BooleanField(default=True)
     joined_at = models.DateTimeField(default=timezone.now)
 
+    # Capability token for OBS overlay URLs — grants read-only access to
+    # campaign data without a dashboard session. Rotate by assigning a
+    # new uuid4 if a URL ever leaks on stream.
+    overlay_key = models.UUIDField(default=uuid.uuid4)
+
     class Meta:
         unique_together = ["bot", "twitch_channel_id"]
 
