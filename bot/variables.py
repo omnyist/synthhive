@@ -504,6 +504,46 @@ class VariableRegistry:
         return descriptors
 
 
+class BidwarHandler(VariableHandler):
+    """$(bidwar) — live standings of the active bid war."""
+
+    namespace = "bidwar"
+
+    async def resolve(self, prop, args, context):
+        from asgiref.sync import sync_to_async
+
+        from core.models import Channel
+        from core.synthfunc import get_bid_wars
+
+        try:
+            channel = await sync_to_async(Channel.objects.get)(
+                twitch_channel_id=context.broadcaster_id, is_active=True
+            )
+        except Channel.DoesNotExist:
+            return ""
+
+        wars = await get_bid_wars(channel.twitch_channel_name, status="open")
+        if not wars:
+            return "No bid war running right now."
+
+        war = wars[0]
+        standings = " vs ".join(
+            f"{o['name']} {o['total']}" for o in war.get("options", [])
+        )
+        return f"{war['title']}: {standings}"
+
+    def describe(self):
+        return [
+            VariableDescriptor(
+                namespace="bidwar",
+                property=None,
+                args_hint=None,
+                description="Live standings of the active bid war",
+                example="$(bidwar)",
+            )
+        ]
+
+
 def create_registry() -> VariableRegistry:
     """Create and populate the default variable registry."""
     registry = VariableRegistry()
@@ -517,4 +557,5 @@ def create_registry() -> VariableRegistry:
     registry.register(GameHandler())
     registry.register(QueryHandler())
     registry.register(IndexHandler())
+    registry.register(BidwarHandler())
     return registry

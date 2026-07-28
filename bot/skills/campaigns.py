@@ -44,8 +44,9 @@ class CampaignHandler(SkillHandler):
         total_resubs = metric.get("total_resubs", 0)
 
         milestones = campaign.get("milestones", [])
-        unlocked = sum(1 for m in milestones if m.get("is_unlocked"))
-        total_milestones = len(milestones)
+        core = [m for m in milestones if not m.get("is_stretch")]
+        unlocked = sum(1 for m in core if m.get("is_unlocked"))
+        total_milestones = len(core)
 
         parts = [f"{name}: {total_subs} subs, {total_resubs} resubs"]
         if total_milestones > 0:
@@ -139,7 +140,10 @@ class MilestonesHandler(SkillHandler):
         parts = []
         for m in milestones:
             icon = "+" if m.get("is_unlocked") else "-"
-            parts.append(f"[{icon}] {m['title']} ({m['threshold']})")
+            threshold = m["threshold"]
+            unit = " pts" if m.get("goal_unit") == "sub_points" else ""
+            stretch = " ★stretch" if m.get("is_stretch") else ""
+            parts.append(f"[{icon}] {m['title']} ({threshold}{unit}{stretch})")
 
         await send_reply(
             payload, " ".join(parts), bot_id=bot.bot_id
@@ -190,11 +194,12 @@ class NextGoalHandler(SkillHandler):
             return
 
         milestones = campaign.get("milestones", [])
-        next_milestone = None
-        for m in milestones:
-            if not m.get("is_unlocked"):
-                next_milestone = m
-                break
+        locked = [m for m in milestones if not m.get("is_unlocked")]
+        # Stretch goals only become "next" once every core goal is done.
+        next_milestone = next(
+            (m for m in locked if not m.get("is_stretch")),
+            locked[0] if locked else None,
+        )
 
         if not next_milestone:
             await send_reply(
@@ -202,9 +207,12 @@ class NextGoalHandler(SkillHandler):
             )
             return
 
+        unit = " sub points" if next_milestone.get("goal_unit") == "sub_points" else ""
+        stretch = " (stretch)" if next_milestone.get("is_stretch") else ""
         await send_reply(
             payload,
-            f"Next goal: {next_milestone['title']} at {next_milestone['threshold']}",
+            f"Next goal: {next_milestone['title']} at "
+            f"{next_milestone['threshold']}{unit}{stretch}",
             bot_id=bot.bot_id,
         )
 
@@ -229,11 +237,16 @@ class ProgressHandler(SkillHandler):
         total_bits = metric.get("total_bits", 0)
 
         milestones = campaign.get("milestones", [])
-        unlocked = sum(1 for m in milestones if m.get("is_unlocked"))
-        total = len(milestones)
+        core = [m for m in milestones if not m.get("is_stretch")]
+        stretch = [m for m in milestones if m.get("is_stretch")]
+        unlocked = sum(1 for m in core if m.get("is_unlocked"))
+        total = len(core)
         pct = int(unlocked / total * 100) if total > 0 else 0
 
         parts = [f"Progress: {pct}% ({unlocked}/{total} milestones)"]
+        if stretch:
+            s_unlocked = sum(1 for m in stretch if m.get("is_unlocked"))
+            parts.append(f"stretch {s_unlocked}/{len(stretch)}")
         parts.append(f"{total_subs} subs, {total_resubs} resubs")
         if total_bits > 0:
             parts.append(f"{total_bits:,} bits")

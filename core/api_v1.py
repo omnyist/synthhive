@@ -718,3 +718,115 @@ async def delete_invite(request, invite_id: uuid.UUID):
 
     await sync_to_async(invite.delete)()
     return {"success": True}
+
+
+# --- Bid wars (proxied to Synthfunc; session-auth, channel-scoped) ---
+
+
+class BidWarCreateSchema(Schema):
+    title: str
+    options: list[str]
+
+
+class BidWarAllocateSchema(Schema):
+    option_id: str
+    points: int
+    note: str = ""
+
+
+class BidWarStatusSchema(Schema):
+    status: str
+
+
+@v1_router.get("/bidwars/channels/{channel_slug}/")
+async def list_bid_wars_api(request, channel_slug: str, status: str | None = None):
+    """List bid wars on the channel's active campaign."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import get_bid_wars
+
+    wars = await get_bid_wars(channel.twitch_channel_name, status=status)
+    if wars is None:
+        raise HttpError(502, "Synthfunc unavailable or no active campaign.")
+    return wars
+
+
+@v1_router.post("/bidwars/channels/{channel_slug}/")
+async def create_bid_war_api(
+    request, channel_slug: str, data: BidWarCreateSchema
+):
+    """Create a bid war on the channel's active campaign."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import create_bid_war
+
+    if len([o for o in data.options if o.strip()]) < 2:
+        raise HttpError(422, "A bid war needs at least two options.")
+
+    war = await create_bid_war(
+        channel.twitch_channel_name, data.title, data.options
+    )
+    if war is None:
+        raise HttpError(502, "Could not create bid war (no active campaign?).")
+    return war
+
+
+@v1_router.patch("/bidwars/channels/{channel_slug}/{bid_war_id}/")
+async def update_bid_war_api(
+    request, channel_slug: str, bid_war_id: str, data: BidWarStatusSchema
+):
+    """Open or close a bid war."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import set_bid_war_status
+
+    if data.status not in ("open", "closed"):
+        raise HttpError(422, "Status must be 'open' or 'closed'.")
+
+    war = await set_bid_war_status(
+        channel.twitch_channel_name, bid_war_id, data.status
+    )
+    if war is None:
+        raise HttpError(502, "Could not update bid war.")
+    return war
+
+
+@v1_router.post("/bidwars/channels/{channel_slug}/{bid_war_id}/allocations/")
+async def allocate_bid_war_api(
+    request, channel_slug: str, bid_war_id: str, data: BidWarAllocateSchema
+):
+    """Allocate points to an option (negative points = correction)."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import allocate_bid_war_points
+
+    if data.points == 0:
+        raise HttpError(422, "Points must be non-zero.")
+
+    war = await allocate_bid_war_points(
+        channel.twitch_channel_name,
+        bid_war_id,
+        data.option_id,
+        data.points,
+        data.note,
+    )
+    if war is None:
+        raise HttpError(502, "Could not record allocation.")
+    return war
+
+
+@v1_router.get("/bidwars/channels/{channel_slug}/{bid_war_id}/allocations/")
+async def bid_war_allocations_api(
+    request, channel_slug: str, bid_war_id: str, limit: int = 50
+):
+    """Most-recent-first allocation history."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import get_bid_war_allocations
+
+    rows = await get_bid_war_allocations(
+        channel.twitch_channel_name, bid_war_id, limit=limit
+    )
+    if rows is None:
+        raise HttpError(502, "Could not fetch allocations.")
+    return rows

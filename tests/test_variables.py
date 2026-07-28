@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -21,11 +20,8 @@ from bot.variables import TargetHandler
 from bot.variables import UptimeHandler
 from bot.variables import UserHandler
 from bot.variables import UsesHandler
-from bot.variables import VariableContext
-from bot.variables import VariableRegistry
 from bot.variables import create_registry
 from bot.variables import format_uptime
-
 
 # --- Regex pattern tests ---
 
@@ -577,3 +573,38 @@ class TestRegistrySchema:
             assert "namespace" in entry
             assert "description" in entry
             assert "example" in entry
+
+
+class TestBidwarVariable:
+    @pytest.mark.django_db(transaction=True)
+    async def test_standings(self, channel, registry, variable_context):
+        from unittest.mock import AsyncMock
+        from unittest.mock import patch
+
+        wars = [{
+            "title": "Fire vs Ice",
+            "options": [
+                {"name": "Fire", "total": 30},
+                {"name": "Ice", "total": 10},
+            ],
+        }]
+        with patch(
+            "core.synthfunc.get_bid_wars",
+            new_callable=AsyncMock,
+            return_value=wars,
+        ):
+            result = await registry.process("$(bidwar)", variable_context)
+        assert result == "Fire vs Ice: Fire 30 vs Ice 10"
+
+    @pytest.mark.django_db(transaction=True)
+    async def test_no_active_war(self, channel, registry, variable_context):
+        from unittest.mock import AsyncMock
+        from unittest.mock import patch
+
+        with patch(
+            "core.synthfunc.get_bid_wars",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            result = await registry.process("$(bidwar)", variable_context)
+        assert result == "No bid war running right now."

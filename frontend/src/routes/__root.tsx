@@ -55,6 +55,9 @@ function Sidebar({ user }: { user: MeResponse }) {
   const isAliases = currentChannel
     ? matchRoute({ to: '/$channelSlug/aliases', params: { channelSlug: currentChannel.name } })
     : false
+  const isBidWars = currentChannel
+    ? matchRoute({ to: '/$channelSlug/bidwars', params: { channelSlug: currentChannel.name } })
+    : false
   const isInvites = matchRoute({ to: '/invites' })
 
   return (
@@ -97,6 +100,17 @@ function Sidebar({ user }: { user: MeResponse }) {
                   : 'text-hive-muted hover:text-hive-text',
               )}>
               Aliases
+            </Link>
+            <Link
+              to="/$channelSlug/bidwars"
+              params={{ channelSlug: currentChannel.name }}
+              className={cn(
+                'rounded px-3 py-1.5 text-sm transition-colors',
+                isBidWars
+                  ? 'bg-hive-accent-dim/20 text-hive-text'
+                  : 'text-hive-muted hover:text-hive-text',
+              )}>
+              Bid Wars
             </Link>
           </>
         )}

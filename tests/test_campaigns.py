@@ -122,3 +122,97 @@ class TestCampaignHandler:
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Anniversary: 120 subs, 45 resubs" in msg
         assert "2/3 milestones unlocked" in msg
+
+
+class TestStretchGoals:
+    def _campaign(self):
+        return {
+            "name": "Awesome August",
+            "metric": {"total_subs": 120, "total_resubs": 45, "total_bits": 0},
+            "milestones": [
+                {"title": "Demon's Souls", "threshold": 500,
+                 "is_unlocked": True, "goal_unit": "subs", "is_stretch": False},
+                {"title": "FF1", "threshold": 1000,
+                 "is_unlocked": False, "goal_unit": "subs", "is_stretch": False},
+                {"title": "Baiten Kaitos 100%", "threshold": 5000,
+                 "is_unlocked": False, "goal_unit": "sub_points",
+                 "is_stretch": True},
+            ],
+        }
+
+    async def test_progress_excludes_stretch_from_accounting(self):
+        from bot.skills.campaigns import ProgressHandler
+
+        payload = MockPayload(text="!progress")
+        with patch(
+            "bot.skills.campaigns.get_active_campaign",
+            new_callable=AsyncMock,
+            return_value=self._campaign(),
+        ):
+            await ProgressHandler().handle(payload, "", _make_skill(), _make_bot())
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        # 1 of 2 core goals — NOT 1 of 3.
+        assert "50% (1/2 milestones)" in msg
+        assert "stretch 0/1" in msg
+
+    async def test_campaign_counts_exclude_stretch(self):
+        payload = MockPayload(text="!campaign")
+        with patch(
+            "bot.skills.campaigns.get_active_campaign",
+            new_callable=AsyncMock,
+            return_value=self._campaign(),
+        ):
+            await CampaignHandler().handle(payload, "", _make_skill(), _make_bot())
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "1/2 milestones unlocked" in msg
+
+    async def test_nextgoal_skips_stretch(self):
+        from bot.skills.campaigns import NextGoalHandler
+
+        payload = MockPayload(text="!nextgoal")
+        with patch(
+            "bot.skills.campaigns.get_active_campaign",
+            new_callable=AsyncMock,
+            return_value=self._campaign(),
+        ):
+            await NextGoalHandler().handle(payload, "", _make_skill(), _make_bot())
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "FF1" in msg  # not the stretch goal
+
+    async def test_nextgoal_falls_back_to_stretch_when_core_done(self):
+        from bot.skills.campaigns import NextGoalHandler
+
+        campaign = self._campaign()
+        for m in campaign["milestones"]:
+            if not m["is_stretch"]:
+                m["is_unlocked"] = True
+
+        payload = MockPayload(text="!nextgoal")
+        with patch(
+            "bot.skills.campaigns.get_active_campaign",
+            new_callable=AsyncMock,
+            return_value=campaign,
+        ):
+            await NextGoalHandler().handle(payload, "", _make_skill(), _make_bot())
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "Baiten Kaitos" in msg
+        assert "sub points (stretch)" in msg
+
+    async def test_milestones_marks_stretch_and_units(self):
+        from bot.skills.campaigns import MilestonesHandler
+
+        payload = MockPayload(text="!milestones")
+        with patch(
+            "bot.skills.campaigns.get_active_campaign",
+            new_callable=AsyncMock,
+            return_value=self._campaign(),
+        ):
+            await MilestonesHandler().handle(payload, "", _make_skill(), _make_bot())
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "(5000 pts ★stretch)" in msg
+        assert "(1000)" in msg

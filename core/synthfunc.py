@@ -344,6 +344,90 @@ async def get_stream_status(tenant_slug: str) -> dict | None:
 # --- Tokens ---
 
 
+async def _patch(
+    path: str, data: dict[str, Any], tenant_slug: str | None = None
+) -> dict | None:
+    """Make a PATCH request to Synthfunc."""
+    url_path = f"/{tenant_slug}{path}" if tenant_slug else path
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(
+                f"{settings.SYNTHFUNC_API_URL}{url_path}",
+                headers=_headers(),
+                json=data,
+                timeout=10.0,
+            )
+
+        _mark_recovered()
+
+        if response.status_code != 200:
+            logger.error(
+                "Synthfunc PATCH %s failed: %s %s",
+                url_path,
+                response.status_code,
+                response.text,
+            )
+            return None
+
+        return response.json()
+
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        _mark_down(exc, url_path)
+        return None
+
+
+async def get_bid_wars(
+    tenant_slug: str, status: str | None = None
+) -> list | None:
+    """List bid wars on the tenant's active campaign."""
+    params = {"status": status} if status else None
+    return await _get("/campaigns/bidwars/", params=params, tenant_slug=tenant_slug)
+
+
+async def create_bid_war(
+    tenant_slug: str, title: str, options: list[str]
+) -> dict | None:
+    """Create a bid war with its options on the active campaign."""
+    return await _post(
+        "/campaigns/bidwars/",
+        {"title": title, "options": options},
+        tenant_slug=tenant_slug,
+    )
+
+
+async def set_bid_war_status(
+    tenant_slug: str, bid_war_id: str, status: str
+) -> dict | None:
+    """Open or close a bid war."""
+    return await _patch(
+        f"/campaigns/bidwars/{bid_war_id}",
+        {"status": status},
+        tenant_slug=tenant_slug,
+    )
+
+
+async def allocate_bid_war_points(
+    tenant_slug: str, bid_war_id: str, option_id: str, points: int, note: str = ""
+) -> dict | None:
+    """Append a point allocation (negative = correction)."""
+    return await _post(
+        f"/campaigns/bidwars/{bid_war_id}/allocations/",
+        {"option_id": option_id, "points": points, "note": note},
+        tenant_slug=tenant_slug,
+    )
+
+
+async def get_bid_war_allocations(
+    tenant_slug: str, bid_war_id: str, limit: int = 50
+) -> list | None:
+    """Most-recent-first allocation history."""
+    return await _get(
+        f"/campaigns/bidwars/{bid_war_id}/allocations/",
+        params={"limit": limit},
+        tenant_slug=tenant_slug,
+    )
+
+
 async def ensure_tenant(
     slug: str,
     name: str,
