@@ -2,8 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { BidWarSection } from '@/components/BidWarSection'
-import type { Campaign, CampaignSummary, Metric, Milestone } from '@/components/EventEditor'
-import { EventEditor } from '@/components/EventEditor'
+import type { Campaign, CampaignSummary, Milestone } from '@/components/EventEditor'
+import {
+  AddMilestoneRow,
+  EventEditor,
+  MilestoneFields,
+  useGoalMutations,
+} from '@/components/EventEditor'
 import { api } from '@/lib/api'
 import { useCampaignStream } from '@/lib/useCampaignStream'
 import { cn } from '@/lib/utils'
@@ -30,14 +35,15 @@ function EventPage() {
 
   useCampaignStream(channelSlug)
 
-  const { data: campaigns = [], isLoading: listLoading } = useQuery({
+  const { data: campaignList = [], isLoading: listLoading } = useQuery({
     queryKey: ['campaigns', channelSlug],
     queryFn: () => api<CampaignSummary[]>(`/api/v1/campaigns/channels/${channelSlug}/`),
     retry: false,
   })
 
+  const campaigns = [...campaignList].sort((a, b) => b.start_date.localeCompare(a.start_date))
   const activeId = campaigns.find((c) => c.is_active)?.id ?? null
-  const viewingId = selectedId ?? activeId
+  const viewingId = selectedId ?? activeId ?? campaigns[0]?.id ?? null
 
   const { data: campaign, isLoading: detailLoading } = useQuery({
     queryKey: ['campaign', channelSlug, viewingId],
@@ -67,7 +73,18 @@ function EventPage() {
     )
   }
 
-  const isPast = !!campaign && !campaign.is_active
+  // A non-active event is "past" once its window has closed and
+  // "upcoming" before it opens; goals stay editable until it ends.
+  const now = new Date().toISOString()
+  const isEnded = !!campaign && !campaign.is_active && campaign.end_date < now
+  const isUpcoming = !!campaign && !campaign.is_active && campaign.start_date > now
+  const statusLabel = campaign?.is_active
+    ? null
+    : isEnded
+      ? 'past event'
+      : isUpcoming
+        ? 'upcoming'
+        : 'inactive'
 
   const header = (
     <div className="flex items-center gap-2">
@@ -129,11 +146,11 @@ function EventPage() {
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-2">
           <p className="text-sm text-hive-text">
-            {campaigns.length > 0 ? 'No active event.' : 'No events yet.'}
+            {campaigns.length > 0 ? 'No event selected.' : 'No events yet.'}
           </p>
           <p className="text-xs text-hive-muted">
             {campaigns.length > 0
-              ? 'Pick a past event above, or create a new one.'
+              ? 'Pick an event above, or create a new one.'
               : 'Create one to start tracking goals, gifts, and bid wars.'}
           </p>
         </div>
@@ -152,9 +169,9 @@ function EventPage() {
         <div className="flex items-baseline gap-3">
           <h2 className="text-lg font-semibold text-hive-text">{campaign.name}</h2>
           <span className="text-xs text-hive-muted">{dateRange}</span>
-          {isPast && (
+          {statusLabel && (
             <span className="rounded bg-hive-border px-1.5 py-0.5 text-xs text-hive-muted">
-              past event
+              {statusLabel}
             </span>
           )}
         </div>
@@ -170,7 +187,13 @@ function EventPage() {
         <StatTile label="Bits" value={metric.total_bits} />
       </div>
 
-      <MilestoneBoard milestones={campaign.milestones} metric={metric} isPast={isPast} />
+      <MilestoneBoard
+        channelSlug={channelSlug}
+        campaign={campaign}
+        editable={!isEnded}
+        showNext={campaign.is_active}
+        onError={setError}
+      />
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
@@ -178,7 +201,7 @@ function EventPage() {
         channelSlug={channelSlug}
         onError={setError}
         campaignId={campaign.id}
-        readOnly={isPast}
+        readOnly={!campaign.is_active}
       />
 
       {gifters.length > 0 && (
@@ -211,21 +234,28 @@ function StatTile({ label, value }: { label: string; value: number }) {
 }
 
 function MilestoneBoard({
-  milestones,
-  metric,
-  isPast,
+  channelSlug,
+  campaign,
+  editable,
+  showNext,
+  onError,
 }: {
-  milestones: Milestone[]
-  metric: Metric
-  isPast: boolean
+  channelSlug: string
+  campaign: Campaign
+  editable: boolean
+  showNext: boolean
+  onError: (message: string | null) => void
 }) {
-  if (milestones.length === 0) return null
+  const [adding, setAdding] = useState(false)
+  const { milestones, metric } = campaign
 
-  const nextId = isPast
-    ? null
-    : (milestones.find((m) => !m.is_unlocked && !m.is_stretch)?.id ??
+  if (milestones.length === 0 && !editable) return null
+
+  const nextId = showNext
+    ? (milestones.find((m) => !m.is_unlocked && !m.is_stretch)?.id ??
       milestones.find((m) => !m.is_unlocked)?.id ??
       null)
+    : null
 
   return (
     <div className="flex flex-col gap-1">
@@ -233,48 +263,187 @@ function MilestoneBoard({
       {milestones.map((m) => {
         const isPoints = m.goal_unit === 'sub_points'
         const current = isPoints ? metric.total_sub_points : metric.total_subs + metric.total_resubs
-        const pct = m.is_unlocked ? 100 : Math.min(100, Math.floor((current / m.threshold) * 100))
-        const isNext = m.id === nextId
-
         return (
-          <div
+          <GoalRow
             key={m.id}
-            className={cn(
-              'flex flex-col gap-1.5 rounded border px-3 py-2',
-              m.is_unlocked
-                ? 'border-green-500/30 bg-green-500/5'
-                : isNext
-                  ? 'border-hive-accent bg-hive-accent-dim/10'
-                  : 'border-hive-border bg-hive-surface',
-            )}>
-            <div className="flex items-center gap-2 text-sm">
-              <span className={cn(m.is_unlocked ? 'text-green-300' : 'text-hive-muted')}>
-                {m.is_unlocked ? '✓' : '○'}
-              </span>
-              <span className="font-medium text-hive-text">{m.title}</span>
-              {m.is_stretch && (
-                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-300">
-                  stretch
-                </span>
-              )}
-              {isNext && <span className="text-xs text-hive-accent">next</span>}
-              <span className="ml-auto font-mono text-xs text-hive-muted">
-                {current.toLocaleString()} / {m.threshold.toLocaleString()}
-                {isPoints ? ' pts' : ''}
-              </span>
-            </div>
-            <div className="h-1 overflow-hidden rounded-full bg-hive-border">
-              <div
-                className={cn(
-                  'h-full rounded-full',
-                  m.is_unlocked ? 'bg-green-400' : 'bg-hive-accent-dim',
-                )}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-          </div>
+            channelSlug={channelSlug}
+            milestone={m}
+            current={current}
+            isNext={m.id === nextId}
+            editable={editable}
+            onError={onError}
+          />
         )
       })}
+      {editable &&
+        (adding ? (
+          <div className="flex flex-col gap-1.5 rounded border border-hive-border bg-hive-surface px-3 py-2">
+            <AddMilestoneRow channelSlug={channelSlug} campaign={campaign} onError={onError} />
+            <button
+              type="button"
+              onClick={() => setAdding(false)}
+              className="self-start text-xs text-hive-muted transition-colors hover:text-hive-text">
+              Done adding
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="self-start rounded px-1 py-0.5 text-xs text-hive-muted transition-colors hover:text-hive-text">
+            + Add goal
+          </button>
+        ))}
+    </div>
+  )
+}
+
+function GoalRow({
+  channelSlug,
+  milestone: m,
+  current,
+  isNext,
+  editable,
+  onError,
+}: {
+  channelSlug: string
+  milestone: Milestone
+  current: number
+  isNext: boolean
+  editable: boolean
+  onError: (message: string | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const { update, remove } = useGoalMutations(channelSlug, onError)
+
+  const isPoints = m.goal_unit === 'sub_points'
+  const pct = m.is_unlocked ? 100 : Math.min(100, Math.floor((current / m.threshold) * 100))
+
+  if (editing) {
+    return (
+      <GoalRowEditor
+        milestone={m}
+        pending={update.isPending || remove.isPending}
+        onSave={(changes) =>
+          update.mutate({ id: m.id, ...changes }, { onSuccess: () => setEditing(false) })
+        }
+        onDelete={() => {
+          if (window.confirm(`Delete goal "${m.title}"?`)) {
+            remove.mutate(m.id, { onSuccess: () => setEditing(false) })
+          }
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        'group flex flex-col gap-1.5 rounded border px-3 py-2',
+        m.is_unlocked
+          ? 'border-green-500/30 bg-green-500/5'
+          : isNext
+            ? 'border-hive-accent bg-hive-accent-dim/10'
+            : 'border-hive-border bg-hive-surface',
+      )}>
+      <div className="flex items-center gap-2 text-sm">
+        <span className={cn(m.is_unlocked ? 'text-green-300' : 'text-hive-muted')}>
+          {m.is_unlocked ? '✓' : '○'}
+        </span>
+        <span className="font-medium text-hive-text">{m.title}</span>
+        {m.is_stretch && (
+          <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-300">
+            stretch
+          </span>
+        )}
+        {isNext && <span className="text-xs text-hive-accent">next</span>}
+        {editable && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded px-1.5 py-0.5 text-xs text-hive-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-hive-text">
+            edit
+          </button>
+        )}
+        <span className="ml-auto font-mono text-xs text-hive-muted">
+          {current.toLocaleString()} / {m.threshold.toLocaleString()}
+          {isPoints ? ' pts' : ''}
+        </span>
+      </div>
+      <div className="h-1 overflow-hidden rounded-full bg-hive-border">
+        <div
+          className={cn(
+            'h-full rounded-full',
+            m.is_unlocked ? 'bg-green-400' : 'bg-hive-accent-dim',
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function GoalRowEditor({
+  milestone: m,
+  pending,
+  onSave,
+  onDelete,
+  onCancel,
+}: {
+  milestone: Milestone
+  pending: boolean
+  onSave: (changes: Partial<Milestone>) => void
+  onDelete: () => void
+  onCancel: () => void
+}) {
+  const [threshold, setThreshold] = useState(String(m.threshold))
+  const [title, setTitle] = useState(m.title)
+  const [goalUnit, setGoalUnit] = useState(m.goal_unit)
+  const [isStretch, setIsStretch] = useState(m.is_stretch)
+
+  const parsed = parseInt(threshold, 10)
+
+  return (
+    <div className="flex items-center gap-1.5 rounded border border-hive-accent bg-hive-surface px-3 py-2">
+      <MilestoneFields
+        threshold={threshold}
+        title={title}
+        goalUnit={goalUnit}
+        isStretch={isStretch}
+        onThreshold={setThreshold}
+        onTitle={setTitle}
+        onGoalUnit={setGoalUnit}
+        onStretch={setIsStretch}
+      />
+      <button
+        type="button"
+        disabled={pending || !parsed || !title.trim()}
+        onClick={() =>
+          onSave({
+            threshold: parsed,
+            title: title.trim(),
+            goal_unit: goalUnit,
+            is_stretch: isStretch,
+          })
+        }
+        className="shrink-0 rounded bg-hive-accent-dim px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-40">
+        Save
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={onCancel}
+        className="shrink-0 rounded px-2 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text disabled:opacity-40">
+        Cancel
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={onDelete}
+        className="shrink-0 rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-40">
+        Delete
+      </button>
     </div>
   )
 }

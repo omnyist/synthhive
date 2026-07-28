@@ -181,15 +181,7 @@ export function EventEditor({
   )
 }
 
-function MilestoneEditor({
-  channelSlug,
-  campaign,
-  onError,
-}: {
-  channelSlug: string
-  campaign: Campaign
-  onError: (message: string | null) => void
-}) {
+export function useGoalMutations(channelSlug: string, onError: (message: string | null) => void) {
   const queryClient = useQueryClient()
 
   const invalidate = () => {
@@ -197,7 +189,7 @@ function MilestoneEditor({
     queryClient.invalidateQueries({ queryKey: ['campaign', channelSlug] })
   }
 
-  const updateMutation = useMutation({
+  const update = useMutation({
     mutationFn: ({ id, ...body }: { id: string } & Partial<Milestone>) =>
       api<Campaign>(`/api/v1/campaigns/channels/${channelSlug}/milestones/${id}/`, {
         method: 'PATCH',
@@ -210,7 +202,7 @@ function MilestoneEditor({
     onError: (e: Error) => onError(e.message),
   })
 
-  const deleteMutation = useMutation({
+  const remove = useMutation({
     mutationFn: (id: string) =>
       api<Campaign>(`/api/v1/campaigns/channels/${channelSlug}/milestones/${id}/`, {
         method: 'DELETE',
@@ -221,6 +213,20 @@ function MilestoneEditor({
     },
     onError: (e: Error) => onError(e.message),
   })
+
+  return { update, remove }
+}
+
+function MilestoneEditor({
+  channelSlug,
+  campaign,
+  onError,
+}: {
+  channelSlug: string
+  campaign: Campaign
+  onError: (message: string | null) => void
+}) {
+  const { update: updateMutation, remove: deleteMutation } = useGoalMutations(channelSlug, onError)
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -306,7 +312,7 @@ function MilestoneRow({
   )
 }
 
-function AddMilestoneRow({
+export function AddMilestoneRow({
   channelSlug,
   campaign,
   onError,
@@ -370,7 +376,7 @@ function AddMilestoneRow({
   )
 }
 
-function MilestoneFields({
+export function MilestoneFields({
   threshold,
   title,
   goalUnit,
