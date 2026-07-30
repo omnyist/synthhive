@@ -47,6 +47,31 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # Restart only what the push touched — every deploy used to
+      # recreate the bot container, dropping chat mid-stream (and any
+      # in-flight delayed action) for frontend-only changes.
+      - name: Detect changed paths
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            deps:
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Dockerfile'
+              - 'docker-compose.prod.yml'
+            backend:
+              - 'core/**'
+              - 'bot/**'
+              - 'synthhive/**'
+              - 'manage.py'
+            frontend:
+              - 'frontend/**'
+            caddy:
+              - 'Caddyfile'
 
       - name: Create .env file
         run: |
@@ -64,8 +89,41 @@ jobs:
           SENTRY_DSN=${{ secrets.SENTRY_DSN }}
           EOF
 
-      - name: Deploy with Docker
+      # Full deploy: rebuild all images and recreate all containers
+      - name: Full deploy (dependencies or infra changed)
+        if: steps.changes.outputs.deps == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
           docker compose -f docker-compose.prod.yml restart caddy
-          docker image prune -f
+
+      # Selective deploy: server restarts run migrations via its startup
+      # command; the bot only bounces when Python actually changed.
+      - name: Rebuild images (backend changes)
+        if: >-
+          steps.changes.outputs.deps != 'true' && github.event_name != 'workflow_dispatch'
+          && steps.changes.outputs.backend == 'true'
+        run: docker compose -f docker-compose.prod.yml build
+
+      - name: Restart server and bot
+        if: >-
+          steps.changes.outputs.deps != 'true' && github.event_name != 'workflow_dispatch'
+          && steps.changes.outputs.backend == 'true'
+        run: docker compose -f docker-compose.prod.yml up -d server bot
+
+      # frontend-build is a one-shot (restart: "no"); `up` re-runs it
+      # because it sits in the exited state after each build.
+      - name: Rebuild frontend
+        if: >-
+          steps.changes.outputs.deps != 'true' && github.event_name != 'workflow_dispatch'
+          && steps.changes.outputs.frontend == 'true'
+        run: docker compose -f docker-compose.prod.yml up -d frontend-build
+
+      # Caddyfile is bind-mounted; only a restart picks up changes.
+      - name: Restart caddy
+        if: >-
+          steps.changes.outputs.deps != 'true' && github.event_name != 'workflow_dispatch'
+          && steps.changes.outputs.caddy == 'true'
+        run: docker compose -f docker-compose.prod.yml restart caddy
+
+      - name: Prune images
+        run: docker image prune -f
