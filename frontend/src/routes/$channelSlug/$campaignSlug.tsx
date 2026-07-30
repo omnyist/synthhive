@@ -146,8 +146,12 @@ function WarLine({ war }: { war: BidWar }) {
   )
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
+// Render a calendar date as-is — never through the viewer's timezone,
+// which would shift "2026-08-01" to July 31 west of UTC.
+function formatDate(isoDate: string): string {
+  const [y, m, d] = isoDate.slice(0, 10).split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, {
+    timeZone: 'UTC',
     month: 'long',
     day: 'numeric',
     year: 'numeric',

@@ -77,9 +77,10 @@ function EventPage() {
 
   // A non-active event is "past" once its window has closed and
   // "upcoming" before it opens; goals stay editable until it ends.
-  const now = new Date().toISOString()
-  const isEnded = !!campaign && !campaign.is_active && campaign.end_date < now
-  const isUpcoming = !!campaign && !campaign.is_active && campaign.start_date > now
+  // Dates are calendar dates ("2026-08-01"), so compare date-to-date.
+  const today = new Date().toISOString().slice(0, 10)
+  const isEnded = !!campaign && !campaign.is_active && campaign.end_date.slice(0, 10) < today
+  const isUpcoming = !!campaign && !campaign.is_active && campaign.start_date.slice(0, 10) > today
   const statusLabel = campaign?.is_active
     ? null
     : isEnded
@@ -474,6 +475,13 @@ function GoalRowEditor({
   )
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+// Render a calendar date as-is — never through the viewer's timezone,
+// which would shift "2026-08-01" to July 31 west of UTC.
+function formatDate(isoDate: string): string {
+  const [y, m, d] = isoDate.slice(0, 10).split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, {
+    timeZone: 'UTC',
+    month: 'short',
+    day: 'numeric',
+  })
 }

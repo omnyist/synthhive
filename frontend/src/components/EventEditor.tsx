@@ -75,11 +75,13 @@ export function EventEditor({
 
   const saveMutation = useMutation({
     mutationFn: () => {
+      // Campaign dates are calendar dates end to end — Synthfunc stores
+      // DateFields, so no timezone math on either side of the wire.
       const body = {
         name: name.trim(),
         description: description.trim(),
-        start_date: `${startDate}T00:00:00Z`,
-        end_date: `${endDate}T23:59:59Z`,
+        start_date: startDate,
+        end_date: endDate,
         is_active: isActive,
       }
       return campaign
