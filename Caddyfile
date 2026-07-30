@@ -11,5 +11,12 @@
 		root * /srv/frontend
 		try_files {path} /index.html
 		file_server
+
+		# Hashed bundles are immutable; index.html (and every SPA route
+		# that falls back to it) must revalidate, or browsers heuristically
+		# cache the shell and keep loading last week's bundle.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header ?Cache-Control "no-cache"
 	}
 }
