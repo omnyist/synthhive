@@ -28,12 +28,23 @@ export const Route = createRootRoute({
   component: RootLayout,
 })
 
+// Dashboard sections under /$channelSlug/ — anything else in that
+// position is a public event page (e.g. /spoonee/awesome-august-2026).
+const DASHBOARD_SECTIONS = new Set(['commands', 'counters', 'aliases', 'event'])
+
+function isPublicPath(pathname: string): boolean {
+  if (pathname.startsWith('/overlay/')) return true
+  const parts = pathname.split('/').filter(Boolean)
+  return parts.length === 2 && !DASHBOARD_SECTIONS.has(parts[1])
+}
+
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
-  // Overlay routes are OBS browser sources: no session, no chrome —
-  // and crucially no /me query, whose 401 would bounce OBS to OAuth.
-  if (pathname.startsWith('/overlay/')) {
+  // Public routes (OBS browser sources, shareable event pages) get no
+  // session, no chrome — and crucially no /me query, whose 401
+  // redirect would bounce anonymous visitors into OAuth.
+  if (isPublicPath(pathname)) {
     return <Outlet />
   }
 

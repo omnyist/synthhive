@@ -1027,6 +1027,42 @@ async def delete_milestone_api(request, channel_slug: str, milestone_id: str):
     return _relay(status, body)
 
 
+# --- Public event page (no auth — a shareable link for chat) ---
+
+
+@v1_router.get("/public/channels/{channel_slug}/campaigns/{campaign_slug}/")
+async def public_campaign_api(request, channel_slug: str, campaign_slug: str):
+    """A campaign by slug, with its bid wars — everything on it is
+    already public in chat; this feeds the shareable event page."""
+    channel = await sync_to_async(
+        Channel.objects.filter(
+            twitch_channel_name=channel_slug, is_active=True
+        ).first
+    )()
+    if channel is None:
+        raise HttpError(404, "Channel not found.")
+
+    from .synthfunc import get_bid_wars
+    from .synthfunc import get_campaign
+    from .synthfunc import list_campaigns
+
+    tenant = channel.twitch_channel_name
+    rows = await list_campaigns(tenant)
+    if rows is None:
+        raise HttpError(502, "Synthfunc unavailable.")
+
+    match = next((r for r in rows if r.get("slug") == campaign_slug), None)
+    if match is None:
+        raise HttpError(404, "Event not found.")
+
+    campaign = await get_campaign(tenant, match["id"])
+    if campaign is None:
+        raise HttpError(502, "Synthfunc unavailable.")
+
+    wars = await get_bid_wars(tenant, campaign_id=match["id"])
+    return {**campaign, "bid_wars": wars or []}
+
+
 # --- Overlay (capability-URL auth for OBS browser sources) ---
 #
 # These endpoints are read-only mirrors of the campaign data, gated by

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as InvitesRouteImport } from './routes/invites'
+import { Route as ChannelSlugCampaignSlugRouteImport } from './routes/$channelSlug/$campaignSlug'
 import { Route as ChannelSlugAliasesRouteImport } from './routes/$channelSlug/aliases'
 import { Route as ChannelSlugCommandsRouteImport } from './routes/$channelSlug/commands'
 import { Route as ChannelSlugCountersRouteImport } from './routes/$channelSlug/counters'
@@ -26,6 +27,11 @@ const IndexRoute = IndexRouteImport.update({
 const InvitesRoute = InvitesRouteImport.update({
   id: '/invites',
   path: '/invites',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChannelSlugCampaignSlugRoute = ChannelSlugCampaignSlugRouteImport.update({
+  id: '/$channelSlug/$campaignSlug',
+  path: '/$channelSlug/$campaignSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChannelSlugAliasesRoute = ChannelSlugAliasesRouteImport.update({
@@ -63,6 +69,7 @@ const OverlayChannelSlugGoalsRoute = OverlayChannelSlugGoalsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/invites': typeof InvitesRoute
+  '/$channelSlug/$campaignSlug': typeof ChannelSlugCampaignSlugRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/invites': typeof InvitesRoute
+  '/$channelSlug/$campaignSlug': typeof ChannelSlugCampaignSlugRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/invites': typeof InvitesRoute
+  '/$channelSlug/$campaignSlug': typeof ChannelSlugCampaignSlugRoute
   '/$channelSlug/aliases': typeof ChannelSlugAliasesRoute
   '/$channelSlug/commands': typeof ChannelSlugCommandsRoute
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/invites'
+    | '/$channelSlug/$campaignSlug'
     | '/$channelSlug/aliases'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/invites'
+    | '/$channelSlug/$campaignSlug'
     | '/$channelSlug/aliases'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/invites'
+    | '/$channelSlug/$campaignSlug'
     | '/$channelSlug/aliases'
     | '/$channelSlug/commands'
     | '/$channelSlug/counters'
@@ -127,6 +139,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InvitesRoute: typeof InvitesRoute
+  ChannelSlugCampaignSlugRoute: typeof ChannelSlugCampaignSlugRoute
   ChannelSlugAliasesRoute: typeof ChannelSlugAliasesRoute
   ChannelSlugCommandsRoute: typeof ChannelSlugCommandsRoute
   ChannelSlugCountersRoute: typeof ChannelSlugCountersRoute
@@ -149,6 +162,13 @@ declare module '@tanstack/react-router' {
       path: '/invites'
       fullPath: '/invites'
       preLoaderRoute: typeof InvitesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$channelSlug/$campaignSlug': {
+      id: '/$channelSlug/$campaignSlug'
+      path: '/$channelSlug/$campaignSlug'
+      fullPath: '/$channelSlug/$campaignSlug'
+      preLoaderRoute: typeof ChannelSlugCampaignSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$channelSlug/aliases': {
@@ -199,6 +219,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InvitesRoute: InvitesRoute,
+  ChannelSlugCampaignSlugRoute: ChannelSlugCampaignSlugRoute,
   ChannelSlugAliasesRoute: ChannelSlugAliasesRoute,
   ChannelSlugCommandsRoute: ChannelSlugCommandsRoute,
   ChannelSlugCountersRoute: ChannelSlugCountersRoute,

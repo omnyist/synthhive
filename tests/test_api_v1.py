@@ -939,3 +939,50 @@ class TestOverlayEndpoints:
             is_active=True,
         )
         assert other.overlay_key != test_channel.overlay_key
+
+
+class TestPublicEventPage:
+    """The public campaign endpoint needs no auth — it feeds the
+    shareable event page that replaced Spoonee's pastebin."""
+
+    @staticmethod
+    def _stub(monkeypatch, name, result):
+        async def fake(*args, **kwargs):
+            return result
+
+        import core.synthfunc
+
+        monkeypatch.setattr(core.synthfunc, name, fake)
+
+    def test_anonymous_fetch_by_slug(self, unauthed_client, test_channel, monkeypatch):
+        self._stub(
+            monkeypatch,
+            "list_campaigns",
+            [{"id": "c1", "slug": "awesome-august-2026", "name": "Awesome August 2026"}],
+        )
+        self._stub(
+            monkeypatch,
+            "get_campaign",
+            {"id": "c1", "name": "Awesome August 2026", "milestones": []},
+        )
+        self._stub(monkeypatch, "get_bid_wars", [{"title": "War"}])
+        response = unauthed_client.get(
+            "/api/v1/public/channels/testchannel/campaigns/awesome-august-2026/"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Awesome August 2026"
+        assert data["bid_wars"][0]["title"] == "War"
+
+    def test_unknown_slug_404(self, unauthed_client, test_channel, monkeypatch):
+        self._stub(monkeypatch, "list_campaigns", [{"id": "c1", "slug": "other"}])
+        response = unauthed_client.get(
+            "/api/v1/public/channels/testchannel/campaigns/awesome-august-2026/"
+        )
+        assert response.status_code == 404
+
+    def test_unknown_channel_404(self, unauthed_client, test_channel):
+        response = unauthed_client.get(
+            "/api/v1/public/channels/nobody/campaigns/whatever/"
+        )
+        assert response.status_code == 404
