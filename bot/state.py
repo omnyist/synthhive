@@ -13,6 +13,7 @@ game itself.
 
 from __future__ import annotations
 
+import json
 import logging
 
 import redis.asyncio as aioredis
@@ -189,3 +190,66 @@ async def recency_push(channel_id: str, fragments: list[str]) -> None:
         _note_success()
     except Exception as exc:
         _note_failure("recency_push", exc)
+
+
+# --- Pending lizard timeouts (journal for the delayed ban) ---
+#
+# A death's timeout fires after a theatrical delay held in an asyncio
+# sleep — if a deploy kills the process inside that window, the ban
+# evaporates while the death is already on the record. Journal the
+# pending ban before sleeping; LizardRecovery fires survivors at the
+# next startup. The lizard never forgets.
+
+_PENDING_TIMEOUTS_KEY = "lr:pending_timeouts"
+
+
+async def pending_timeout_add(
+    channel_id: str,
+    twitch_id: str,
+    username: str,
+    duration: int,
+    due_at: float,
+) -> None:
+    """Journal a delayed timeout before its countdown starts."""
+    try:
+        await get_client().hset(
+            _PENDING_TIMEOUTS_KEY,
+            f"{channel_id}:{twitch_id}",
+            json.dumps(
+                {"username": username, "duration": duration, "due_at": due_at}
+            ),
+        )
+        _note_success()
+    except Exception as exc:
+        _note_failure("pending_timeout_add", exc)
+
+
+async def pending_timeout_clear(channel_id: str, twitch_id: str) -> None:
+    """Remove a journaled timeout once the ban has been attempted."""
+    try:
+        await get_client().hdel(_PENDING_TIMEOUTS_KEY, f"{channel_id}:{twitch_id}")
+        _note_success()
+    except Exception as exc:
+        _note_failure("pending_timeout_clear", exc)
+
+
+async def pending_timeouts_all() -> list[dict]:
+    """Every journaled timeout, with channel_id/twitch_id unpacked."""
+    try:
+        raw = await get_client().hgetall(_PENDING_TIMEOUTS_KEY)
+        _note_success()
+    except Exception as exc:
+        _note_failure("pending_timeouts_all", exc)
+        return []
+
+    out = []
+    for field, value in raw.items():
+        try:
+            entry = json.loads(value)
+            channel_id, twitch_id = field.split(":", 1)
+            entry["channel_id"] = channel_id
+            entry["twitch_id"] = twitch_id
+            out.append(entry)
+        except (ValueError, KeyError):
+            continue
+    return out

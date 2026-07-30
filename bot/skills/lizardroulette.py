@@ -210,10 +210,25 @@ class LizardRouletteHandler(SkillHandler):
                     timeout_delay,
                     timeout_duration,
                 )
+                # Journal the ban before the countdown — a deploy that
+                # kills the process mid-sleep loses the asyncio task,
+                # and LizardRecovery fires the journal at next startup.
+                # The broadcaster can't be banned, so don't journal a
+                # retry that could never succeed.
+                if chatter_id != broadcaster_id:
+                    await state.pending_timeout_add(
+                        broadcaster_id,
+                        chatter_id,
+                        chatter_name,
+                        timeout_duration,
+                        due_at=time.time() + timeout_delay,
+                    )
                 await asyncio.sleep(timeout_delay)
                 timed_out = await self._timeout_user(
                     channel, broadcaster_id, chatter_id, timeout_duration
                 )
+                if chatter_id != broadcaster_id:
+                    await state.pending_timeout_clear(broadcaster_id, chatter_id)
                 logger.info(
                     "[LizardRoulette] Timeout result: user=%s success=%s",
                     chatter_name,

@@ -15,6 +15,7 @@ from .components.ads import AdAnnounce
 from .components.dungeonrecovery import DungeonRecovery
 from .components.errors import ErrorHandler
 from .components.lizardbullets import LizardBullets
+from .components.lizardrecovery import LizardRecovery
 from .components.management import ManagementCommands
 from .router import CommandRouter
 
@@ -85,6 +86,7 @@ class BotClient(commands.Bot):
         await self.add_component(AdAnnounce(self))
         await self.add_component(LizardBullets(self))
         await self.add_component(DungeonRecovery(self))
+        await self.add_component(LizardRecovery(self))
 
         self._health_task = asyncio.create_task(
             self._subscription_health_check()
