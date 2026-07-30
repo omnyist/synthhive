@@ -9,6 +9,7 @@ import {
   MilestoneFields,
   useGoalMutations,
 } from '@/components/EventEditor'
+import { MarkdownContent } from '@/components/MarkdownContent'
 import { OverlayUrls } from '@/components/OverlayUrls'
 import { api } from '@/lib/api'
 import { useCampaignStream } from '@/lib/useCampaignStream'
@@ -176,9 +177,7 @@ function EventPage() {
             </span>
           )}
         </div>
-        {campaign.description && (
-          <p className="mt-0.5 text-xs text-hive-muted">{campaign.description}</p>
-        )}
+        {campaign.description && <DashboardDescription text={campaign.description} />}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -223,6 +222,30 @@ function EventPage() {
       )}
 
       <OverlayUrls channelSlug={channelSlug} />
+    </div>
+  )
+}
+
+/** The description can be pastebin-length — clamp it on the dashboard
+ * so it doesn't bury the stat tiles; the public page shows it all. */
+function DashboardDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const isLong = text.length > 280 || text.split('\n').length > 3
+
+  return (
+    <div className="mt-1 max-w-2xl">
+      <MarkdownContent
+        className={cn('text-xs text-hive-muted', !expanded && isLong && 'line-clamp-3')}>
+        {text}
+      </MarkdownContent>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="mt-1 text-xs text-hive-accent transition-colors hover:text-hive-text">
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
     </div>
   )
 }

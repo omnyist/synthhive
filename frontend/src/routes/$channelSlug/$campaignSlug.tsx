@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import type { BidWar } from '@/components/BidWarSection'
 import type { Campaign, Milestone } from '@/components/EventEditor'
+import { MarkdownContent } from '@/components/MarkdownContent'
 import { overlayApi } from '@/lib/overlay'
 import { cn } from '@/lib/utils'
 
@@ -53,9 +54,9 @@ function PublicEventPage() {
           {formatDate(campaign.start_date)} – {formatDate(campaign.end_date)} · {channelSlug}
         </p>
         {campaign.description && (
-          <p className="mt-4 leading-relaxed whitespace-pre-line text-hive-text/90">
+          <MarkdownContent className="mt-4 text-hive-text/90">
             {campaign.description}
-          </p>
+          </MarkdownContent>
         )}
         {hasProgress && (
           <p className="mt-4 font-mono text-sm text-hive-muted">

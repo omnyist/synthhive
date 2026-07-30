@@ -124,13 +124,16 @@ export function EventEditor({
           placeholder="Event name (e.g. Awesome August)"
           className={inputClass}
         />
-        <input
-          type="text"
+        <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description (optional)"
-          className={inputClass}
+          placeholder="Description (optional) — shown on the public event page"
+          rows={8}
+          className={cn(inputClass, 'resize-y font-mono text-xs leading-relaxed')}
         />
+        <p className="text-xs text-hive-muted">
+          Markdown supported: paragraphs, **bold**, # headings, - lists, [links](url), tables.
+        </p>
         <div className="flex items-center gap-2">
           <input
             type="date"
