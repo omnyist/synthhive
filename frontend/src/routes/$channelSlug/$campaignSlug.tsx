@@ -101,7 +101,7 @@ function GoalLine({ goal, isNext }: { goal: Milestone; isNext: boolean }) {
         'flex items-baseline gap-3 border-l-2 py-1.5 pl-3',
         isNext ? 'border-hive-accent' : 'border-transparent',
       )}>
-      <span className="w-14 shrink-0 text-right font-mono text-sm text-hive-muted">
+      <span className="w-20 shrink-0 text-right font-mono text-sm whitespace-nowrap text-hive-muted">
         {goal.threshold.toLocaleString()}
         {isPoints && <span className="text-xs"> pts</span>}
       </span>
