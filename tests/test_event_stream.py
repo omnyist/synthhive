@@ -92,6 +92,29 @@ class TestStreamGenerator:
             assert "campaign:bidwar" in chunk
             await gen.aclose()
 
+    async def test_releases_db_connection_before_streaming(self):
+        """Regression: an SSE response never finishes, so the generator
+        must return its pooled DB connection up front — held slots
+        starved the pool and hung the whole app (2026-07-31)."""
+        from unittest.mock import MagicMock
+        from unittest.mock import patch
+
+        import fakeredis.aioredis
+
+        fake = fakeredis.aioredis.FakeRedis()
+        mock_connections = MagicMock()
+
+        with (
+            patch("core.event_stream.aioredis.from_url", return_value=fake),
+            patch("core.event_stream.connections", mock_connections),
+        ):
+            from core.event_stream import _event_generator
+
+            gen = _event_generator("testchannel")
+            await gen.__anext__()
+            mock_connections.close_all.assert_called_once()
+            await gen.aclose()
+
 
 class TestOverlayStream:
     """Key-authed SSE variant for OBS browser sources."""

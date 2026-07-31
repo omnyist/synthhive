@@ -19,6 +19,7 @@ import logging
 import redis.asyncio as aioredis
 from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.db import connections
 from django.http import HttpRequest
 from django.http import JsonResponse
 from django.http import StreamingHttpResponse
@@ -90,6 +91,13 @@ async def overlay_stream(request: HttpRequest, channel_slug: str):
 
 async def _event_generator(channel_slug: str):
     """Forward Redis campaign events as SSE, with heartbeats."""
+    # An SSE response never finishes, so hand this request's pooled DB
+    # connection back before streaming — every open dashboard tab and
+    # OBS widget otherwise pins a pool slot until the pool starves and
+    # the whole app hangs on PoolTimeout (outage, 2026-07-31). The
+    # stream itself only ever talks to Redis.
+    await sync_to_async(connections.close_all)()
+
     client = aioredis.from_url(settings.REDIS_URL)
     pubsub = client.pubsub()
     try:

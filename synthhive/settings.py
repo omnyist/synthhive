@@ -92,7 +92,13 @@ DATABASES = {
 # which rejects the option).
 _UNDER_TEST = "pytest" in sys.modules
 if DATABASES["default"]["ENGINE"] != "django.db.backends.sqlite3" and not _UNDER_TEST:
-    DATABASES["default"]["OPTIONS"] = {"pool": True}
+    # Explicit sizing: the bare `pool: True` default caps at 4
+    # connections, which a handful of concurrent requests can exhaust.
+    # timeout keeps a starved pool failing fast instead of hanging
+    # every request for 30s (the 2026-07-31 "constant Loading" outage).
+    DATABASES["default"]["OPTIONS"] = {
+        "pool": {"min_size": 2, "max_size": 20, "timeout": 10}
+    }
 
 # Auth
 
