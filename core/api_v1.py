@@ -1133,6 +1133,7 @@ async def overlay_urls_api(request, channel_slug: str):
         "overlay_key": key,
         "widgets": [
             {"name": "Goals", "path": f"/overlay/{slug}/goals?key={key}"},
+            {"name": "Goal bar", "path": f"/overlay/{slug}/goalbar?key={key}"},
             {"name": "Bid war", "path": f"/overlay/{slug}/bidwar?key={key}"},
         ],
     }
