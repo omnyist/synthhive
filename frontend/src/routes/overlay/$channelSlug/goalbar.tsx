@@ -14,7 +14,9 @@ export const Route = createFileRoute('/overlay/$channelSlug/goalbar')({
   component: GoalBarWidget,
   validateSearch: (search: Record<string, unknown>): { key: string; preview: boolean } => ({
     key: typeof search.key === 'string' ? search.key : '',
-    preview: search.preview === '1' || search.preview === true,
+    // TanStack's search parser JSON-parses values, so ?preview=1
+    // arrives as the number 1 — match every truthy spelling.
+    preview: search.preview === '1' || search.preview === 1 || search.preview === true,
   }),
 })
 
