@@ -12,17 +12,14 @@ import { overlayApi, useOverlayStream } from '@/lib/overlay'
  */
 export const Route = createFileRoute('/overlay/$channelSlug/goalbar')({
   component: GoalBarWidget,
-  validateSearch: (search: Record<string, unknown>): { key: string; preview: boolean } => ({
+  validateSearch: (search: Record<string, unknown>): { key: string } => ({
     key: typeof search.key === 'string' ? search.key : '',
-    // TanStack's search parser JSON-parses values, so ?preview=1
-    // arrives as the number 1 — match every truthy spelling.
-    preview: search.preview === '1' || search.preview === 1 || search.preview === true,
   }),
 })
 
 function GoalBarWidget() {
   const { channelSlug } = Route.useParams()
-  const { key, preview } = Route.useSearch()
+  const { key } = Route.useSearch()
 
   useOverlayStream(channelSlug, key)
 
@@ -36,13 +33,8 @@ function GoalBarWidget() {
   })
 
   // No campaign or no goals: a plain black strip, invisible on her
-  // panel — unless previewing, which shows a stand-in bar so the
-  // source can be positioned before the event goes live. Real data
-  // always wins, so &preview=1 can stay in the URL harmlessly.
+  // panel. Position the source with OBS's selection border.
   if (!campaign || campaign.milestones.length === 0) {
-    if (preview) {
-      return <Bar pct={44} title="PREVIEW — Pink Bunny Emotes" count="11/25" />
-    }
     return <div className="h-screen w-screen bg-black" />
   }
 
