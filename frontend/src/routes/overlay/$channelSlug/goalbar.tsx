@@ -12,14 +12,15 @@ import { overlayApi, useOverlayStream } from '@/lib/overlay'
  */
 export const Route = createFileRoute('/overlay/$channelSlug/goalbar')({
   component: GoalBarWidget,
-  validateSearch: (search: Record<string, unknown>): { key: string } => ({
+  validateSearch: (search: Record<string, unknown>): { key: string; preview: boolean } => ({
     key: typeof search.key === 'string' ? search.key : '',
+    preview: search.preview === '1' || search.preview === true,
   }),
 })
 
 function GoalBarWidget() {
   const { channelSlug } = Route.useParams()
-  const { key } = Route.useSearch()
+  const { key, preview } = Route.useSearch()
 
   useOverlayStream(channelSlug, key)
 
@@ -32,8 +33,14 @@ function GoalBarWidget() {
     enabled: !!key,
   })
 
-  // No campaign or no goals: a plain black strip, invisible on her panel.
+  // No campaign or no goals: a plain black strip, invisible on her
+  // panel — unless previewing, which shows a stand-in bar so the
+  // source can be positioned before the event goes live. Real data
+  // always wins, so &preview=1 can stay in the URL harmlessly.
   if (!campaign || campaign.milestones.length === 0) {
+    if (preview) {
+      return <Bar pct={44} title="PREVIEW — Pink Bunny Emotes" count="11/25" />
+    }
     return <div className="h-screen w-screen bg-black" />
   }
 
