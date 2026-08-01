@@ -986,3 +986,67 @@ class TestPublicEventPage:
             "/api/v1/public/channels/nobody/campaigns/whatever/"
         )
         assert response.status_code == 404
+
+
+class TestOverlayCampaignFallback:
+    """With no active campaign, the overlay serves the nearest
+    current-window or upcoming event so widgets render at zero instead
+    of disappearing. Past events never surface."""
+
+    @staticmethod
+    def _stub(monkeypatch, name, result):
+        async def fake(*args, **kwargs):
+            return result
+
+        import core.synthfunc
+
+        monkeypatch.setattr(core.synthfunc, name, fake)
+
+    def _get(self, test_channel):
+        return Client().get(
+            f"/api/v1/overlay/channels/testchannel/campaign/?key={test_channel.overlay_key}"
+        )
+
+    def test_active_campaign_wins(self, test_channel, monkeypatch):
+        self._stub(monkeypatch, "get_active_campaign", {"name": "Live"})
+        response = self._get(test_channel)
+        assert response.json()["name"] == "Live"
+
+    def test_falls_back_to_window_campaign(self, test_channel, monkeypatch):
+        self._stub(monkeypatch, "get_active_campaign", None)
+        self._stub(monkeypatch, "list_campaigns", [
+            {"id": "past", "start_date": "2020-01-01", "end_date": "2020-02-01"},
+            {"id": "now", "start_date": "2020-01-01", "end_date": "2099-01-01"},
+        ])
+        self._stub(monkeypatch, "get_campaign", {"id": "now", "name": "Window"})
+        response = self._get(test_channel)
+        assert response.json()["name"] == "Window"
+
+    def test_falls_back_to_soonest_upcoming(self, test_channel, monkeypatch):
+        self._stub(monkeypatch, "get_active_campaign", None)
+        self._stub(monkeypatch, "list_campaigns", [
+            {"id": "later", "start_date": "2098-06-01", "end_date": "2098-07-01"},
+            {"id": "sooner", "start_date": "2097-06-01", "end_date": "2097-07-01"},
+        ])
+
+        picked = {}
+
+        async def fake_get_campaign(slug, campaign_id):
+            picked["id"] = campaign_id
+            return {"id": campaign_id, "name": "Upcoming"}
+
+        import core.synthfunc
+
+        monkeypatch.setattr(core.synthfunc, "get_campaign", fake_get_campaign)
+        response = self._get(test_channel)
+        assert response.json()["name"] == "Upcoming"
+        assert picked["id"] == "sooner"
+
+    def test_past_only_returns_null(self, test_channel, monkeypatch):
+        self._stub(monkeypatch, "get_active_campaign", None)
+        self._stub(monkeypatch, "list_campaigns", [
+            {"id": "past", "start_date": "2020-01-01", "end_date": "2020-02-01"},
+        ])
+        response = self._get(test_channel)
+        assert response.status_code == 200
+        assert response.json() is None

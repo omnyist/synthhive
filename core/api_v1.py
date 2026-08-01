@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import re
 import uuid
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
 from typing import Literal
@@ -1089,12 +1090,40 @@ async def _get_overlay_channel(channel_slug: str, key: str) -> Channel:
 
 @v1_router.get("/overlay/channels/{channel_slug}/campaign/")
 async def overlay_campaign_api(request, channel_slug: str, key: str = ""):
-    """The active campaign for overlay widgets, or null."""
+    """The campaign for overlay widgets, or null.
+
+    Falls back to the nearest current-window or upcoming campaign when
+    none is active, so widgets render (at zero) before the owner flips
+    the event on — a visibly stuck bar beats an invisibly missing one.
+    Past events never surface here.
+    """
     channel = await _get_overlay_channel(channel_slug, key)
+    slug = channel.twitch_channel_name
 
     from .synthfunc import get_active_campaign
+    from .synthfunc import get_campaign
+    from .synthfunc import list_campaigns
 
-    return await get_active_campaign(channel.twitch_channel_name)
+    campaign = await get_active_campaign(slug)
+    if campaign is not None:
+        return campaign
+
+    rows = await list_campaigns(slug)
+    if not rows:
+        return None
+
+    today = datetime.now(UTC).date().isoformat()
+    in_window = [
+        r for r in rows if r["start_date"][:10] <= today <= r["end_date"][:10]
+    ]
+    upcoming = sorted(
+        (r for r in rows if r["start_date"][:10] > today),
+        key=lambda r: r["start_date"],
+    )
+    pick = in_window[0] if in_window else upcoming[0] if upcoming else None
+    if pick is None:
+        return None
+    return await get_campaign(slug, pick["id"])
 
 
 @v1_router.get("/overlay/channels/{channel_slug}/bidwars/")
