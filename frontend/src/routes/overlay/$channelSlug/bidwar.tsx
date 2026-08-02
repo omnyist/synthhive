@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import type { BidWar } from '@/components/BidWarSection'
-import { overlayApi, useOverlayStream, useTransparentBody } from '@/lib/overlay'
+import { overlayApi, useAutoReload, useOverlayStream, useTransparentBody } from '@/lib/overlay'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/overlay/$channelSlug/bidwar')({
@@ -21,6 +21,7 @@ function BidWarWidget() {
   const { key } = Route.useSearch()
 
   useTransparentBody()
+  useAutoReload()
   useOverlayStream(channelSlug, key)
 
   const { data: wars = [] } = useQuery({

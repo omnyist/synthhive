@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import type { Campaign } from '@/components/EventEditor'
-import { overlayApi, useOverlayStream, useTransparentBody } from '@/lib/overlay'
+import { overlayApi, useAutoReload, useOverlayStream, useTransparentBody } from '@/lib/overlay'
 
 export const Route = createFileRoute('/overlay/$channelSlug/goals')({
   component: GoalsWidget,
@@ -15,6 +15,7 @@ function GoalsWidget() {
   const { key } = Route.useSearch()
 
   useTransparentBody()
+  useAutoReload()
   useOverlayStream(channelSlug, key)
 
   const { data: campaign } = useQuery({

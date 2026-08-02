@@ -31,6 +31,39 @@ export function useOverlayStream(channelSlug: string, overlayKey: string) {
   }, [channelSlug, overlayKey, queryClient])
 }
 
+/**
+ * Reload the widget when a deploy ships a new bundle. OBS browser
+ * sources live for days — they keep executing the JavaScript they
+ * loaded, no matter what the server ships later (Spoonee's goal
+ * widget ran day-old math on fresh data). The SPA shell changes
+ * content-hash references every build, so polling it and reloading
+ * on change keeps long-lived widgets at most a few minutes stale.
+ */
+export function useAutoReload(intervalMs = 300_000) {
+  useEffect(() => {
+    let initialShell: string | null = null
+
+    const check = async () => {
+      try {
+        const res = await fetch('/', { cache: 'no-store' })
+        if (!res.ok) return
+        const text = await res.text()
+        if (initialShell === null) {
+          initialShell = text
+        } else if (text !== initialShell) {
+          window.location.reload()
+        }
+      } catch {
+        // Offline or mid-deploy — try again next tick.
+      }
+    }
+
+    check()
+    const id = setInterval(check, intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+}
+
 /** Make the page transparent so OBS composites only the widget. */
 export function useTransparentBody() {
   useEffect(() => {
