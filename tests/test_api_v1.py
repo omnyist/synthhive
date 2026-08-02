@@ -1050,3 +1050,41 @@ class TestOverlayCampaignFallback:
         response = self._get(test_channel)
         assert response.status_code == 200
         assert response.json() is None
+
+
+class TestPendingGiftsRoute:
+    """Regression: /pending-gifts/ must be registered before the
+    /{bid_war_id}/ routes — Django resolves by path first, so the
+    literal segment used to match {bid_war_id} on a PATCH-only route
+    and every GET came back 405."""
+
+    @staticmethod
+    def _stub(monkeypatch, result):
+        async def fake(*args, **kwargs):
+            return result
+
+        import core.synthfunc
+
+        monkeypatch.setattr(core.synthfunc, "get_pending_gifts", fake)
+
+    def test_get_returns_200_not_405(self, authed_client, test_channel, monkeypatch):
+        self._stub(monkeypatch, [{"event_id": "e1", "gifter": "G", "count": 5}])
+        response = authed_client.get(
+            "/api/v1/bidwars/channels/testchannel/pending-gifts/"
+        )
+        assert response.status_code == 200
+        assert response.json()[0]["count"] == 5
+
+    def test_patch_by_war_id_still_routes(self, authed_client, test_channel, monkeypatch):
+        async def fake(*args, **kwargs):
+            return {"id": "w1", "status": "closed"}
+
+        import core.synthfunc
+
+        monkeypatch.setattr(core.synthfunc, "set_bid_war_status", fake)
+        response = authed_client.patch(
+            "/api/v1/bidwars/channels/testchannel/some-war-id/",
+            data=json.dumps({"status": "closed"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200

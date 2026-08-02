@@ -781,6 +781,21 @@ async def create_bid_war_api(
     return war
 
 
+# Registered BEFORE the /{bid_war_id}/ routes: Django resolves by path
+# first, so a later literal segment loses to an earlier {bid_war_id}
+# match and every GET here came back 405 — the queue looked empty for
+# Spoonee's entire first Awesome August stream.
+@v1_router.get("/bidwars/channels/{channel_slug}/pending-gifts/")
+async def pending_gifts_api(request, channel_slug: str):
+    """Gift batches awaiting allocation on the active campaign."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import get_pending_gifts
+
+    gifts = await get_pending_gifts(channel.twitch_channel_name)
+    return gifts or []
+
+
 @v1_router.patch("/bidwars/channels/{channel_slug}/{bid_war_id}/")
 async def update_bid_war_api(
     request, channel_slug: str, bid_war_id: str, data: BidWarStatusSchema
@@ -870,17 +885,6 @@ async def gift_leaderboard_api(
         channel.twitch_channel_name, limit=min(limit, 50), campaign_id=campaign_id
     )
     return leaderboard or []
-
-
-@v1_router.get("/bidwars/channels/{channel_slug}/pending-gifts/")
-async def pending_gifts_api(request, channel_slug: str):
-    """Gift batches awaiting allocation on the active campaign."""
-    channel, _ = await _get_user_channel(request, channel_slug)
-
-    from .synthfunc import get_pending_gifts
-
-    gifts = await get_pending_gifts(channel.twitch_channel_name)
-    return gifts or []
 
 
 # --- Campaign CRUD (proxied to Synthfunc; session-auth, channel-scoped) ---

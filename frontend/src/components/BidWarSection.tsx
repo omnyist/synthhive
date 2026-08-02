@@ -117,7 +117,7 @@ function ActiveWar({
 }) {
   const leader = Math.max(...war.options.map((o) => o.total))
 
-  const { data: pendingGifts = [] } = useQuery({
+  const { data: pendingGifts = [], isError: pendingFailed } = useQuery({
     queryKey: ['pending-gifts', channelSlug],
     queryFn: () => api<PendingGift[]>(`/api/v1/bidwars/channels/${channelSlug}/pending-gifts/`),
     retry: false,
@@ -209,10 +209,18 @@ function ActiveWar({
         <h4 className="text-xs font-medium tracking-wide text-hive-muted uppercase">
           Pending gifts
         </h4>
-        {pendingGifts.length === 0 && (
-          <p className="py-2 text-sm text-hive-muted">
-            No unallocated gift batches. New gifts land here automatically.
+        {pendingFailed ? (
+          // A dead queue must never masquerade as an empty one — that
+          // cost a whole stream of manual bookkeeping on day one.
+          <p className="py-2 text-sm text-red-400">
+            Couldn't load the gift queue — assignments below still work.
           </p>
+        ) : (
+          pendingGifts.length === 0 && (
+            <p className="py-2 text-sm text-hive-muted">
+              No unallocated gift batches. New gifts land here automatically.
+            </p>
+          )
         )}
         {pendingGifts.map((g) => (
           <div

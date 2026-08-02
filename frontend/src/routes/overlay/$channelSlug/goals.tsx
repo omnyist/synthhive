@@ -74,7 +74,9 @@ function GoalProgress({
   metric: Campaign['metric']
 }) {
   const isPoints = goal.goal_unit === 'sub_points'
-  const current = isPoints ? metric.total_sub_points : metric.total_subs + metric.total_resubs
+  // Count goals measure NEW + GIFT subs (total_subs) — resubs aren't
+  // new subscriptions. Resubs still earn sub points.
+  const current = isPoints ? metric.total_sub_points : metric.total_subs
   const pct = Math.min(100, (current / goal.threshold) * 100)
 
   return (

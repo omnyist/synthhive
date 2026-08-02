@@ -289,7 +289,9 @@ function MilestoneBoard({
       <h3 className="text-xs font-medium tracking-wide text-hive-muted uppercase">Goals</h3>
       {milestones.map((m) => {
         const isPoints = m.goal_unit === 'sub_points'
-        const current = isPoints ? metric.total_sub_points : metric.total_subs + metric.total_resubs
+        // Count goals measure NEW + GIFT subs (total_subs) — resubs
+        // aren't new subscriptions. Resubs still earn sub points.
+        const current = isPoints ? metric.total_sub_points : metric.total_subs
         return (
           <GoalRow
             key={m.id}
