@@ -59,9 +59,12 @@ function PublicEventPage() {
           </MarkdownContent>
         )}
         {hasProgress && (
+          // "subs" spells out its definition — chat theorized resub
+          // double-counting and bits conversion off the bare number.
           <p className="mt-4 font-mono text-sm text-hive-muted">
-            {metric.total_subs.toLocaleString()} subs · {metric.total_resubs.toLocaleString()}{' '}
-            resubs · {metric.total_bits.toLocaleString()} bits so far
+            {metric.total_subs.toLocaleString()} subs (new + gifted) ·{' '}
+            {metric.total_resubs.toLocaleString()} resubs · {metric.total_bits.toLocaleString()}{' '}
+            bits so far
           </p>
         )}
       </header>

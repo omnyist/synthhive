@@ -463,6 +463,13 @@ async def get_bid_war_allocations(
     )
 
 
+async def get_recent_activity(tenant_slug: str, limit: int = 50) -> list | None:
+    """Raw countable events (subs, gifts, resubs, cheers), newest first."""
+    return await _get(
+        "/events/activity", params={"limit": limit}, tenant_slug=tenant_slug
+    )
+
+
 # --- Campaign CRUD (dashboard event management) ---
 
 

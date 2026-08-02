@@ -887,6 +887,21 @@ async def gift_leaderboard_api(
     return leaderboard or []
 
 
+@v1_router.get("/events/channels/{channel_slug}/activity/")
+async def recent_activity_api(request, channel_slug: str, limit: int = 50):
+    """Raw countable events — the owner's verification feed."""
+    channel, _ = await _get_user_channel(request, channel_slug)
+
+    from .synthfunc import get_recent_activity
+
+    rows = await get_recent_activity(
+        channel.twitch_channel_name, limit=min(limit, 200)
+    )
+    if rows is None:
+        raise HttpError(502, "Could not fetch activity.")
+    return rows
+
+
 # --- Campaign CRUD (proxied to Synthfunc; session-auth, channel-scoped) ---
 
 

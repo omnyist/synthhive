@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { ActivityFeed } from '@/components/ActivityFeed'
 import { BidWarSection } from '@/components/BidWarSection'
 import type { Campaign, CampaignSummary, Milestone } from '@/components/EventEditor'
 import {
@@ -221,6 +222,8 @@ function EventPage() {
           ))}
         </div>
       )}
+
+      <ActivityFeed channelSlug={channelSlug} />
 
       <OverlayUrls channelSlug={channelSlug} />
     </div>

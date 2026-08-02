@@ -1088,3 +1088,20 @@ class TestPendingGiftsRoute:
             content_type="application/json",
         )
         assert response.status_code == 200
+
+
+class TestActivityProxy:
+    def test_activity_feed(self, authed_client, test_channel, monkeypatch):
+        async def fake(*args, **kwargs):
+            return [{"id": "e1", "event_type": "channel.subscribe", "who": "N"}]
+
+        import core.synthfunc
+
+        monkeypatch.setattr(core.synthfunc, "get_recent_activity", fake)
+        response = authed_client.get("/api/v1/events/channels/testchannel/activity/")
+        assert response.status_code == 200
+        assert response.json()[0]["who"] == "N"
+
+    def test_unauthed_401(self, unauthed_client, test_channel):
+        response = unauthed_client.get("/api/v1/events/channels/testchannel/activity/")
+        assert response.status_code == 401

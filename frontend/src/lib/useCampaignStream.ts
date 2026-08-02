@@ -20,6 +20,7 @@ export function useCampaignStream(channelSlug: string) {
       queryClient.invalidateQueries({ queryKey: ['bidwars', channelSlug] })
       queryClient.invalidateQueries({ queryKey: ['bidwar-allocations', channelSlug] })
       queryClient.invalidateQueries({ queryKey: ['pending-gifts', channelSlug] })
+      queryClient.invalidateQueries({ queryKey: ['activity', channelSlug] })
     }
 
     return () => source.close()
