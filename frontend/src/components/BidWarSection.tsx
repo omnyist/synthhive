@@ -33,6 +33,7 @@ interface PendingGift {
   event_id: string
   gifter: string
   count: number
+  remaining: number
   tier: number | null
   timestamp: string
 }
@@ -223,40 +224,19 @@ function ActiveWar({
           )
         )}
         {pendingGifts.map((g) => (
-          <div
+          <PendingGiftRow
             key={g.event_id}
-            className="flex items-center gap-3 rounded border border-hive-border bg-hive-surface px-3 py-2 text-sm">
-            <span className="font-mono font-bold text-hive-text">×{g.count}</span>
-            <span className="text-hive-text">{g.gifter}</span>
-            {g.tier != null && g.tier > 1 && (
-              <span className="rounded bg-hive-border px-1.5 py-0.5 text-xs text-hive-muted">
-                T{g.tier}
-              </span>
-            )}
-            <span className="text-xs text-hive-muted">
-              {new Date(g.timestamp).toLocaleTimeString(undefined, {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </span>
-            <div className="ml-auto flex gap-1.5">
-              {war.options.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  disabled={allocateMutation.isPending}
-                  onClick={() =>
-                    allocateMutation.mutate({
-                      option_id: option.id,
-                      source_event_id: g.event_id,
-                    })
-                  }
-                  className="rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
-                  → {option.name}
-                </button>
-              ))}
-            </div>
-          </div>
+            gift={g}
+            options={war.options}
+            disabled={allocateMutation.isPending}
+            onAssign={(optionId, points) =>
+              allocateMutation.mutate({
+                option_id: optionId,
+                source_event_id: g.event_id,
+                points,
+              })
+            }
+          />
         ))}
       </div>
 
@@ -308,6 +288,74 @@ function ActiveWar({
           allocateMutation.mutate({ option_id: optionId, points, note })
         }
       />
+    </div>
+  )
+}
+
+function PendingGiftRow({
+  gift: g,
+  options,
+  disabled,
+  onAssign,
+}: {
+  gift: PendingGift
+  options: BidWarOption[]
+  disabled: boolean
+  onAssign: (optionId: string, points?: number) => void
+}) {
+  // Chat splits packs across sides — a blank amount assigns whatever's
+  // left, a number sends that many and the batch stays in the queue
+  // until its whole count is placed.
+  const [amount, setAmount] = useState('')
+  const parsed = parseInt(amount, 10)
+  const splitPoints =
+    !Number.isNaN(parsed) && parsed >= 1 && parsed <= g.remaining ? parsed : undefined
+  const invalid = amount.trim() !== '' && splitPoints === undefined
+
+  return (
+    <div className="flex items-center gap-3 rounded border border-hive-border bg-hive-surface px-3 py-2 text-sm">
+      <span className="font-mono font-bold text-hive-text">×{g.remaining}</span>
+      {g.remaining < g.count && <span className="text-xs text-hive-muted">of {g.count}</span>}
+      <span className="text-hive-text">{g.gifter}</span>
+      {g.tier != null && g.tier > 1 && (
+        <span className="rounded bg-hive-border px-1.5 py-0.5 text-xs text-hive-muted">
+          T{g.tier}
+        </span>
+      )}
+      <span className="text-xs text-hive-muted">
+        {new Date(g.timestamp).toLocaleTimeString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}
+      </span>
+      <div className="ml-auto flex items-center gap-1.5">
+        <input
+          type="number"
+          min={1}
+          max={g.remaining}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="split"
+          title="Assign only this many (blank = all remaining)"
+          className={cn(
+            'w-14 rounded border bg-hive-dark px-1.5 py-1 font-mono text-xs text-hive-text placeholder-hive-muted focus:outline-none',
+            invalid ? 'border-red-400' : 'border-hive-border focus:border-hive-accent',
+          )}
+        />
+        {options.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            disabled={disabled || invalid}
+            onClick={() => {
+              onAssign(option.id, splitPoints)
+              setAmount('')
+            }}
+            className="rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
+            → {option.name}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
