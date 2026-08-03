@@ -17,6 +17,7 @@ import { Route as ChannelSlugCommandsRouteImport } from './routes/$channelSlug/c
 import { Route as ChannelSlugCountersRouteImport } from './routes/$channelSlug/counters'
 import { Route as ChannelSlugEventRouteImport } from './routes/$channelSlug/event'
 import { Route as OverlayChannelSlugBidwarRouteImport } from './routes/overlay/$channelSlug/bidwar'
+import { Route as OverlayChannelSlugGoalbarRouteImport } from './routes/overlay/$channelSlug/goalbar'
 import { Route as OverlayChannelSlugGoalsRouteImport } from './routes/overlay/$channelSlug/goals'
 
 const IndexRoute = IndexRouteImport.update({
@@ -60,6 +61,12 @@ const OverlayChannelSlugBidwarRoute =
     path: '/overlay/$channelSlug/bidwar',
     getParentRoute: () => rootRouteImport,
   } as any)
+const OverlayChannelSlugGoalbarRoute =
+  OverlayChannelSlugGoalbarRouteImport.update({
+    id: '/overlay/$channelSlug/goalbar',
+    path: '/overlay/$channelSlug/goalbar',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const OverlayChannelSlugGoalsRoute = OverlayChannelSlugGoalsRouteImport.update({
   id: '/overlay/$channelSlug/goals',
   path: '/overlay/$channelSlug/goals',
@@ -75,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
   '/$channelSlug/event': typeof ChannelSlugEventRoute
   '/overlay/$channelSlug/bidwar': typeof OverlayChannelSlugBidwarRoute
+  '/overlay/$channelSlug/goalbar': typeof OverlayChannelSlugGoalbarRoute
   '/overlay/$channelSlug/goals': typeof OverlayChannelSlugGoalsRoute
 }
 export interface FileRoutesByTo {
@@ -86,6 +94,7 @@ export interface FileRoutesByTo {
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
   '/$channelSlug/event': typeof ChannelSlugEventRoute
   '/overlay/$channelSlug/bidwar': typeof OverlayChannelSlugBidwarRoute
+  '/overlay/$channelSlug/goalbar': typeof OverlayChannelSlugGoalbarRoute
   '/overlay/$channelSlug/goals': typeof OverlayChannelSlugGoalsRoute
 }
 export interface FileRoutesById {
@@ -98,6 +107,7 @@ export interface FileRoutesById {
   '/$channelSlug/counters': typeof ChannelSlugCountersRoute
   '/$channelSlug/event': typeof ChannelSlugEventRoute
   '/overlay/$channelSlug/bidwar': typeof OverlayChannelSlugBidwarRoute
+  '/overlay/$channelSlug/goalbar': typeof OverlayChannelSlugGoalbarRoute
   '/overlay/$channelSlug/goals': typeof OverlayChannelSlugGoalsRoute
 }
 export interface FileRouteTypes {
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/$channelSlug/counters'
     | '/$channelSlug/event'
     | '/overlay/$channelSlug/bidwar'
+    | '/overlay/$channelSlug/goalbar'
     | '/overlay/$channelSlug/goals'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -122,6 +133,7 @@ export interface FileRouteTypes {
     | '/$channelSlug/counters'
     | '/$channelSlug/event'
     | '/overlay/$channelSlug/bidwar'
+    | '/overlay/$channelSlug/goalbar'
     | '/overlay/$channelSlug/goals'
   id:
     | '__root__'
@@ -133,6 +145,7 @@ export interface FileRouteTypes {
     | '/$channelSlug/counters'
     | '/$channelSlug/event'
     | '/overlay/$channelSlug/bidwar'
+    | '/overlay/$channelSlug/goalbar'
     | '/overlay/$channelSlug/goals'
   fileRoutesById: FileRoutesById
 }
@@ -145,6 +158,7 @@ export interface RootRouteChildren {
   ChannelSlugCountersRoute: typeof ChannelSlugCountersRoute
   ChannelSlugEventRoute: typeof ChannelSlugEventRoute
   OverlayChannelSlugBidwarRoute: typeof OverlayChannelSlugBidwarRoute
+  OverlayChannelSlugGoalbarRoute: typeof OverlayChannelSlugGoalbarRoute
   OverlayChannelSlugGoalsRoute: typeof OverlayChannelSlugGoalsRoute
 }
 
@@ -206,6 +220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OverlayChannelSlugBidwarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/overlay/$channelSlug/goalbar': {
+      id: '/overlay/$channelSlug/goalbar'
+      path: '/overlay/$channelSlug/goalbar'
+      fullPath: '/overlay/$channelSlug/goalbar'
+      preLoaderRoute: typeof OverlayChannelSlugGoalbarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/overlay/$channelSlug/goals': {
       id: '/overlay/$channelSlug/goals'
       path: '/overlay/$channelSlug/goals'
@@ -225,6 +246,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChannelSlugCountersRoute: ChannelSlugCountersRoute,
   ChannelSlugEventRoute: ChannelSlugEventRoute,
   OverlayChannelSlugBidwarRoute: OverlayChannelSlugBidwarRoute,
+  OverlayChannelSlugGoalbarRoute: OverlayChannelSlugGoalbarRoute,
   OverlayChannelSlugGoalsRoute: OverlayChannelSlugGoalsRoute,
 }
 export const routeTree = rootRouteImport

@@ -15,7 +15,13 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:7177',
+      // VITE_API_TARGET=https://bots.bardsaders.com bun run dev
+      // designs widgets against live data — overlay endpoints are
+      // key-authed, so no session crosses over.
+      '/api': {
+        target: process.env.VITE_API_TARGET ?? 'http://localhost:7177',
+        changeOrigin: true,
+      },
       '/auth': 'http://localhost:7177',
     },
   },
