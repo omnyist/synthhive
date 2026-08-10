@@ -182,7 +182,7 @@ async def create_quote(
     quotee_username: str,
     quoter_username: str,
     tenant_slug: str,
-    game: str | None = None,
+    category: str | None = None,
 ) -> dict | None:
     """Create a new quote."""
     data = {
@@ -190,8 +190,8 @@ async def create_quote(
         "quotee_username": quotee_username,
         "quoter_username": quoter_username,
     }
-    if game:
-        data["game"] = game
+    if category:
+        data["category"] = category
     return await _post("/quotes/", data, tenant_slug=tenant_slug)
 
 

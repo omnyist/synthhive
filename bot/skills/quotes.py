@@ -34,22 +34,23 @@ logger = logging.getLogger("bot")
 def _format_quote(quote: dict) -> str:
     """Format a quote dict into Elsydeon-style chat string.
 
-    Format: "text" ~ Name (#number, year, Game)
-    Game is only included when present.
+    Format: "text" ~ Name (#number, year, Category)
+    Category is the Twitch category the stream was live under, and is only
+    included when present.
     """
     number = quote.get("number", "?")
     text = quote.get("text", "")
     quotee = quote.get("quotee", {})
     name = quotee.get("display_name", quotee.get("username", "???"))
-    game = quote.get("game")
+    category = quote.get("category")
     year = quote.get("year")
 
-    # Build metadata: (#number, year, Game) or (#number, year) or (#number)
+    # Build metadata: (#number, year, Category) or (#number, year) or (#number)
     parts = [f"#{number}"]
     if year:
         parts.append(str(year))
-    if game:
-        parts.append(game)
+    if category:
+        parts.append(category)
     meta = ", ".join(parts)
 
     return f'"{text}" ~ {name} ({meta})'
@@ -215,9 +216,9 @@ class QuoteHandler(SkillHandler):
         text = match.group(1)
         quotee = match.group(2)
 
-        game = await self._get_current_game(payload)
+        category = await self._get_current_category(payload)
         quote = await create_quote(
-            text, quotee, chatter_name, tenant_slug, game=game
+            text, quotee, chatter_name, tenant_slug, category=category
         )
         if not quote:
             await send_reply(
@@ -235,8 +236,12 @@ class QuoteHandler(SkillHandler):
             bot_id=bot.bot_id,
         )
 
-    async def _get_current_game(self, payload) -> str | None:
-        """Fetch the current game/category from Twitch Helix."""
+    async def _get_current_category(self, payload) -> str | None:
+        """Fetch the stream's current Twitch category from Helix.
+
+        Helix calls this `game_name`, but it carries non-game categories
+        like Just Chatting too, which is why quotes store it as `category`.
+        """
         from core.models import Channel
         from core.twitch import TWITCH_API_BASE
         from core.twitch import twitch_request
