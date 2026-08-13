@@ -117,23 +117,11 @@ jobs:
           SENTRY_DSN=${{ secrets.SENTRY_DSN }}
           EOF
 
-      # Full deploy: rebuild all images and recreate all containers
-      - name: Full deploy (dependencies or infra changed)
-        if: steps.changes.outputs.deps == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
-          docker compose -f docker-compose.prod.yml restart caddy
-
-      # Restarting the bot drops chat and kills anything in flight. On
-      # the owner's own channel that's an accepted cost of working on
-      # the bot live; on a guest's channel it's someone else's stream
-      # breaking for reasons they can't see. Guests are "every tenant
-      # that isn't the owner", so a new one is protected by default.
-      # Deliberate override: re-run via workflow_dispatch.
       - name: Check for live guest channels
         id: guests
         if: >-
-          steps.changes.outputs.backend == 'true' && github.event_name != 'workflow_dispatch'
+          (steps.changes.outputs.deps == 'true' || steps.changes.outputs.backend == 'true')
+          && github.event_name != 'workflow_dispatch'
         env:
           OWNER: ${{ vars.OWNER_CHANNEL }}
         run: |
@@ -163,6 +151,19 @@ jobs:
 
       # Selective deploy: server restarts run migrations via its startup
       # command; the bot only bounces when Python actually changed.
+      # Full deploy: rebuild all images and recreate all containers
+      - name: Full deploy (dependencies or infra changed)
+        if: steps.changes.outputs.deps == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          docker compose -f docker-compose.prod.yml restart caddy
+
+      # Restarting the bot drops chat and kills anything in flight. On
+      # the owner's own channel that's an accepted cost of working on
+      # the bot live; on a guest's channel it's someone else's stream
+      # breaking for reasons they can't see. Guests are "every tenant
+      # that isn't the owner", so a new one is protected by default.
+      # Deliberate override: re-run via workflow_dispatch.
       - name: Rebuild images (backend changes)
         if: >-
           steps.changes.outputs.deps != 'true' && github.event_name != 'workflow_dispatch'
