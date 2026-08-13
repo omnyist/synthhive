@@ -43,9 +43,7 @@ jobs:
 
   # The frontend was only ever checked at deploy time, so a build that
   # doesn't compile could reach main and fail during the deploy itself.
-  # Landed ungated per deploy.md: prove it green in real CI, then add it
-  # to the deploy job's needs, so a misconfigured job never blocks a
-  # deploy. (bun lives in ~/.bun/bin, which a non-login step may miss.)
+  # (bun lives in ~/.bun/bin, which a non-login step won't find.)
   frontend:
     runs-on: self-hosted
     steps:
@@ -72,7 +70,7 @@ jobs:
         run: bun run build
 
   deploy:
-    needs: test
+    needs: [test, frontend]
     runs-on: self-hosted
     steps:
       - name: Checkout code
