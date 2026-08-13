@@ -75,16 +75,12 @@ function GoalProgress({
       </div>
       <div className="mt-1.5 flex justify-between font-mono text-xl text-white/70">
         <span>
-          <span className="font-bold text-white">
-            {current.toLocaleString()}
-          </span>{' '}
-          / {goal.threshold.toLocaleString()}
+          <span className="font-bold text-white">{current.toLocaleString()}</span> /{' '}
+          {goal.threshold.toLocaleString()}
           {isPoints ? ' pts' : ' subs'}
         </span>
       </div>
-      <p className="mt-1.5 text-2xl leading-tight font-extrabold text-white">
-        {goal.title}
-      </p>
+      <p className="mt-1.5 text-2xl leading-tight font-extrabold text-white">{goal.title}</p>
     </>
-  );
+  )
 }
