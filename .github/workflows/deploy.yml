@@ -41,6 +41,36 @@ jobs:
         if: always()
         run: docker rm -f synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
 
+  # The frontend was only ever checked at deploy time, so a build that
+  # doesn't compile could reach main and fail during the deploy itself.
+  # Landed ungated per deploy.md: prove it green in real CI, then add it
+  # to the deploy job's needs, so a misconfigured job never blocks a
+  # deploy. (bun lives in ~/.bun/bin, which a non-login step may miss.)
+  frontend:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Add bun to PATH
+        run: echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        working-directory: frontend
+        run: bun run lint
+
+      - name: Typecheck
+        working-directory: frontend
+        run: bun run typecheck
+
+      - name: Build
+        working-directory: frontend
+        run: bun run build
+
   deploy:
     needs: test
     runs-on: self-hosted
