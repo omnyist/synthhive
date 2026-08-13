@@ -251,7 +251,9 @@ class CommandRouter(commands.Component):
 
             handler = SKILL_REGISTRY[cmd_name]
             try:
-                await handler.handle(payload, raw_args, skill, self.bot)
+                await handler.handle(
+                    payload, raw_args, skill, self.bot, skill.channel
+                )
             except Exception:
                 logger.exception(
                     "Skill handler '%s' failed",

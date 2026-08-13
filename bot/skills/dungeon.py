@@ -167,7 +167,7 @@ class DungeonHandler(SkillHandler):
     def __init__(self):
         self._games: dict[str, DungeonGame] = {}
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
             return
@@ -177,7 +177,7 @@ class DungeonHandler(SkillHandler):
         chatter_id = str(chatter.id)
         chatter_name = chatter.display_name
         username = chatter.name
-        channel_name = skill.channel.twitch_channel_name
+        channel_name = channel.twitch_channel_name
         messages = config.get("messages", DEFAULT_MESSAGES)
         currency = config.get("currency_name", "points")
         min_wager = config.get("min_wager", 10)
@@ -277,7 +277,7 @@ class DungeonHandler(SkillHandler):
             )
             game.participants[chatter_id] = participant
             self._games[broadcaster_id] = game
-            await self._journal_wager(skill.channel, game, participant)
+            await self._journal_wager(channel, game, participant)
 
             entry_duration = config.get("entry_duration", 120)
             msg = messages.get("entry_started", DEFAULT_MESSAGES["entry_started"])
@@ -297,7 +297,7 @@ class DungeonHandler(SkillHandler):
         # --- Join existing game ---
         game.participants[chatter_id] = participant
         game.broadcaster = payload.broadcaster
-        await self._journal_wager(skill.channel, game, participant)
+        await self._journal_wager(channel, game, participant)
 
         count = len(game.participants)
         msg = messages.get("entry_joined", DEFAULT_MESSAGES["entry_joined"])

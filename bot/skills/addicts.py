@@ -47,23 +47,9 @@ class AddictsHandler(SkillHandler):
 
     name = "addicts"
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
-            return
-
-        broadcaster_id = str(payload.broadcaster.id)
-
-        from core.models import Channel
-
-        try:
-            from asgiref.sync import sync_to_async
-
-            channel = await sync_to_async(Channel.objects.get)(
-                twitch_channel_id=broadcaster_id,
-                is_active=True,
-            )
-        except Channel.DoesNotExist:
             return
 
         slug = channel.twitch_channel_name

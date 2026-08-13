@@ -76,7 +76,12 @@ def _wrapped_nodes(fn: ast.AST) -> set[int]:
     return wrapped
 
 
-def check_function(fn: ast.AsyncFunctionDef, fks: set[str]) -> list[tuple[int, str, str]]:
+SUPPRESS = "audit-async-fk: ok"
+
+
+def check_function(
+    fn: ast.AsyncFunctionDef, fks: set[str], lines: list[str]
+) -> list[tuple[int, str, str]]:
     findings: list[tuple[int, str, str]] = []
     wrapped = _wrapped_nodes(fn)
 
@@ -108,6 +113,11 @@ def check_function(fn: ast.AsyncFunctionDef, fks: set[str]) -> list[tuple[int, s
             continue
         if node.attr not in fks or id(node) in wrapped:
             continue
+        # An attribute can collide with a model field name without
+        # being one (a dataclass `.user`, argparse `.session`). Those
+        # get an inline `# audit-async-fk: ok` rather than a rewrite.
+        if SUPPRESS in lines[node.lineno - 1]:
+            continue
         name = node.value.id
         if name in fetched and not fetched[name]:
             findings.append((node.lineno, f"{name}.{node.attr}", "fetch"))
@@ -134,13 +144,15 @@ def main(argv: list[str]) -> int:
         if _skipped(path) or "tests" in path.parts:
             continue
         try:
-            tree = ast.parse(path.read_text())
+            text = path.read_text()
+            tree = ast.parse(text)
         except SyntaxError:
             continue
+        lines = text.splitlines()
         for node in ast.walk(tree):
             if not isinstance(node, ast.AsyncFunctionDef):
                 continue
-            for lineno, chain, kind in check_function(node, fks):
+            for lineno, chain, kind in check_function(node, fks, lines):
                 if shape != "all" and kind != shape:
                     continue
                 print(f"{path}:{lineno}  [{kind}]  {chain}  (async {node.name})")

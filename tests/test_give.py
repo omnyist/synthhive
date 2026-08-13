@@ -60,7 +60,7 @@ class TestGiveHandler:
         bot.fetch_users = AsyncMock(return_value=[target])
 
         payload = MockPayload(text="!give @kefka 100")
-        await handler.handle(payload, "@kefka 100", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka 100", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "100 spoons" in msg
@@ -79,7 +79,7 @@ class TestGiveHandler:
         bot.fetch_users = AsyncMock(return_value=[_mock_target()])
 
         payload = MockPayload(text="!give @kefka 10000")
-        await handler.handle(payload, "@kefka 10000", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka 10000", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "10,000" in msg
@@ -88,7 +88,7 @@ class TestGiveHandler:
     async def test_missing_args(self, handler):
         bot = _mock_bot()
         payload = MockPayload(text="!give")
-        await handler.handle(payload, "", _mock_skill(), bot)
+        await handler.handle(payload, "", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Usage" in msg
@@ -97,7 +97,7 @@ class TestGiveHandler:
     async def test_missing_amount(self, handler):
         bot = _mock_bot()
         payload = MockPayload(text="!give @kefka")
-        await handler.handle(payload, "@kefka", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Usage" in msg
@@ -106,7 +106,7 @@ class TestGiveHandler:
     async def test_invalid_amount(self, handler):
         bot = _mock_bot()
         payload = MockPayload(text="!give @kefka abc")
-        await handler.handle(payload, "@kefka abc", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka abc", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "whole number" in msg.lower()
@@ -115,7 +115,7 @@ class TestGiveHandler:
     async def test_zero_amount(self, handler):
         bot = _mock_bot()
         payload = MockPayload(text="!give @kefka 0")
-        await handler.handle(payload, "@kefka 0", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka 0", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "positive" in msg
@@ -124,7 +124,7 @@ class TestGiveHandler:
     async def test_negative_amount(self, handler):
         bot = _mock_bot()
         payload = MockPayload(text="!give @kefka -50")
-        await handler.handle(payload, "@kefka -50", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka -50", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "positive" in msg.lower()
@@ -136,7 +136,7 @@ class TestGiveHandler:
             chatter=MockChatter(name="testuser"),
             text="!give @testuser 100",
         )
-        await handler.handle(payload, "@testuser 100", _mock_skill(), bot)
+        await handler.handle(payload, "@testuser 100", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "yourself" in msg.lower()
@@ -147,7 +147,7 @@ class TestGiveHandler:
         bot.fetch_users = AsyncMock(return_value=[])
 
         payload = MockPayload(text="!give @nobody 100")
-        await handler.handle(payload, "@nobody 100", _mock_skill(), bot)
+        await handler.handle(payload, "@nobody 100", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "don't know who" in msg.lower()
@@ -168,7 +168,7 @@ class TestGiveHandler:
         bot.fetch_users = AsyncMock(return_value=[_mock_target()])
 
         payload = MockPayload(text="!give @kefka 999999")
-        await handler.handle(payload, "@kefka 999999", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka 999999", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "enough" in msg.lower()
@@ -184,7 +184,7 @@ class TestGiveHandler:
         bot.fetch_users = AsyncMock(return_value=[_mock_target()])
 
         payload = MockPayload(text="!give @kefka 100")
-        await handler.handle(payload, "@kefka 100", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka 100", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "failed" in msg.lower()
@@ -202,7 +202,7 @@ class TestGiveHandler:
         bot.fetch_users = AsyncMock(return_value=[target])
 
         payload = MockPayload(text="!give @kefka 250")
-        await handler.handle(payload, "@kefka 250", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka 250", _mock_skill(), bot, _mock_skill().channel)
 
         call_args = mock_transact.call_args
         entries = call_args.args[1]
@@ -224,7 +224,7 @@ class TestGiveHandler:
         bot.fetch_users = AsyncMock(return_value=[_mock_target()])
 
         payload = MockPayload(text="!give @kefka 100")
-        await handler.handle(payload, "@kefka 100", _mock_skill(), bot)
+        await handler.handle(payload, "@kefka 100", _mock_skill(), bot, _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "points" in msg

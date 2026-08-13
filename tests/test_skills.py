@@ -2766,7 +2766,7 @@ class TestStateDurability:
         payload = MockPayload(
             text="!lizardroulette", broadcaster=MockBroadcaster(id=99999)
         )
-        await handler.handle(payload, "", skill, bot)
+        await handler.handle(payload, "", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "wait" in msg  # still on cooldown after the "restart"

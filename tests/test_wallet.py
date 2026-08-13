@@ -36,7 +36,7 @@ class TestWalletSkill:
             "currency_name": "spoons",
         }
         payload = MockPayload(text="!wallet")
-        await handler.handle(payload, "", skill, bot)
+        await handler.handle(payload, "", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "525,432.5 spoons" in msg
@@ -57,7 +57,7 @@ class TestWalletSkill:
         bot.fetch_users = AsyncMock(return_value=[mock_user])
 
         payload = MockPayload(text="!wallet @kefka")
-        await handler.handle(payload, "@kefka", skill, bot)
+        await handler.handle(payload, "@kefka", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "171,661 spoons" in msg
@@ -68,7 +68,7 @@ class TestWalletSkill:
     async def test_no_wallet(self, mock_get_wallet, handler, bot, skill):
         mock_get_wallet.return_value = None
         payload = MockPayload(text="!wallet")
-        await handler.handle(payload, "", skill, bot)
+        await handler.handle(payload, "", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "doesn't have a wallet" in msg
@@ -77,7 +77,7 @@ class TestWalletSkill:
     async def test_unknown_twitch_user(self, handler, bot, skill):
         bot.fetch_users = AsyncMock(return_value=[])
         payload = MockPayload(text="!wallet @nobody")
-        await handler.handle(payload, "@nobody", skill, bot)
+        await handler.handle(payload, "@nobody", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Could not find" in msg
@@ -92,7 +92,7 @@ class TestWalletSkill:
             "currency_name": "spoons",
         }
         payload = MockPayload(text="!wallet")
-        await handler.handle(payload, "", skill, bot)
+        await handler.handle(payload, "", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "1,000 spoons" in msg
@@ -105,7 +105,7 @@ class TestWalletSkill:
             "currency_name": "points",
         }
         payload = MockPayload(text="!wallet")
-        await handler.handle(payload, "", skill, bot)
+        await handler.handle(payload, "", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "0 points" in msg

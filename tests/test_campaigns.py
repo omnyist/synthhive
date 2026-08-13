@@ -42,7 +42,7 @@ class TestTimerHandler:
             new_callable=AsyncMock,
             return_value=campaign,
         ):
-            await TimerHandler().handle(payload, "", _make_skill(), _make_bot())
+            await TimerHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "1h 2m 5s" in msg
@@ -57,7 +57,7 @@ class TestTimerHandler:
             new_callable=AsyncMock,
             return_value=campaign,
         ):
-            await TimerHandler().handle(payload, "", _make_skill(), _make_bot())
+            await TimerHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "doesn't have a timer" in msg
@@ -79,7 +79,7 @@ class TestTimerHandler:
             new_callable=AsyncMock,
             return_value=campaign,
         ):
-            await TimerHandler().handle(payload, "", _make_skill(), _make_bot())
+            await TimerHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "1m 30s" in msg
@@ -93,7 +93,7 @@ class TestTimerHandler:
             new_callable=AsyncMock,
             return_value=None,
         ):
-            await TimerHandler().handle(payload, "", _make_skill(), _make_bot())
+            await TimerHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "No active campaign" in msg
@@ -117,7 +117,7 @@ class TestCampaignHandler:
             new_callable=AsyncMock,
             return_value=campaign,
         ):
-            await CampaignHandler().handle(payload, "", _make_skill(), _make_bot())
+            await CampaignHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Anniversary: 120 subs, 45 resubs" in msg
@@ -149,7 +149,7 @@ class TestStretchGoals:
             new_callable=AsyncMock,
             return_value=self._campaign(),
         ):
-            await ProgressHandler().handle(payload, "", _make_skill(), _make_bot())
+            await ProgressHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         # 1 of 2 core goals — NOT 1 of 3.
@@ -163,7 +163,7 @@ class TestStretchGoals:
             new_callable=AsyncMock,
             return_value=self._campaign(),
         ):
-            await CampaignHandler().handle(payload, "", _make_skill(), _make_bot())
+            await CampaignHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "1/2 milestones unlocked" in msg
@@ -177,7 +177,7 @@ class TestStretchGoals:
             new_callable=AsyncMock,
             return_value=self._campaign(),
         ):
-            await NextGoalHandler().handle(payload, "", _make_skill(), _make_bot())
+            await NextGoalHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "FF1" in msg  # not the stretch goal
@@ -196,7 +196,7 @@ class TestStretchGoals:
             new_callable=AsyncMock,
             return_value=campaign,
         ):
-            await NextGoalHandler().handle(payload, "", _make_skill(), _make_bot())
+            await NextGoalHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Baiten Kaitos" in msg
@@ -211,7 +211,7 @@ class TestStretchGoals:
             new_callable=AsyncMock,
             return_value=self._campaign(),
         ):
-            await MilestonesHandler().handle(payload, "", _make_skill(), _make_bot())
+            await MilestonesHandler().handle(payload, "", _make_skill(), _make_bot(), _make_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "(5000 pts ★stretch)" in msg

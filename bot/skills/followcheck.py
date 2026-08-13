@@ -4,8 +4,6 @@ import logging
 from datetime import UTC
 from datetime import datetime
 
-from asgiref.sync import sync_to_async
-
 from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
@@ -20,7 +18,7 @@ class FollowCheckHandler(SkillHandler):
 
     name = "followage"
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
             return
@@ -29,18 +27,6 @@ class FollowCheckHandler(SkillHandler):
         chatter_id = str(chatter.id)
         chatter_name = chatter.display_name
 
-        from core.models import Channel
-
-        try:
-            channel = await sync_to_async(Channel.objects.get)(
-                twitch_channel_id=broadcaster_id,
-                is_active=True,
-            )
-        except Channel.DoesNotExist:
-            logger.warning(
-                "No active channel found for broadcaster %s", broadcaster_id
-            )
-            return
 
         # Broadcaster can't follow themselves.
         if chatter_id == broadcaster_id:

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
     from twitchio.ext import commands
 
+    from core.models import Channel
     from core.models import Skill
 
 logger = logging.getLogger("bot")
@@ -37,7 +38,15 @@ class SkillHandler:
         args: str,
         skill: Skill,
         bot: commands.Bot,
+        channel: Channel,
     ) -> None:
+        """Handle one invocation of this skill.
+
+        `channel` is passed rather than read off `skill.channel` so the
+        relation is never lazy-loaded in async context — reaching
+        through the model only worked because the router happened to
+        fetch with select_related, which is a promise no signature made.
+        """
         raise NotImplementedError
 
 

@@ -15,8 +15,6 @@ from __future__ import annotations
 import logging
 import re
 
-from asgiref.sync import sync_to_async
-
 from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
@@ -61,8 +59,8 @@ class QuoteHandler(SkillHandler):
 
     name = "quote"
 
-    async def handle(self, payload, args, skill, bot):
-        tenant_slug = skill.channel.twitch_channel_name
+    async def handle(self, payload, args, skill, bot, channel):
+        tenant_slug = channel.twitch_channel_name
         chatter_name = (
             payload.chatter.display_name if payload.chatter else "someone"
         )
@@ -84,7 +82,9 @@ class QuoteHandler(SkillHandler):
         elif subcommand == "user":
             await self._by_user(payload, bot, chatter_name, sub_args, tenant_slug)
         elif subcommand == "add":
-            await self._add(payload, bot, chatter_name, sub_args, tenant_slug)
+            await self._add(
+                payload, bot, chatter_name, sub_args, tenant_slug, channel
+            )
         elif subcommand == "latest":
             await self._latest(payload, bot, chatter_name, tenant_slug)
         elif subcommand == "stats":
@@ -194,7 +194,7 @@ class QuoteHandler(SkillHandler):
     # Matches: "quote text here" ~ @username
     ADD_PATTERN = re.compile(r'"([^"]*?)"\s*~\s*@([A-Za-z0-9_]+)')
 
-    async def _add(self, payload, bot, chatter_name, args_str, tenant_slug):
+    async def _add(self, payload, bot, chatter_name, args_str, tenant_slug, channel):
         if not args_str:
             await send_reply(
                 payload,
@@ -216,7 +216,7 @@ class QuoteHandler(SkillHandler):
         text = match.group(1)
         quotee = match.group(2)
 
-        category = await self._get_current_category(payload)
+        category = await self._get_current_category(payload, channel)
         quote = await create_quote(
             text, quotee, chatter_name, tenant_slug, category=category
         )
@@ -236,24 +236,16 @@ class QuoteHandler(SkillHandler):
             bot_id=bot.bot_id,
         )
 
-    async def _get_current_category(self, payload) -> str | None:
+    async def _get_current_category(self, payload, channel) -> str | None:
         """Fetch the stream's current Twitch category from Helix.
 
         Helix calls this `game_name`, but it carries non-game categories
         like Just Chatting too, which is why quotes store it as `category`.
         """
-        from core.models import Channel
         from core.twitch import TWITCH_API_BASE
         from core.twitch import twitch_request
 
         broadcaster_id = str(payload.broadcaster.id)
-        try:
-            channel = await sync_to_async(Channel.objects.get)(
-                twitch_channel_id=broadcaster_id,
-                is_active=True,
-            )
-        except Channel.DoesNotExist:
-            return None
 
         response = await twitch_request(
             channel,

@@ -27,8 +27,8 @@ class CampaignHandler(SkillHandler):
 
     name = "campaign"
 
-    async def handle(self, payload, args, skill, bot):
-        tenant_slug = skill.channel.twitch_channel_name
+    async def handle(self, payload, args, skill, bot, channel):
+        tenant_slug = channel.twitch_channel_name
         campaign = await get_active_campaign(tenant_slug)
         if not campaign:
             await send_reply(
@@ -62,8 +62,8 @@ class TimerHandler(SkillHandler):
 
     name = "timer"
 
-    async def handle(self, payload, args, skill, bot):
-        tenant_slug = skill.channel.twitch_channel_name
+    async def handle(self, payload, args, skill, bot, channel):
+        tenant_slug = channel.twitch_channel_name
         campaign = await get_active_campaign(tenant_slug)
         if not campaign:
             await send_reply(
@@ -117,8 +117,8 @@ class MilestonesHandler(SkillHandler):
 
     name = "milestones"
 
-    async def handle(self, payload, args, skill, bot):
-        tenant_slug = skill.channel.twitch_channel_name
+    async def handle(self, payload, args, skill, bot, channel):
+        tenant_slug = channel.twitch_channel_name
         campaign = await get_active_campaign(tenant_slug)
         if not campaign:
             await send_reply(
@@ -155,8 +155,8 @@ class GiftsHandler(SkillHandler):
 
     name = "gifts"
 
-    async def handle(self, payload, args, skill, bot):
-        tenant_slug = skill.channel.twitch_channel_name
+    async def handle(self, payload, args, skill, bot, channel):
+        tenant_slug = channel.twitch_channel_name
         leaderboard = await get_gift_leaderboard(tenant_slug, limit=5)
         if not leaderboard:
             await send_reply(
@@ -184,8 +184,8 @@ class NextGoalHandler(SkillHandler):
 
     name = "nextgoal"
 
-    async def handle(self, payload, args, skill, bot):
-        tenant_slug = skill.channel.twitch_channel_name
+    async def handle(self, payload, args, skill, bot, channel):
+        tenant_slug = channel.twitch_channel_name
         campaign = await get_active_campaign(tenant_slug)
         if not campaign:
             await send_reply(
@@ -222,8 +222,8 @@ class ProgressHandler(SkillHandler):
 
     name = "progress"
 
-    async def handle(self, payload, args, skill, bot):
-        tenant_slug = skill.channel.twitch_channel_name
+    async def handle(self, payload, args, skill, bot, channel):
+        tenant_slug = channel.twitch_channel_name
         campaign = await get_active_campaign(tenant_slug)
         if not campaign:
             await send_reply(
@@ -261,12 +261,12 @@ class StartTimerHandler(SkillHandler):
 
     name = "starttimer"
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter or not (chatter.moderator or chatter.broadcaster):
             return
 
-        tenant_slug = skill.channel.twitch_channel_name
+        tenant_slug = channel.twitch_channel_name
         result = await start_campaign_timer(tenant_slug)
         if not result or result.get("error"):
             error = result.get("error", "Unknown error") if result else "No response"
@@ -283,12 +283,12 @@ class PauseTimerHandler(SkillHandler):
 
     name = "pausetimer"
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter or not (chatter.moderator or chatter.broadcaster):
             return
 
-        tenant_slug = skill.channel.twitch_channel_name
+        tenant_slug = channel.twitch_channel_name
         result = await pause_campaign_timer(tenant_slug)
         if not result or result.get("error"):
             error = result.get("error", "Unknown error") if result else "No response"

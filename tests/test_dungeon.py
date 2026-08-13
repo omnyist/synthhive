@@ -144,7 +144,7 @@ class TestDungeonEntryPhase:
             broadcaster=MockBroadcaster(id=99999),
         )
 
-        await handler.handle(payload, "", skill, bot)
+        await handler.handle(payload, "", skill, bot, skill.channel)
 
         payload.broadcaster.send_message.assert_called_once()
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -161,7 +161,7 @@ class TestDungeonEntryPhase:
             broadcaster=MockBroadcaster(id=99999),
         )
 
-        await handler.handle(payload, "abc", skill, bot)
+        await handler.handle(payload, "abc", skill, bot, skill.channel)
 
         payload.broadcaster.send_message.assert_called_once()
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -178,7 +178,7 @@ class TestDungeonEntryPhase:
             broadcaster=MockBroadcaster(id=99999),
         )
 
-        await handler.handle(payload, "5", skill, bot)
+        await handler.handle(payload, "5", skill, bot, skill.channel)
 
         payload.broadcaster.send_message.assert_called_once()
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -195,7 +195,7 @@ class TestDungeonEntryPhase:
             broadcaster=MockBroadcaster(id=99999),
         )
 
-        await handler.handle(payload, "99999", skill, bot)
+        await handler.handle(payload, "99999", skill, bot, skill.channel)
 
         payload.broadcaster.send_message.assert_called_once()
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -217,7 +217,7 @@ class TestDungeonEntryPhase:
             new_callable=AsyncMock,
             return_value=_transact_insufficient(),
         ):
-            await handler.handle(payload, "500", skill, bot)
+            await handler.handle(payload, "500", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "enough" in msg.lower() or "insufficient" in msg.lower()
@@ -238,7 +238,7 @@ class TestDungeonEntryPhase:
             new_callable=AsyncMock,
             return_value=_transact_success(),
         ):
-            await handler.handle(payload, "500", skill, bot)
+            await handler.handle(payload, "500", skill, bot, skill.channel)
             # Game was created
             assert "99999" in handler._games
             game = handler._games["99999"]
@@ -281,8 +281,8 @@ class TestDungeonEntryPhase:
             new_callable=AsyncMock,
             return_value=_transact_success(),
         ):
-            await handler.handle(payload1, "500", skill, bot)
-            await handler.handle(payload2, "200", skill, bot)
+            await handler.handle(payload1, "500", skill, bot, skill.channel)
+            await handler.handle(payload2, "200", skill, bot, skill.channel)
 
             game = handler._games["99999"]
             assert len(game.participants) == 2
@@ -312,14 +312,14 @@ class TestDungeonEntryPhase:
             new_callable=AsyncMock,
             return_value=_transact_success(),
         ) as mock_transact:
-            await handler.handle(payload1, "500", skill, bot)
+            await handler.handle(payload1, "500", skill, bot, skill.channel)
 
             # Same user tries again
             payload2 = MockPayload(
                 text="!dungeon 300",
                 broadcaster=MockBroadcaster(id=99999),
             )
-            await handler.handle(payload2, "300", skill, bot)
+            await handler.handle(payload2, "300", skill, bot, skill.channel)
 
             # Transact called only once (first entry)
             assert mock_transact.call_count == 1
@@ -358,7 +358,7 @@ class TestDungeonCooldown:
             "bot.skills.dungeon.transact_wallets",
             new_callable=AsyncMock,
         ) as mock_transact:
-            await handler.handle(payload, "500", skill, bot)
+            await handler.handle(payload, "500", skill, bot, skill.channel)
             mock_transact.assert_not_called()
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -388,7 +388,7 @@ class TestDungeonResolution:
             "bot.skills.dungeon.random.randint",
             return_value=1,
         ):
-            await handler.handle(payload, "100", skill, bot)
+            await handler.handle(payload, "100", skill, bot, skill.channel)
             # Wait for the background task (entry_duration=0)
             game = handler._games.get("99999")
             _dungeon_env.set()
@@ -422,7 +422,7 @@ class TestDungeonResolution:
             "bot.skills.dungeon.random.randint",
             return_value=100,
         ):
-            await handler.handle(payload, "100", skill, bot)
+            await handler.handle(payload, "100", skill, bot, skill.channel)
             game = handler._games.get("99999")
             _dungeon_env.set()
             if game and game.task:
@@ -456,7 +456,7 @@ class TestDungeonResolution:
                     chatter=MockChatter(name=f"p{i}", display_name=f"P{i}", id=1000 + i),
                     broadcaster=broadcaster,
                 )
-                await handler.handle(payload, str(100 * (i + 1)), skill, bot)
+                await handler.handle(payload, str(100 * (i + 1)), skill, bot, skill.channel)
 
             game = handler._games.get("99999")
             _dungeon_env.set()
@@ -491,7 +491,7 @@ class TestDungeonResolution:
             "bot.skills.dungeon.random.randint",
             return_value=1,
         ):
-            await handler.handle(payload, "100", skill, bot)
+            await handler.handle(payload, "100", skill, bot, skill.channel)
             game = handler._games.get("99999")
             _dungeon_env.set()
             if game and game.task:
@@ -526,7 +526,7 @@ class TestDungeonResolution:
                     chatter=MockChatter(name=f"p{i}", display_name=f"P{i}", id=2000 + i),
                     broadcaster=broadcaster,
                 )
-                await handler.handle(payload, "100", skill, bot)
+                await handler.handle(payload, "100", skill, bot, skill.channel)
 
             game = handler._games.get("99999")
             _dungeon_env.set()
@@ -570,7 +570,7 @@ class TestDungeonLevelSelection:
                     chatter=MockChatter(name=f"p{i}", display_name=f"P{i}", id=3000 + i),
                     broadcaster=broadcaster,
                 )
-                await handler.handle(payload, "100", skill, bot)
+                await handler.handle(payload, "100", skill, bot, skill.channel)
 
             game = handler._games.get("99999")
             _dungeon_env.set()
@@ -623,7 +623,7 @@ class TestDungeonRunningPhaseIgnored:
             "bot.skills.dungeon.transact_wallets",
             new_callable=AsyncMock,
         ) as mock_transact:
-            await handler.handle(payload, "500", skill, bot)
+            await handler.handle(payload, "500", skill, bot, skill.channel)
             mock_transact.assert_not_called()
 
         # No message sent (silently ignored)
@@ -649,7 +649,7 @@ class TestDungeonWagerJournal:
             new_callable=AsyncMock,
             return_value=_transact_success(),
         ):
-            await handler.handle(payload, "500", skill, bot)
+            await handler.handle(payload, "500", skill, bot, skill.channel)
             game = handler._games["99999"]
             wager = DungeonWager.objects.get(game_key=game.game_key)
             assert wager.status == "pending"
@@ -672,7 +672,7 @@ class TestDungeonWagerJournal:
             new_callable=AsyncMock,
             return_value=_transact_success(),
         ), patch("bot.skills.dungeon.random.randint", return_value=100):
-            await handler.handle(payload, "100", skill, bot)
+            await handler.handle(payload, "100", skill, bot, skill.channel)
             game = handler._games.get("99999")
             game_key = game.game_key
             _dungeon_env.set()
@@ -699,7 +699,7 @@ class TestDungeonWagerJournal:
             new_callable=AsyncMock,
             return_value=_transact_success(),
         ), patch("bot.skills.dungeon.random.randint", return_value=1):
-            await handler.handle(payload, "100", skill, bot)
+            await handler.handle(payload, "100", skill, bot, skill.channel)
             game = handler._games.get("99999")
             game_key = game.game_key
             _dungeon_env.set()
@@ -727,7 +727,7 @@ class TestDungeonWagerJournal:
             new_callable=AsyncMock,
             side_effect=[_transact_success(), None],
         ), patch("bot.skills.dungeon.random.randint", return_value=1):
-            await handler.handle(payload, "100", skill, bot)
+            await handler.handle(payload, "100", skill, bot, skill.channel)
             game = handler._games.get("99999")
             game_key = game.game_key
             _dungeon_env.set()

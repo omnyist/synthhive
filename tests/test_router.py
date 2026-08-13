@@ -317,7 +317,7 @@ class TestCommandRouterSkillFallback:
         class TestSkillHandler(SkillHandler):
             name = "testskill"
 
-            async def handle(self, payload, args, skill, bot):
+            async def handle(self, payload, args, skill, bot, channel):
                 await payload.respond(f"Skill response: {args}")
 
         register_skill(TestSkillHandler())
@@ -347,7 +347,7 @@ class TestCommandRouterSkillFallback:
         class ConflictHandler(SkillHandler):
             name = "conflictcmd"
 
-            async def handle(self, payload, args, skill, bot):
+            async def handle(self, payload, args, skill, bot, channel):
                 await payload.respond("Skill response")
 
         register_skill(ConflictHandler())

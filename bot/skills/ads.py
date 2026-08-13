@@ -66,9 +66,9 @@ class AdsHandler(SkillHandler):
     name = "ads"
     config_schema = AdsConfig
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         sub = args.strip().lower() if args else ""
-        tenant_slug = skill.channel.twitch_channel_name
+        tenant_slug = channel.twitch_channel_name
         config = skill.config or {}
         messages = config.get("messages", DEFAULT_MESSAGES)
 

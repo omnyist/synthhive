@@ -126,7 +126,7 @@ class TestMarkovHandler:
         mock_get_redis.return_value = mock_client
 
         payload = MockPayload(text="!markov")
-        await handler.handle(payload, "", _mock_skill(), _mock_bot())
+        await handler.handle(payload, "", _mock_skill(), _mock_bot(), _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert len(msg) > 0
@@ -148,7 +148,7 @@ class TestMarkovHandler:
         ]
 
         payload = MockPayload(text="!markov")
-        await handler.handle(payload, "", _mock_skill(), _mock_bot())
+        await handler.handle(payload, "", _mock_skill(), _mock_bot(), _mock_skill().channel)
 
         mock_client.set.assert_called_once()
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -171,7 +171,7 @@ class TestMarkovHandler:
             text="!markov rebuild",
             chatter=MockChatter(moderator=True),
         )
-        await handler.handle(payload, "rebuild", _mock_skill(), _mock_bot())
+        await handler.handle(payload, "rebuild", _mock_skill(), _mock_bot(), _mock_skill().channel)
 
         mock_client.set.assert_called_once()
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
@@ -183,7 +183,7 @@ class TestMarkovHandler:
             text="!markov rebuild",
             chatter=MockChatter(moderator=False, broadcaster=False),
         )
-        await handler.handle(payload, "rebuild", _mock_skill(), _mock_bot())
+        await handler.handle(payload, "rebuild", _mock_skill(), _mock_bot(), _mock_skill().channel)
 
         payload.broadcaster.send_message.assert_not_called()
 
@@ -200,7 +200,7 @@ class TestMarkovHandler:
         mock_messages.return_value = None
 
         payload = MockPayload(text="!markov")
-        await handler.handle(payload, "", _mock_skill(), _mock_bot())
+        await handler.handle(payload, "", _mock_skill(), _mock_bot(), _mock_skill().channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "not enough" in msg.lower()

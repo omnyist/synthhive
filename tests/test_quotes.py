@@ -37,7 +37,7 @@ class TestQuoteAdd:
         mock_create.return_value = {"number": 99}
         handler._get_current_category = AsyncMock(return_value="Final Fantasy IX")
         payload = MockPayload(text='!quote add "Something funny" ~ @spoonee')
-        await handler.handle(payload, 'add "Something funny" ~ @spoonee', skill, bot)
+        await handler.handle(payload, 'add "Something funny" ~ @spoonee', skill, bot, skill.channel)
 
         mock_create.assert_called_once_with(
             "Something funny", "spoonee", "TestUser", "testchannel",
@@ -50,7 +50,7 @@ class TestQuoteAdd:
     @pytest.mark.asyncio
     async def test_add_bad_format_shows_ocd_message(self, handler, bot, skill):
         payload = MockPayload(text="!quote add @spoonee Something funny")
-        await handler.handle(payload, "add @spoonee Something funny", skill, bot)
+        await handler.handle(payload, "add @spoonee Something funny", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "OCD" in msg
@@ -59,7 +59,7 @@ class TestQuoteAdd:
     @pytest.mark.asyncio
     async def test_add_no_args(self, handler, bot, skill):
         payload = MockPayload(text="!quote add")
-        await handler.handle(payload, "add", skill, bot)
+        await handler.handle(payload, "add", skill, bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Usage:" in msg
@@ -77,6 +77,7 @@ class TestQuoteAdd:
             'add "I can\'t believe it\'s not butter!" ~ @bryan',
             skill,
             bot,
+            skill.channel,
         )
 
         mock_create.assert_called_once_with(

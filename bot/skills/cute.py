@@ -41,7 +41,7 @@ class CuteHandler(SkillHandler):
     name = "cute"
     config_schema = CuteConfig
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
             return

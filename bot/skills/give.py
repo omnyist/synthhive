@@ -22,12 +22,12 @@ class GiveHandler(SkillHandler):
 
     name = "give"
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
             return
 
-        tenant_slug = skill.channel.twitch_channel_name
+        tenant_slug = channel.twitch_channel_name
 
         parts = args.strip().split() if args else []
         if len(parts) < 2:

@@ -80,12 +80,12 @@ class MarkovHandler(SkillHandler):
 
     name = "markov"
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
             return
 
-        tenant_slug = skill.channel.twitch_channel_name
+        tenant_slug = channel.twitch_channel_name
 
         if args.strip().lower() == "rebuild":
             if not (chatter.moderator or chatter.broadcaster):

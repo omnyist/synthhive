@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 
-from asgiref.sync import sync_to_async
 from pydantic import BaseModel
 from pydantic import ConfigDict
 
@@ -37,7 +36,7 @@ class PuntHandler(SkillHandler):
     name = "punt"
     config_schema = PuntConfig
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
             return
@@ -56,7 +55,7 @@ class PuntHandler(SkillHandler):
             return
 
         # Timeout the caller for 1 second
-        timed_out = await self._timeout_user(payload, str(chatter.id), bot)
+        timed_out = await self._timeout_user(payload, str(chatter.id), bot, channel)
 
         if timed_out:
             success_msg = config.get(
@@ -72,19 +71,9 @@ class PuntHandler(SkillHandler):
         success_msg = success_msg.replace("$(user)", chatter_name)
         await send_reply(payload, success_msg, bot_id=bot.bot_id)
 
-    async def _timeout_user(self, payload, user_id: str, bot) -> bool:
+    async def _timeout_user(self, payload, user_id: str, bot, channel) -> bool:
         """Issue a 1-second timeout via the Twitch Helix moderation API."""
         broadcaster_id = str(payload.broadcaster.id)
-
-        from core.models import Channel
-
-        try:
-            channel = await sync_to_async(Channel.objects.get)(
-                twitch_channel_id=broadcaster_id,
-                is_active=True,
-            )
-        except Channel.DoesNotExist:
-            return False
 
         url = (
             f"{TWITCH_API_BASE}/moderation/bans"

@@ -66,7 +66,7 @@ class UserHandler(VariableHandler):
     namespace = "user"
 
     async def resolve(self, prop, args, context):
-        return context.user
+        return context.user  # audit-async-fk: ok — plain str, not a FK
 
     def describe(self):
         return [

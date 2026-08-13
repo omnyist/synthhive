@@ -70,7 +70,7 @@ class LizardRouletteHandler(SkillHandler):
     def __init__(self):
         self._live_cache: dict[str, tuple[bool, float]] = {}
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
             return
@@ -104,17 +104,6 @@ class LizardRouletteHandler(SkillHandler):
             return
 
         # --- Look up channel for stat tracking ---
-        from core.models import Channel
-
-        try:
-            channel = await sync_to_async(Channel.objects.get)(
-                twitch_channel_id=broadcaster_id,
-                is_active=True,
-            )
-        except Channel.DoesNotExist:
-            logger.warning("No active channel found for broadcaster %s", broadcaster_id)
-            return
-
         # --- Scripting detection from the play journal (survives deploys) ---
         is_scripted = await self._detect_scripted(channel, chatter_id)
 

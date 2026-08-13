@@ -48,7 +48,7 @@ class TestAdsHandler:
             "config": {"interval": 30, "duration": 90},
         }
         with patch("bot.skills.ads.get_ads_status", new_callable=AsyncMock, return_value=status_data):
-            await handler.handle(payload, "", skill, mock_bot)
+            await handler.handle(payload, "", skill, mock_bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Ads: ON" in msg
@@ -59,7 +59,7 @@ class TestAdsHandler:
         payload = MockPayload(chatter=MockChatter())
         status_data = {"enabled": False}
         with patch("bot.skills.ads.get_ads_status", new_callable=AsyncMock, return_value=status_data):
-            await handler.handle(payload, "", skill, mock_bot)
+            await handler.handle(payload, "", skill, mock_bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Ads: OFF" in msg
@@ -67,7 +67,7 @@ class TestAdsHandler:
     async def test_status_api_failure(self, handler, skill, mock_bot):
         payload = MockPayload(chatter=MockChatter())
         with patch("bot.skills.ads.get_ads_status", new_callable=AsyncMock, return_value=None):
-            await handler.handle(payload, "", skill, mock_bot)
+            await handler.handle(payload, "", skill, mock_bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Could not fetch" in msg
@@ -75,7 +75,7 @@ class TestAdsHandler:
     async def test_enable_as_mod(self, handler, skill, mock_bot):
         payload = MockPayload(chatter=MockChatter(moderator=True))
         with patch("bot.skills.ads.enable_ads", new_callable=AsyncMock, return_value={"ok": True}):
-            await handler.handle(payload, "on", skill, mock_bot)
+            await handler.handle(payload, "on", skill, mock_bot, skill.channel)
 
         # Success message comes from component, not handler
         payload.broadcaster.send_message.assert_not_called()
@@ -83,7 +83,7 @@ class TestAdsHandler:
     async def test_enable_api_failure(self, handler, skill, mock_bot):
         payload = MockPayload(chatter=MockChatter(moderator=True))
         with patch("bot.skills.ads.enable_ads", new_callable=AsyncMock, return_value=None):
-            await handler.handle(payload, "on", skill, mock_bot)
+            await handler.handle(payload, "on", skill, mock_bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Failed to enable" in msg
@@ -91,14 +91,14 @@ class TestAdsHandler:
     async def test_disable_as_broadcaster(self, handler, skill, mock_bot):
         payload = MockPayload(chatter=MockChatter(broadcaster=True))
         with patch("bot.skills.ads.disable_ads", new_callable=AsyncMock, return_value={"ok": True}):
-            await handler.handle(payload, "off", skill, mock_bot)
+            await handler.handle(payload, "off", skill, mock_bot, skill.channel)
 
         payload.broadcaster.send_message.assert_not_called()
 
     async def test_disable_api_failure(self, handler, skill, mock_bot):
         payload = MockPayload(chatter=MockChatter(broadcaster=True))
         with patch("bot.skills.ads.disable_ads", new_callable=AsyncMock, return_value=None):
-            await handler.handle(payload, "off", skill, mock_bot)
+            await handler.handle(payload, "off", skill, mock_bot, skill.channel)
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "Failed to disable" in msg
@@ -106,7 +106,7 @@ class TestAdsHandler:
     async def test_enable_ignored_for_regular_user(self, handler, skill, mock_bot):
         payload = MockPayload(chatter=MockChatter())
         with patch("bot.skills.ads.enable_ads", new_callable=AsyncMock) as mock_enable:
-            await handler.handle(payload, "on", skill, mock_bot)
+            await handler.handle(payload, "on", skill, mock_bot, skill.channel)
 
         mock_enable.assert_not_called()
         payload.broadcaster.send_message.assert_not_called()
@@ -114,7 +114,7 @@ class TestAdsHandler:
     async def test_disable_ignored_for_regular_user(self, handler, skill, mock_bot):
         payload = MockPayload(chatter=MockChatter())
         with patch("bot.skills.ads.disable_ads", new_callable=AsyncMock) as mock_disable:
-            await handler.handle(payload, "off", skill, mock_bot)
+            await handler.handle(payload, "off", skill, mock_bot, skill.channel)
 
         mock_disable.assert_not_called()
         payload.broadcaster.send_message.assert_not_called()

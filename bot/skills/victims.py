@@ -18,23 +18,12 @@ class VictimsHandler(SkillHandler):
 
     name = "victims"
 
-    async def handle(self, payload, args, skill, bot):
+    async def handle(self, payload, args, skill, bot, channel):
         chatter = payload.chatter
         if not chatter:
             return
 
-        broadcaster_id = str(payload.broadcaster.id)
-
-        from core.models import Channel
         from core.models import SkillStat
-
-        try:
-            channel = await sync_to_async(Channel.objects.get)(
-                twitch_channel_id=broadcaster_id,
-                is_active=True,
-            )
-        except Channel.DoesNotExist:
-            return
 
         victims = await sync_to_async(list)(
             SkillStat.objects.filter(

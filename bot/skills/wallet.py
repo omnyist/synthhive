@@ -22,8 +22,8 @@ class WalletHandler(SkillHandler):
 
     name = "wallet"
 
-    async def handle(self, payload, args, skill, bot):
-        tenant_slug = skill.channel.twitch_channel_name
+    async def handle(self, payload, args, skill, bot, channel):
+        tenant_slug = channel.twitch_channel_name
         chatter = payload.chatter
         chatter_name = chatter.display_name if chatter else "someone"
 
