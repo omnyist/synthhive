@@ -14,7 +14,7 @@ dependencies = [
     "psycopg[pool]>=3.3.4",
     "redis>=8.0.1",
     "sentry-sdk[django]>=2.59.0",
-    "twitchio>=3.2.2",
+    "twitchio>=3.3.0",
 ]
 
 [tool.ruff]
