@@ -124,6 +124,43 @@ jobs:
           docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
           docker compose -f docker-compose.prod.yml restart caddy
 
+      # Restarting the bot drops chat and kills anything in flight. On
+      # the owner's own channel that's an accepted cost of working on
+      # the bot live; on a guest's channel it's someone else's stream
+      # breaking for reasons they can't see. Guests are "every tenant
+      # that isn't the owner", so a new one is protected by default.
+      # Deliberate override: re-run via workflow_dispatch.
+      - name: Check for live guest channels
+        id: guests
+        if: >-
+          steps.changes.outputs.backend == 'true' && github.event_name != 'workflow_dispatch'
+        env:
+          OWNER: ${{ vars.OWNER_CHANNEL }}
+        run: |
+          set -uo pipefail
+          keys=$(docker exec synthcore-redis redis-cli -n 0 --scan --pattern 'stream:*:live' 2>/dev/null || true)
+          if [ -z "$keys" ]; then
+            echo "::warning::Could not read live flags from Redis — proceeding without the guest check."
+            exit 0
+          fi
+          live=""
+          for key in $keys; do
+            slug="${key#stream:}"
+            slug="${slug%:live}"
+            if [ "$slug" = "$OWNER" ]; then
+              continue
+            fi
+            state=$(docker exec synthcore-redis redis-cli -n 0 get "$key" 2>/dev/null | tr -d '\r')
+            if [ "$state" = "true" ]; then
+              live="$live $slug"
+            fi
+          done
+          if [ -n "$live" ]; then
+            echo "::error::Live guest channel(s):$live — a backend restart drops their chat mid-stream. Wait until they are offline, or re-run this workflow via workflow_dispatch to override."
+            exit 1
+          fi
+          echo "No live guest channels; safe to restart the backend."
+
       # Selective deploy: server restarts run migrations via its startup
       # command; the bot only bounces when Python actually changed.
       - name: Rebuild images (backend changes)
