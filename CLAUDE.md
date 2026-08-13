@@ -319,9 +319,19 @@ The `importmoobot` command reads a Moobot export file (JSON with UTF-8 BOM) and 
 | `!ads off` | Mod/Broadcaster | Disable ad rotation via Synthfunc |
 | `!id` | Everyone | Show the bot's Twitch user ID |
 
+## Local Setup
+
+Enable the pre-commit hook once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+It runs biome over staged frontend files and ruff over staged Python — the same checks CI gates on, so a formatting slip fails at the keyboard instead of in the deploy. `git commit --no-verify` skips it.
+
 ## Deployment
 
-Automated via GitHub Actions (`.github/workflows/deploy.yml`). Pushes to `main` trigger a deploy to the self-hosted runner on Saya.
+Automated via GitHub Actions (`.github/workflows/deploy.yml`). Pushes to `main` trigger a deploy to the self-hosted runner on Saya. The `test` and `frontend` jobs both gate it.
 
 - **Domain**: `bots.bardsaders.com` behind Cloudflare Zero Trust.
 - **Server access**: `ssh saya`. Use `docker exec` for container interaction, not `docker compose`.

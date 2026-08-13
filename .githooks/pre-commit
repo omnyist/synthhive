@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Check staged files the way CI will, before the commit exists.
+#
+# CI once found main carrying unformatted code, because hand-edits get
+# pushed without biome having run. This closes that gap at the keyboard.
+# Only staged files are checked, so it stays fast. Bypass with
+# `git commit --no-verify` when you mean to.
+set -uo pipefail
+
+fail=0
+staged() { git diff --cached --name-only --diff-filter=ACM -- "$@"; }
+
+# --- Frontend: biome (format + lint) ---
+web=$(staged 'frontend/*.ts' 'frontend/*.tsx' 'frontend/*.json' 'frontend/*.css')
+if [ -n "$web" ]; then
+    if command -v bun >/dev/null 2>&1 || [ -x "$HOME/.bun/bin/bun" ]; then
+        export PATH="$HOME/.bun/bin:$PATH"
+        rel=$(echo "$web" | sed 's|^frontend/||')
+        # shellcheck disable=SC2086
+        if ! (cd frontend && bunx biome check $rel); then
+            echo
+            echo "biome failed. Fix with:  cd frontend && bunx biome check --write ."
+            fail=1
+        fi
+    else
+        echo "warning: bun not found; skipping frontend checks"
+    fi
+fi
+
+# --- Backend: ruff (lint + format) ---
+py=$(staged '*.py')
+if [ -n "$py" ]; then
+    if command -v uv >/dev/null 2>&1; then
+        # shellcheck disable=SC2086
+        if ! uv run --group dev ruff check $py; then
+            echo
+            echo "ruff failed. Fix with:  uv run --group dev ruff check --fix ."
+            fail=1
+        fi
+    else
+        echo "warning: uv not found; skipping Python checks"
+    fi
+fi
+
+exit $fail
