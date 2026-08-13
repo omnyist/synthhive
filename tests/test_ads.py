@@ -8,14 +8,11 @@ from unittest.mock import patch
 import pytest
 
 from bot.components.ads import AdAnnounce
-from bot.components.ads import DEFAULT_MESSAGES
 from bot.skills import SKILL_REGISTRY
 from bot.skills import discover_skills
 from bot.skills.ads import AdsHandler
-from tests.conftest import MockBroadcaster
 from tests.conftest import MockChatter
 from tests.conftest import MockPayload
-
 
 # --- Skill handler tests ---
 

@@ -41,7 +41,7 @@ class Command(BaseCommand):
         try:
             channel = Channel.objects.get(twitch_channel_name=channel_name)
         except Channel.DoesNotExist:
-            raise CommandError(f"Channel not found: #{channel_name}")
+            raise CommandError(f"Channel not found: #{channel_name}") from None
 
         commands_data = data.get("commands", [])
         metadata = data.get("metadata", {})

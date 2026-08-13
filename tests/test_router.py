@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,7 +9,6 @@ from bot.router import CommandRouter
 from tests.conftest import MockBroadcaster
 from tests.conftest import MockChatter
 from tests.conftest import MockPayload
-
 
 # --- Helpers ---
 
@@ -72,7 +70,6 @@ class TestCommandRouterTextCommands:
         assert msg == "Hello TestUser!"
 
     async def test_increments_use_count(self, make_command):
-        from core.models import Command
 
         cmd = make_command(name="ping", response="pong")
         assert cmd.use_count == 0

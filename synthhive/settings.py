@@ -5,6 +5,7 @@ from pathlib import Path
 
 import environ
 import sentry_sdk
+from django.utils.csp import CSP
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -140,8 +141,6 @@ SYNTHFUNC_API_URL = env("SYNTHFUNC_API_URL", default="http://localhost:7178/api"
 SYNTHFUNC_API_KEY = env("SYNTHFUNC_API_KEY", default="")
 
 # Content Security Policy (Django 6.0+)
-
-from django.utils.csp import CSP
 
 SECURE_CSP = {
     "default-src": [CSP.SELF],

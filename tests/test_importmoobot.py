@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import tempfile
-from pathlib import Path
 
 import pytest
 from django.core.management import call_command
@@ -11,7 +10,6 @@ from django.core.management.base import CommandError
 from core.management.commands.importmoobot import convert_variables
 from core.management.commands.importmoobot import has_unsupported_variables
 from core.management.commands.importmoobot import uses_counter
-
 
 # ---------------------------------------------------------------------------
 # Helper: build a minimal Moobot export JSON structure

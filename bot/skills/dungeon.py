@@ -369,7 +369,7 @@ class DungeonHandler(SkillHandler):
 
             # --- Solo outcomes ---
             if count == 1:
-                solo = list(game.participants.values())[0]
+                solo = next(iter(game.participants.values()))
                 if solo.survived:
                     payout = math.floor(solo.wager * level["multiplier"])
                     msg = messages.get("outcome_solo_win", DEFAULT_MESSAGES["outcome_solo_win"])

@@ -7,8 +7,6 @@ from unittest.mock import patch
 import pytest
 
 from bot.skills.wallet import WalletHandler
-from tests.conftest import MockBroadcaster
-from tests.conftest import MockChatter
 from tests.conftest import MockPayload
 
 

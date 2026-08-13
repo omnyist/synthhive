@@ -304,7 +304,7 @@ class ManagementCommands(commands.Component):
                 if not channel:
                     return
 
-                counter, created = await sync_to_async(
+                counter, _created = await sync_to_async(
                     Counter.objects.update_or_create
                 )(
                     channel=channel,
@@ -323,7 +323,7 @@ class ManagementCommands(commands.Component):
             if not channel:
                 return
 
-            counter, created = await sync_to_async(
+            counter, _created = await sync_to_async(
                 Counter.objects.get_or_create
             )(
                 channel=channel,

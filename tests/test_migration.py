@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import importlib
 
-import pytest
-
 # Migration module has a numeric prefix so we need importlib
 _migration = importlib.import_module("core.migrations.0003_migrate_variable_syntax")
 migrate_variables_forward = _migration.migrate_variables_forward

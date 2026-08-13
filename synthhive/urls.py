@@ -42,7 +42,7 @@ urlpatterns = [
 # static files through Django's built-in view instead.
 urlpatterns += [
     re_path(
-        r"^%s(?P<path>.*)$" % re.escape(settings.STATIC_URL.lstrip("/")),
+        rf"^{re.escape(settings.STATIC_URL.lstrip('/'))}(?P<path>.*)$",
         serve,
         {"document_root": settings.STATIC_ROOT},
     ),

@@ -8,12 +8,12 @@ import pytest
 
 from bot.skills import SKILL_REGISTRY
 from bot.skills import discover_skills
-from bot.skills.markov import MarkovHandler
-from bot.skills.markov import build_chain
-from bot.skills.markov import generate_sentence
 from bot.skills.markov import END
 from bot.skills.markov import SEP
 from bot.skills.markov import START
+from bot.skills.markov import MarkovHandler
+from bot.skills.markov import build_chain
+from bot.skills.markov import generate_sentence
 from tests.conftest import MockChatter
 from tests.conftest import MockPayload
 

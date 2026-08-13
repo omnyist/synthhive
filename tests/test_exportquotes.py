@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from core.management.commands.exportquotes import extract_game
 from core.management.commands.exportquotes import normalize_quotee
 from core.management.commands.exportquotes import parse_ticks

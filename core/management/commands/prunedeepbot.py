@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -36,7 +36,7 @@ def parse_iso_datetime(value: str) -> datetime | None:
     try:
         dt = datetime.fromisoformat(value)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
     except (ValueError, TypeError):
         return None

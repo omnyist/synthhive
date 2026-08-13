@@ -298,7 +298,7 @@ class CommandRouter(commands.Component):
             channel = await sync_to_async(Channel.objects.get)(
                 twitch_channel_id=broadcaster_id, is_active=True
             )
-            counter, created = await sync_to_async(
+            counter, _created = await sync_to_async(
                 Counter.objects.get_or_create
             )(
                 channel=channel,

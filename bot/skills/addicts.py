@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 from bot.router import send_reply
 from bot.skills import SkillHandler
@@ -33,7 +33,7 @@ def _compute_avg_interval(timestamps: list[str]) -> float | None:
     if len(timestamps) < 2:
         return None
     times = sorted(
-        datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+        datetime.fromisoformat(ts).replace(tzinfo=UTC)
         if ts.endswith("Z") is False
         else datetime.fromisoformat(ts.replace("Z", "+00:00"))
         for ts in timestamps

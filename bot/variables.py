@@ -462,7 +462,9 @@ class VariableRegistry:
             else:
                 # Unknown variable — leave it as-is
 
-                async def _passthrough(text=match.group(0)):
+                unknown_text = match.group(0)
+
+                async def _passthrough(text=unknown_text):
                     return text
 
                 tasks.append(_passthrough())
@@ -471,7 +473,9 @@ class VariableRegistry:
 
         # Replace matches in reverse order to preserve positions
         result = template
-        for match, replacement in zip(reversed(matches), reversed(results)):
+        for match, replacement in zip(
+            reversed(matches), reversed(results), strict=True
+        ):
             result = result[: match.start()] + replacement + result[match.end() :]
 
         return result

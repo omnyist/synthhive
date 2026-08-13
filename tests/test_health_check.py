@@ -4,8 +4,6 @@ from collections import defaultdict
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 
-from bot.client import BotClient
-
 
 def _make_bot():
     """Create a mock bot with the attributes the health check needs."""

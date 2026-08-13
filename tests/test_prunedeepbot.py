@@ -75,8 +75,9 @@ class TestFormatUser:
 class TestPruneDeepbotCommand:
     @pytest.mark.django_db
     def test_dry_run(self):
-        from django.core.management import call_command
         from io import StringIO
+
+        from django.core.management import call_command
 
         data = [
             {

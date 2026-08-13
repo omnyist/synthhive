@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -44,7 +44,7 @@ def parse_ticks(ticks_str: str) -> datetime | None:
     ticks = int(match.group(1))
     try:
         unix_seconds = (ticks - DOTNET_EPOCH_OFFSET) / TICKS_PER_SECOND
-        return datetime.fromtimestamp(unix_seconds, tz=timezone.utc)
+        return datetime.fromtimestamp(unix_seconds, tz=UTC)
     except (ValueError, OSError, OverflowError):
         return None
 

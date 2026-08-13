@@ -49,7 +49,7 @@ async def _get_profile(user) -> TwitchProfile:
             TwitchProfile.objects.select_related("user").get
         )(user=user)
     except TwitchProfile.DoesNotExist:
-        raise HttpError(403, "No Twitch profile linked")
+        raise HttpError(403, "No Twitch profile linked") from None
 
 
 async def _get_user_channel(request, channel_slug: str) -> tuple:
@@ -86,7 +86,7 @@ async def _get_user_command(request, command_id: uuid.UUID) -> Command:
             Command.objects.select_related("channel").get
         )(pk=command_id)
     except Command.DoesNotExist:
-        raise HttpError(404, "Command not found")
+        raise HttpError(404, "Command not found") from None
 
     if cmd.channel.twitch_channel_id != profile.twitch_id:
         raise HttpError(403, "Not authorized for this channel")
@@ -104,7 +104,7 @@ async def _get_user_counter(request, counter_id: uuid.UUID) -> Counter:
             Counter.objects.select_related("channel").get
         )(pk=counter_id)
     except Counter.DoesNotExist:
-        raise HttpError(404, "Counter not found")
+        raise HttpError(404, "Counter not found") from None
 
     if counter.channel.twitch_channel_id != profile.twitch_id:
         raise HttpError(403, "Not authorized for this channel")
@@ -122,7 +122,7 @@ async def _get_user_alias(request, alias_id: uuid.UUID) -> Alias:
             Alias.objects.select_related("channel").get
         )(pk=alias_id)
     except Alias.DoesNotExist:
-        raise HttpError(404, "Alias not found")
+        raise HttpError(404, "Alias not found") from None
 
     if alias.channel.twitch_channel_id != profile.twitch_id:
         raise HttpError(403, "Not authorized for this channel")
@@ -285,7 +285,7 @@ async def create_command(
             created_by=profile.twitch_display_name,
         )
     except IntegrityError:
-        raise HttpError(409, f"Command '!{data.name}' already exists in this channel.")
+        raise HttpError(409, f"Command '!{data.name}' already exists in this channel.") from None
 
     return cmd
 
@@ -406,7 +406,7 @@ async def create_counter(
             value=data.value,
         )
     except IntegrityError:
-        raise HttpError(409, f"Counter '{data.name}' already exists in this channel.")
+        raise HttpError(409, f"Counter '{data.name}' already exists in this channel.") from None
 
     return counter
 
@@ -491,7 +491,7 @@ async def create_alias(
             target=data.target,
         )
     except IntegrityError:
-        raise HttpError(409, f"Alias '!{data.name}' already exists in this channel.")
+        raise HttpError(409, f"Alias '!{data.name}' already exists in this channel.") from None
 
     return alias
 
