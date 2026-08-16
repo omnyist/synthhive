@@ -129,6 +129,8 @@ class LizardRouletteHandler(SkillHandler):
             deaths = stat.deaths + 1
             broken_streak = stat.streak
             previous_victim = await state.victim_get(broadcaster_id)
+            if not await state.victim_is_current(broadcaster_id):
+                previous_victim = ""
             await state.victim_set(broadcaster_id, chatter_name)
 
             ctx = MoodContext(
@@ -240,7 +242,10 @@ class LizardRouletteHandler(SkillHandler):
             streak = stat.streak + 1
             max_streak = max(stat.max_streak, streak)
 
+            await state.victim_bump(broadcaster_id)
             victim = await state.victim_get(broadcaster_id)
+            if not await state.victim_is_current(broadcaster_id):
+                victim = ""
             chemical = random.choice(CHEMICALS)
 
             ctx = MoodContext(
