@@ -139,8 +139,20 @@ async def bullets_decr(channel_id: str) -> None:
 # --- Last victim (lizardroulette callouts) ---
 
 
+# How many plays a victim stays quotable. Past this the lizard stops
+# citing them: the key has no natural expiry, so without this a quiet
+# week leaves it name-checking someone who died last Tuesday. Sized
+# from spoonee's data — median 4 survivals between deaths, p90 12 — so
+# the usual rhythm is untouched and only the stale tail is cut.
+VICTIM_TTL_PLAYS = 5
+
+
 def _victim_key(channel_id: str) -> str:
     return f"lr:victim:{channel_id}"
+
+
+def _victim_plays_key(channel_id: str) -> str:
+    return f"lr:victim_plays:{channel_id}"
 
 
 async def victim_get(channel_id: str) -> str:
@@ -154,11 +166,45 @@ async def victim_get(channel_id: str) -> str:
 
 
 async def victim_set(channel_id: str, name: str) -> None:
+    """Record a new victim and restart their shelf life."""
     try:
-        await get_client().set(_victim_key(channel_id), name)
+        client = get_client()
+        await client.set(_victim_key(channel_id), name)
+        await client.set(_victim_plays_key(channel_id), 0)
         _note_success()
     except Exception as exc:
         _note_failure("victim_set", exc)
+
+
+async def victim_bump(channel_id: str) -> None:
+    """Count one play against the current victim's shelf life."""
+    try:
+        await get_client().incr(_victim_plays_key(channel_id))
+        _note_success()
+    except Exception as exc:
+        _note_failure("victim_bump", exc)
+
+
+async def victim_is_current(channel_id: str) -> bool:
+    """Whether the stored victim is still recent enough to name.
+
+    A missing counter means expired, not fresh: channels carrying a
+    victim from before this counter existed, and any channel whose
+    Redis was cleared, should fall back to naming nobody rather than
+    claim a stale death is current.
+    """
+    try:
+        raw = await get_client().get(_victim_plays_key(channel_id))
+        _note_success()
+    except Exception as exc:
+        _note_failure("victim_is_current", exc)
+        return False
+    if raw is None:
+        return False
+    try:
+        return int(raw) <= VICTIM_TTL_PLAYS
+    except (TypeError, ValueError):
+        return False
 
 
 # --- Recency (message-fragment history) ---
