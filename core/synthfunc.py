@@ -216,11 +216,19 @@ async def transact_wallets(
     tenant_slug: str,
     entries: list[dict],
     reason: str = "",
+    best_effort: bool = False,
 ) -> dict | None:
-    """Process a batch of debits and credits against wallets."""
+    """Process a batch of debits and credits against wallets.
+
+    Atomic by default: if any entry fails, nothing is written. Pass
+    best_effort=True ONLY when the entries are genuinely independent
+    (bulk credits), never for a paired debit and credit — that pairing
+    processed independently is what let a failed debit leave its credit
+    standing.
+    """
     return await _post(
         "/wallets/transact",
-        {"entries": entries, "reason": reason},
+        {"entries": entries, "reason": reason, "best_effort": best_effort},
         tenant_slug=tenant_slug,
     )
 

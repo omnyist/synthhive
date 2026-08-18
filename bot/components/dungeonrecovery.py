@@ -86,7 +86,12 @@ class DungeonRecovery(commands.Component):
             for w in wagers
         ]
         result = await transact_wallets(
-            channel.twitch_channel_name, entries, reason="dungeon_refund"
+            channel.twitch_channel_name,
+            entries,
+            reason="dungeon_refund",
+            # Independent refunds; the caller reads `failed` per id to
+            # decide which wagers stay pending for the next sweep.
+            best_effort=True,
         )
         if result is None:
             logger.warning(

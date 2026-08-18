@@ -7,6 +7,8 @@ Usage:
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
+from decimal import InvalidOperation
 
 from bot.router import send_reply
 from bot.skills import SkillHandler
@@ -97,6 +99,25 @@ class GiveHandler(SkillHandler):
         # Get currency name from sender's wallet
         wallet = await get_wallet(sender_id, tenant_slug, username=sender_name)
         currency = wallet.get("currency_name", "points") if wallet else "points"
+
+        # Check affordability here as well as server-side, purely so the
+        # sender gets a useful reply. The server is the authority and
+        # rejects an unaffordable transfer atomically, so this FAILS
+        # OPEN: an unreadable balance lets the request through rather
+        # than blocking every transfer on an unexpected payload.
+        balance = None
+        if wallet is not None and wallet.get("balance") is not None:
+            try:
+                balance = Decimal(str(wallet["balance"]))
+            except InvalidOperation:
+                balance = None
+        if balance is not None and amount > balance:
+            await send_reply(
+                payload,
+                f"You've only got {balance:,.0f} {currency}, them's the rules.",
+                bot_id=bot.bot_id,
+            )
+            return
 
         # Atomic debit sender + credit target
         result = await transact_wallets(

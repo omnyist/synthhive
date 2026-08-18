@@ -469,6 +469,9 @@ class DungeonHandler(SkillHandler):
                 game.channel_name,
                 entries,
                 reason="dungeon_payout",
+                # Independent credits, one per winner. One bad row must
+                # not void everyone else's payout.
+                best_effort=True,
             )
             if result is None:
                 # Leave the winners' journal rows pending: recovery will at

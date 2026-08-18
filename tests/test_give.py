@@ -228,3 +228,77 @@ class TestGiveHandler:
 
         msg = payload.broadcaster.send_message.call_args.kwargs["message"]
         assert "points" in msg
+
+
+class TestGiveAffordability:
+    """The exploit was `!give @x <more than you have>`: the server failed
+    the debit, applied the credit anyway, and the sender was told it
+    failed. Server-side atomicity is the real fix (synthfunc
+    test_transact_atomicity); this refuses the request before it is
+    ever sent."""
+
+    @pytest.fixture()
+    def handler(self):
+        return GiveHandler()
+
+    @pytest.mark.asyncio
+    @patch("bot.skills.give.transact_wallets")
+    @patch("bot.skills.give.get_wallet")
+    async def test_unaffordable_transfer_never_reaches_the_api(
+        self, mock_wallet, mock_transact, handler
+    ):
+        mock_wallet.return_value = {"currency_name": "spoons", "balance": "10.0"}
+
+        bot = _mock_bot()
+        bot.fetch_users = AsyncMock(return_value=[_mock_target()])
+
+        payload = MockPayload(text="!give @kefka 2147483647")
+        await handler.handle(
+            payload, "@kefka 2147483647", _mock_skill(), bot, _mock_skill().channel
+        )
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "only got" in msg
+        mock_transact.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("bot.skills.give.transact_wallets")
+    @patch("bot.skills.give.get_wallet")
+    async def test_unknown_balance_fails_open(
+        self, mock_wallet, mock_transact, handler
+    ):
+        """The server is the authority. An unreadable balance must not
+        block every transfer."""
+        mock_wallet.return_value = {"currency_name": "spoons"}
+        mock_transact.return_value = {"processed": 2, "failed": []}
+
+        bot = _mock_bot()
+        bot.fetch_users = AsyncMock(return_value=[_mock_target()])
+
+        payload = MockPayload(text="!give @kefka 100")
+        await handler.handle(
+            payload, "@kefka 100", _mock_skill(), bot, _mock_skill().channel
+        )
+
+        mock_transact.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("bot.skills.give.transact_wallets")
+    @patch("bot.skills.give.get_wallet")
+    async def test_affordable_transfer_proceeds(
+        self, mock_wallet, mock_transact, handler
+    ):
+        mock_wallet.return_value = {"currency_name": "spoons", "balance": "500.0"}
+        mock_transact.return_value = {"processed": 2, "failed": []}
+
+        bot = _mock_bot()
+        bot.fetch_users = AsyncMock(return_value=[_mock_target()])
+
+        payload = MockPayload(text="!give @kefka 100")
+        await handler.handle(
+            payload, "@kefka 100", _mock_skill(), bot, _mock_skill().channel
+        )
+
+        mock_transact.assert_called_once()
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "100 spoons" in msg
