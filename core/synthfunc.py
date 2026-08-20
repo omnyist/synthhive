@@ -241,6 +241,21 @@ async def get_wallet(
     return await _get(f"/wallets/{twitch_id}", params, tenant_slug=tenant_slug)
 
 
+async def get_wallet_history(
+    twitch_id: str, tenant_slug: str, limit: int = 5
+) -> list | None:
+    """Recent discrete movements for a wallet, newest first.
+
+    Accrual is excluded server-side — it is logged per tick, not per
+    person, so it has nothing to say about an individual.
+    """
+    return await _get(
+        f"/wallets/{twitch_id}/history",
+        {"limit": limit},
+        tenant_slug=tenant_slug,
+    )
+
+
 async def get_wallet_leaderboard(
     tenant_slug: str, limit: int = 10, sort_by: str = "balance"
 ) -> list | None:

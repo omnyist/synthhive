@@ -3,6 +3,12 @@
 Usage:
     !wallet         — Check your own balance
     !wallet @kefka  — Check someone else's balance
+    !wallet history — Your own recent movements
+
+History is SELF-ONLY on purpose. A balance is a scoreboard people
+already show each other; a transaction history is a record of what
+someone did and when, which is theirs to look at and not a thing the
+bot hands out about them on request.
 """
 
 from __future__ import annotations
@@ -13,6 +19,7 @@ from bot.router import send_reply
 from bot.skills import SkillHandler
 from bot.skills import register_skill
 from core.synthfunc import get_wallet
+from core.synthfunc import get_wallet_history
 
 logger = logging.getLogger("bot")
 
@@ -26,6 +33,10 @@ class WalletHandler(SkillHandler):
         tenant_slug = channel.twitch_channel_name
         chatter = payload.chatter
         chatter_name = chatter.display_name if chatter else "someone"
+
+        if args and args.strip().lower() == "history":
+            await self._history(payload, bot, chatter, tenant_slug)
+            return
 
         if args:
             target = args.strip().lstrip("@")
@@ -92,6 +103,43 @@ class WalletHandler(SkillHandler):
             payload,
             f"@{display_name} has {formatted} {currency}!",
             bot_id=bot.bot_id,
+        )
+
+
+    async def _history(self, payload, bot, chatter, tenant_slug):
+        if not chatter:
+            await send_reply(
+                payload, "Could not determine your Twitch ID.", bot_id=bot.bot_id
+            )
+            return
+
+        rows = await get_wallet_history(str(chatter.id), tenant_slug, limit=5)
+        if rows is None:
+            await send_reply(
+                payload, "Couldn't reach the ledger. Try again later.",
+                bot_id=bot.bot_id,
+            )
+            return
+        if not rows:
+            await send_reply(
+                payload,
+                "No movements on record — accrual isn't itemised, so a "
+                "balance built purely from watching shows nothing here.",
+                bot_id=bot.bot_id,
+            )
+            return
+
+        parts = []
+        for row in rows:
+            try:
+                amount = float(row.get("amount", 0))
+            except (TypeError, ValueError):
+                continue
+            reason = row.get("reason") or row.get("kind") or "adjustment"
+            parts.append(f"{amount:+,.0f} ({reason})")
+
+        await send_reply(
+            payload, "Recent: " + ", ".join(parts), bot_id=bot.bot_id
         )
 
 

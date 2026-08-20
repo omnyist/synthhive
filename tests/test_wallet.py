@@ -111,3 +111,53 @@ class TestWalletSkill:
         assert "0 points" in msg
 
 
+
+
+class TestWalletHistory:
+    @pytest.mark.asyncio
+    @patch("bot.skills.wallet.get_wallet_history")
+    async def test_history_lists_recent_movements(
+        self, mock_history, handler, bot, skill
+    ):
+        mock_history.return_value = [
+            {"amount": "-200.0", "reason": "give", "kind": "transaction"},
+            {"amount": "500.0", "reason": "dungeon_payout", "kind": "transaction"},
+        ]
+        payload = MockPayload(text="!wallet history")
+        await handler.handle(payload, "history", skill, bot, skill.channel)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "-200 (give)" in msg
+        assert "+500 (dungeon_payout)" in msg
+
+    @pytest.mark.asyncio
+    @patch("bot.skills.wallet.get_wallet_history")
+    @patch("bot.skills.wallet.get_wallet")
+    async def test_history_never_targets_someone_else(
+        self, mock_get_wallet, mock_history, handler, bot, skill
+    ):
+        """`!wallet history @someone` must fall through to the balance
+        lookup, not hand out their transaction record."""
+        mock_get_wallet.return_value = {
+            "balance": "10.0",
+            "currency_name": "spoons",
+        }
+        bot.fetch_users = AsyncMock(
+            return_value=[MagicMock(id=1, display_name="Kefka", name="kefka")]
+        )
+        payload = MockPayload(text="!wallet history @kefka")
+        await handler.handle(payload, "history @kefka", skill, bot, skill.channel)
+
+        mock_history.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("bot.skills.wallet.get_wallet_history")
+    async def test_history_explains_an_empty_result(
+        self, mock_history, handler, bot, skill
+    ):
+        mock_history.return_value = []
+        payload = MockPayload(text="!wallet history")
+        await handler.handle(payload, "history", skill, bot, skill.channel)
+
+        msg = payload.broadcaster.send_message.call_args.kwargs["message"]
+        assert "accrual isn't itemised" in msg
