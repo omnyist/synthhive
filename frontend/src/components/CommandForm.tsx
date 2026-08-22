@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, Select } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { CommandEditor } from './CommandEditor'
 
@@ -171,15 +171,12 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-hive-muted">Type</label>
-          <select
-            value={form.type}
-            onChange={(e) => update('type', e.target.value as CommandType)}
-            className="rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none">
+          <Select value={form.type} onChange={(e) => update('type', e.target.value as CommandType)}>
             <option value="text">Text</option>
             <option value="lottery">Lottery</option>
             <option value="random_list">Random List</option>
             <option value="counter">Counter</option>
-          </select>
+          </Select>
         </div>
       </div>
 

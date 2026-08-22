@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, Select } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -264,13 +264,13 @@ function ActiveWar({
             {a.note && <span className="truncate text-xs text-hive-muted">{a.note}</span>}
             <span className="ml-auto w-12 shrink-0 text-right">
               {a.points > 0 && (
-                <button
-                  type="button"
+                <Button
                   disabled={allocateMutation.isPending}
                   onClick={() => undo(a)}
-                  className="rounded px-2 py-0.5 text-xs text-red-400 opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50">
+                  variant="danger"
+                  className="px-2 py-0.5 opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50">
                   undo
-                </button>
+                </Button>
               )}
             </span>
             <span className="w-16 shrink-0 text-right text-xs text-hive-muted">
@@ -345,17 +345,17 @@ function PendingGiftRow({
           )}
         />
         {options.map((option) => (
-          <button
+          <Button
             key={option.id}
-            type="button"
             disabled={disabled || invalid}
             onClick={() => {
               onAssign(option.id, splitPoints)
               setAmount('')
             }}
-            className="rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
+            variant="solid"
+            className="px-2.5 disabled:opacity-50">
             → {option.name}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -383,16 +383,17 @@ function ManualAdjustment({
         Manual adjustment (for gifts outside the queue)
       </summary>
       <div className="flex gap-1.5 border-t border-hive-border p-3">
-        <select
+        <Select
           value={optionId}
           onChange={(e) => setOptionId(e.target.value)}
-          className="rounded border border-hive-border bg-hive-dark px-2 py-1 text-xs text-hive-text focus:border-hive-accent focus:outline-none">
+          inset
+          className="text-xs">
           {options.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}
             </option>
           ))}
-        </select>
+        </Select>
         <Input
           mono
           type="number"
@@ -408,17 +409,17 @@ function ManualAdjustment({
           placeholder="note"
           className="min-w-0 flex-1 bg-hive-dark text-xs"
         />
-        <button
-          type="button"
+        <Button
           disabled={disabled || !parsed || !optionId}
           onClick={() => {
             onAllocate(optionId, parsed, note.trim())
             setPoints('')
             setNote('')
           }}
-          className="shrink-0 rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
+          variant="solid"
+          className="shrink-0 px-2.5 disabled:opacity-50">
           Add
-        </button>
+        </Button>
       </div>
     </details>
   )
@@ -482,13 +483,14 @@ function CreateWarForm({
           className="flex-1 bg-hive-dark py-1.5"
         />
       </div>
-      <button
-        type="button"
+      <Button
         disabled={!ready || createMutation.isPending}
         onClick={() => createMutation.mutate()}
-        className="self-start rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
+        variant="solid"
+        size="sm"
+        className="self-start disabled:opacity-50">
         {createMutation.isPending ? 'Creating…' : 'Start bid war'}
-      </button>
+      </Button>
     </div>
   )
 }

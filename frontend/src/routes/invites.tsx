@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -105,13 +106,14 @@ function InvitesPage() {
           </p>
         </div>
         {isStaff && (
-          <button
-            type="button"
+          <Button
             onClick={() => createMutation.mutate()}
             disabled={createMutation.isPending}
-            className="shrink-0 rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
+            variant="solid"
+            size="sm"
+            className="shrink-0 disabled:opacity-50">
             {createMutation.isPending ? 'Creating…' : '+ New invite'}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -137,14 +139,14 @@ function InvitesPage() {
                   <span className="text-xs text-hive-muted">#{inv.channel_name}</span>
                 )}
                 {isStaff && (
-                  <button
-                    type="button"
+                  <Button
                     onClick={() =>
                       window.confirm(`Delete invite ${inv.code}?`) && deleteMutation.mutate(inv.id)
                     }
-                    className="ml-auto rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10">
+                    variant="danger"
+                    className="ml-auto px-2">
                     Delete
-                  </button>
+                  </Button>
                 )}
               </div>
 

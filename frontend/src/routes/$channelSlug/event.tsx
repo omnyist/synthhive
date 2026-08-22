@@ -13,6 +13,7 @@ import {
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { OverlayUrls } from '@/components/OverlayUrls'
 import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { useCampaignStream } from '@/lib/useCampaignStream'
 import { cn } from '@/lib/utils'
@@ -94,10 +95,11 @@ function EventPage() {
   const header = (
     <div className="flex items-center gap-2">
       {campaigns.length > 0 && (
-        <select
+        <Select
           value={viewingId ?? ''}
           onChange={(e) => e.target.value && selectCampaign(e.target.value)}
-          className="rounded border border-hive-border bg-hive-dark px-2 py-1 text-xs text-hive-text focus:border-hive-accent focus:outline-none">
+          inset
+          className="text-xs">
           {!viewingId && <option value="">Pick an event…</option>}
           {campaigns.map((c) => (
             <option key={c.id} value={c.id}>
@@ -105,7 +107,7 @@ function EventPage() {
               {c.is_active ? ' (active)' : ''}
             </option>
           ))}
-        </select>
+        </Select>
       )}
       <div className="ml-auto flex gap-1.5">
         {campaign && mode === 'view' && (
@@ -436,8 +438,7 @@ function GoalRowEditor({
         onGoalUnit={setGoalUnit}
         onStretch={setIsStretch}
       />
-      <button
-        type="button"
+      <Button
         disabled={pending || !parsed || !title.trim()}
         onClick={() =>
           onSave({
@@ -447,23 +448,20 @@ function GoalRowEditor({
             is_stretch: isStretch,
           })
         }
-        className="shrink-0 rounded bg-hive-accent-dim px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-40">
+        variant="solid"
+        className="shrink-0 px-2 disabled:opacity-40">
         Save
-      </button>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={onCancel}
-        className="shrink-0 rounded px-2 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text disabled:opacity-40">
+      </Button>
+      <Button disabled={pending} onClick={onCancel} className="shrink-0 px-2 disabled:opacity-40">
         Cancel
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
         disabled={pending}
         onClick={onDelete}
-        className="shrink-0 rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-40">
+        variant="danger"
+        className="shrink-0 px-2 disabled:opacity-40">
         Delete
-      </button>
+      </Button>
     </div>
   )
 }
