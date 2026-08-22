@@ -92,28 +92,38 @@ DATABASES = {
 # event-loop/process teardown, so leave it off for tests (and for SQLite,
 # which rejects the option).
 _UNDER_TEST = "pytest" in sys.modules
-if DATABASES["default"]["ENGINE"] != "django.db.backends.sqlite3" and not _UNDER_TEST:
-    # This does more than the name suggests: Django's postgresql backend hands
-    # it straight to psycopg_pool as the pool's `check` callback. Left False,
-    # the pool defaults to check=None and validates nothing, so a connection
-    # killed by a Postgres restart is served out of the pool forever.
-    #
-    # 2026-08-21: a synthcore deploy restarted shared Postgres and every bot
-    # raised "the connection is closed" for ~3h. No command worked in any
-    # channel while the container read Up and the panel returned 200.
-    #
-    # Do NOT also pass `check` inside the pool options — Django already passes
-    # it, and psycopg_pool raises "got multiple values for keyword argument
-    # 'check'" on the first cursor, which crash-loops the bots.
-    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
-    # Explicit sizing: the bare `pool: True` default caps at 4
-    # connections, which a handful of concurrent requests can exhaust.
-    # timeout keeps a starved pool failing fast instead of hanging
-    # every request for 30s (the 2026-07-31 "constant Loading" outage).
-    DATABASES["default"]["OPTIONS"] = {
-        "pool": {"min_size": 2, "max_size": 20, "timeout": 10}
+
+def production_database_extras(engine: str, *, under_test: bool) -> dict:
+    """The DB config that ships to production — pure, so tests can see it.
+
+    Because the pool is off under pytest, the production branch below is
+    invisible to an ordinary test run: a fully green suite crash-looped prod
+    on 2026-08-22 (a `check` key colliding with the one Django passes
+    itself). tests/test_production_db_config.py asserts on this function's
+    output with under_test=False.
+
+    CONN_HEALTH_CHECKS is the pool's `check` callback (Django forwards it).
+    Left False, a Postgres restart leaves the pool serving dead connections
+    forever — 2026-08-21: every bot raised "the connection is closed" for
+    ~3h while the container read Up and the panel returned 200. Never put
+    `check` in the pool options yourself.
+    """
+    if engine == "django.db.backends.sqlite3" or under_test:
+        return {}
+    return {
+        "CONN_HEALTH_CHECKS": True,
+        # Explicit sizing: the bare `pool: True` default caps at 4
+        # connections, which a handful of concurrent requests can exhaust.
+        # timeout keeps a starved pool failing fast instead of hanging
+        # every request for 30s (the 2026-07-31 "constant Loading" outage).
+        "OPTIONS": {"pool": {"min_size": 2, "max_size": 20, "timeout": 10}},
     }
+
+
+DATABASES["default"].update(
+    production_database_extras(DATABASES["default"]["ENGINE"], under_test=_UNDER_TEST)
+)
 
 # Auth
 
