@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { cn } from '@/lib/utils'
+import { List, ListEmpty, ListRow } from '@/components/ui/List'
 
 interface Alias {
   id: string
@@ -39,29 +39,22 @@ export function AliasList({ aliases, selectedId, onSelect, onNew }: AliasListPro
           + New
         </Button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto">
+      <List>
         {filtered.map((alias) => (
-          <button
-            type="button"
+          <ListRow
             key={alias.id}
+            selected={selectedId === alias.id}
             onClick={() => onSelect(alias.id)}
-            className={cn(
-              'flex items-center gap-2 rounded px-3 py-2 text-left text-sm transition-colors',
-              selectedId === alias.id
-                ? 'bg-hive-accent-dim/20 text-hive-text'
-                : 'text-hive-muted hover:bg-hive-surface hover:text-hive-text',
-            )}>
+            className="gap-2">
             <span className="font-mono font-medium">!{alias.name}</span>
             <span className="text-xs text-hive-muted">&rarr;</span>
             <span className="font-mono text-xs text-hive-muted">!{alias.target}</span>
-          </button>
+          </ListRow>
         ))}
         {filtered.length === 0 && (
-          <p className="px-3 py-4 text-center text-sm text-hive-muted">
-            {search ? 'No aliases match your search.' : 'No aliases yet.'}
-          </p>
+          <ListEmpty>{search ? 'No aliases match your search.' : 'No aliases yet.'}</ListEmpty>
         )}
-      </div>
+      </List>
     </div>
   )
 }

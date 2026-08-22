@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { cn } from '@/lib/utils'
+import { List, ListEmpty, ListRow } from '@/components/ui/List'
 
 interface Command {
   id: string
@@ -45,30 +45,22 @@ export function CommandList({ commands, selectedId, onSelect, onNew }: CommandLi
           + New
         </Button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto">
+      <List>
         {filtered.map((cmd) => (
-          <button
-            type="button"
+          <ListRow
             key={cmd.id}
+            selected={selectedId === cmd.id}
             onClick={() => onSelect(cmd.id)}
-            className={cn(
-              'flex items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors',
-              selectedId === cmd.id
-                ? 'bg-hive-accent-dim/20 text-hive-text'
-                : 'text-hive-muted hover:bg-hive-surface hover:text-hive-text',
-              !cmd.enabled && 'opacity-50',
-            )}>
+            dimmed={!cmd.enabled}>
             <span className="font-mono font-medium">!{cmd.name}</span>
             <span className="text-xs text-hive-muted">{TYPE_LABELS[cmd.type] ?? cmd.type}</span>
             <span className="ml-auto text-xs text-hive-muted">{cmd.use_count} uses</span>
-          </button>
+          </ListRow>
         ))}
         {filtered.length === 0 && (
-          <p className="px-3 py-4 text-center text-sm text-hive-muted">
-            {search ? 'No commands match your search.' : 'No commands yet.'}
-          </p>
+          <ListEmpty>{search ? 'No commands match your search.' : 'No commands yet.'}</ListEmpty>
         )}
-      </div>
+      </List>
     </div>
   )
 }
