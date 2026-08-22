@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -110,12 +111,9 @@ export function EventEditor({
         <h3 className="text-sm font-semibold text-hive-text">
           {campaign ? `Edit ${campaign.name}` : 'New event'}
         </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-auto rounded px-2 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
+        <Button className="ml-auto px-2" onClick={onClose}>
           Cancel
-        </button>
+        </Button>
       </div>
 
       <div className="flex flex-col gap-2">

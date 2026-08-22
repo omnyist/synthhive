@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { CommandEditor } from './CommandEditor'
 
@@ -128,31 +130,24 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
         </h3>
         <div className="flex items-center gap-2">
           {!isNew && (
-            <button
-              type="button"
+            <Button
+              variant="danger"
               onClick={() => {
                 if (window.confirm(`Delete !${command.name}?`)) {
                   deleteMutation.mutate()
                 }
               }}
-              disabled={deleteMutation.isPending}
-              className="rounded px-3 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10">
+              disabled={deleteMutation.isPending}>
               Delete
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded px-3 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
-            Cancel
-          </button>
-          <button
-            type="button"
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            variant="solid"
             onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="rounded bg-hive-accent-dim px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
+            disabled={saveMutation.isPending}>
             {saveMutation.isPending ? 'Saving...' : 'Save'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -163,13 +158,14 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
           <label className="text-xs text-hive-muted">Name</label>
           <div className="flex items-center gap-1">
             <span className="text-hive-muted">!</span>
-            <input
+            <Input
+              mono
               type="text"
               value={form.name}
               onChange={(e) => update('name', e.target.value)}
               placeholder="command_name"
               pattern="[a-zA-Z0-9_]+"
-              className="flex-1 rounded border border-hive-border bg-hive-surface px-2 py-1 font-mono text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+              className="flex-1"
             />
           </div>
         </div>
@@ -205,22 +201,20 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-hive-muted">Global Cooldown (seconds)</label>
-          <input
+          <Input
             type="number"
             min={0}
             value={form.cooldown_seconds}
             onChange={(e) => update('cooldown_seconds', parseInt(e.target.value, 10) || 0)}
-            className="rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none"
           />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-hive-muted">Per-User Cooldown (seconds)</label>
-          <input
+          <Input
             type="number"
             min={0}
             value={form.user_cooldown_seconds}
             onChange={(e) => update('user_cooldown_seconds', parseInt(e.target.value, 10) || 0)}
-            className="rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none"
           />
         </div>
       </div>
@@ -264,13 +258,13 @@ function LotteryConfig({
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <label className="text-xs text-hive-muted">Win Chance (%)</label>
-        <input
+        <Input
           type="number"
           min={1}
           max={100}
           value={odds}
           onChange={(e) => updateConfig('odds', parseInt(e.target.value, 10) || 1)}
-          className="w-24 rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none"
+          className="w-24"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -328,12 +322,12 @@ function RandomListConfig({
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <label className="text-xs text-hive-muted">Prefix (optional)</label>
-        <input
+        <Input
           type="text"
           value={prefix}
           onChange={(e) => updateConfig('prefix', e.target.value)}
           placeholder="e.g. 🐚 "
-          className="w-48 rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+          className="w-48"
         />
       </div>
       <div className="flex flex-col gap-2">
@@ -342,26 +336,20 @@ function RandomListConfig({
           // biome-ignore lint/suspicious/noArrayIndexKey: controlled inputs over a parallel string array — no stable IDs exist
           <div key={i} className="flex items-start gap-2">
             <span className="mt-1.5 text-xs text-hive-muted">{i + 1}.</span>
-            <input
+            <Input
               type="text"
               value={resp}
               onChange={(e) => updateResponse(i, e.target.value)}
-              className="flex-1 rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text focus:border-hive-accent focus:outline-none"
+              className="flex-1"
             />
-            <button
-              type="button"
-              onClick={() => removeResponse(i)}
-              className="mt-0.5 rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10">
+            <Button variant="danger" className="mt-0.5 px-2" onClick={() => removeResponse(i)}>
               x
-            </button>
+            </Button>
           </div>
         ))}
-        <button
-          type="button"
-          onClick={addResponse}
-          className="self-start rounded border border-hive-border px-3 py-1 text-xs text-hive-muted transition-colors hover:border-hive-accent hover:text-hive-text">
+        <Button variant="outline" className="self-start" onClick={addResponse}>
           + Add Response
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -382,12 +370,13 @@ function CounterConfig({
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <label className="text-xs text-hive-muted">Counter Name</label>
-        <input
+        <Input
+          mono
           type="text"
           value={counterName}
           onChange={(e) => updateConfig('counter_name', e.target.value)}
           placeholder="Defaults to command name"
-          className="w-48 rounded border border-hive-border bg-hive-surface px-2 py-1 font-mono text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+          className="w-48"
         />
       </div>
       <div className="flex flex-col gap-1">

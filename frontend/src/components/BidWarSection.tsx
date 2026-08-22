@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -173,12 +175,12 @@ function ActiveWar({
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <h4 className="text-lg font-semibold text-hive-text">{war.title}</h4>
-        <button
-          type="button"
-          onClick={() => window.confirm(`Close "${war.title}"?`) && closeMutation.mutate()}
-          className="ml-auto rounded border border-hive-border px-2.5 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
+        <Button
+          variant="outline"
+          className="ml-auto px-2.5"
+          onClick={() => window.confirm(`Close "${war.title}"?`) && closeMutation.mutate()}>
           Close war
-        </button>
+        </Button>
       </div>
 
       <div
@@ -391,19 +393,20 @@ function ManualAdjustment({
             </option>
           ))}
         </select>
-        <input
+        <Input
+          mono
           type="number"
           value={points}
           onChange={(e) => setPoints(e.target.value)}
           placeholder="points (± allowed)"
-          className="w-32 rounded border border-hive-border bg-hive-dark px-2 py-1 font-mono text-xs text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+          className="w-32 bg-hive-dark text-xs"
         />
-        <input
+        <Input
           type="text"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="note"
-          className="min-w-0 flex-1 rounded border border-hive-border bg-hive-dark px-2 py-1 text-xs text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+          className="min-w-0 flex-1 bg-hive-dark text-xs"
         />
         <button
           type="button"
@@ -455,28 +458,28 @@ function CreateWarForm({
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-hive-border bg-hive-surface p-4">
       <p className="text-sm text-hive-text">No open bid war. Start one:</p>
-      <input
+      <Input
         type="text"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Title (e.g. Which game first?)"
-        className="rounded border border-hive-border bg-hive-dark px-2 py-1.5 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+        className="bg-hive-dark py-1.5"
       />
       <div className="flex gap-2">
-        <input
+        <Input
           type="text"
           value={optionA}
           onChange={(e) => setOptionA(e.target.value)}
           placeholder="Side A"
-          className="flex-1 rounded border border-hive-border bg-hive-dark px-2 py-1.5 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+          className="flex-1 bg-hive-dark py-1.5"
         />
         <span className="self-center text-xs text-hive-muted">vs</span>
-        <input
+        <Input
           type="text"
           value={optionB}
           onChange={(e) => setOptionB(e.target.value)}
           placeholder="Side B"
-          className="flex-1 rounded border border-hive-border bg-hive-dark px-2 py-1.5 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+          className="flex-1 bg-hive-dark py-1.5"
         />
       </div>
       <button

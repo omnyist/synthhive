@@ -12,6 +12,7 @@ import {
 } from '@/components/EventEditor'
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { OverlayUrls } from '@/components/OverlayUrls'
+import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
 import { useCampaignStream } from '@/lib/useCampaignStream'
 import { cn } from '@/lib/utils'
@@ -108,20 +109,14 @@ function EventPage() {
       )}
       <div className="ml-auto flex gap-1.5">
         {campaign && mode === 'view' && (
-          <button
-            type="button"
-            onClick={() => setMode('edit')}
-            className="rounded border border-hive-border px-2.5 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
+          <Button variant="outline" className="px-2.5" onClick={() => setMode('edit')}>
             Edit
-          </button>
+          </Button>
         )}
         {mode === 'view' && (
-          <button
-            type="button"
-            onClick={() => setMode('create')}
-            className="rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80">
+          <Button variant="solid" className="px-2.5" onClick={() => setMode('create')}>
             New event
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -243,12 +238,12 @@ function DashboardDescription({ text }: { text: string }) {
         {text}
       </MarkdownContent>
       {isLong && (
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="mt-1 text-xs text-hive-accent transition-colors hover:text-hive-text">
+        <Button
+          variant="link"
+          className="mt-1 text-xs text-hive-accent"
+          onClick={() => setExpanded(!expanded)}>
           {expanded ? 'Show less' : 'Show more'}
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -311,20 +306,14 @@ function MilestoneBoard({
         (adding ? (
           <div className="flex flex-col gap-1.5 rounded border border-hive-border bg-hive-surface px-3 py-2">
             <AddMilestoneRow channelSlug={channelSlug} campaign={campaign} onError={onError} />
-            <button
-              type="button"
-              onClick={() => setAdding(false)}
-              className="self-start text-xs text-hive-muted transition-colors hover:text-hive-text">
+            <Button variant="link" className="self-start text-xs" onClick={() => setAdding(false)}>
               Done adding
-            </button>
+            </Button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="self-start rounded px-1 py-0.5 text-xs text-hive-muted transition-colors hover:text-hive-text">
+          <Button className="self-start px-1 py-0.5" onClick={() => setAdding(true)}>
             + Add goal
-          </button>
+          </Button>
         ))}
     </div>
   )
@@ -391,12 +380,11 @@ function GoalRow({
         )}
         {isNext && <span className="text-xs text-hive-accent">next</span>}
         {editable && (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="rounded px-1.5 py-0.5 text-xs text-hive-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-hive-text">
+          <Button
+            className="px-1.5 py-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+            onClick={() => setEditing(true)}>
             edit
-          </button>
+          </Button>
         )}
         <span className="ml-auto font-mono text-xs text-hive-muted">
           {current.toLocaleString()} / {m.threshold.toLocaleString()}
