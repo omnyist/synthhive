@@ -93,6 +93,20 @@ DATABASES = {
 # which rejects the option).
 _UNDER_TEST = "pytest" in sys.modules
 if DATABASES["default"]["ENGINE"] != "django.db.backends.sqlite3" and not _UNDER_TEST:
+    # This does more than the name suggests: Django's postgresql backend hands
+    # it straight to psycopg_pool as the pool's `check` callback. Left False,
+    # the pool defaults to check=None and validates nothing, so a connection
+    # killed by a Postgres restart is served out of the pool forever.
+    #
+    # 2026-08-21: a synthcore deploy restarted shared Postgres and every bot
+    # raised "the connection is closed" for ~3h. No command worked in any
+    # channel while the container read Up and the panel returned 200.
+    #
+    # Do NOT also pass `check` inside the pool options — Django already passes
+    # it, and psycopg_pool raises "got multiple values for keyword argument
+    # 'check'" on the first cursor, which crash-loops the bots.
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
+
     # Explicit sizing: the bare `pool: True` default caps at 4
     # connections, which a handful of concurrent requests can exhaust.
     # timeout keeps a starved pool failing fast instead of hanging
