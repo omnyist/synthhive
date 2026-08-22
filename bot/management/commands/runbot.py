@@ -8,6 +8,8 @@ from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from bot.heartbeat import beat_boot_sync
+
 logger = logging.getLogger("bot")
 
 
@@ -72,6 +74,12 @@ class Command(BaseCommand):
 
     async def _run(self):
         configs = await sync_to_async(_load_bot_configs)()
+
+        # Before any Twitch connection: this is what separates "the process
+        # never started" from "it started and never connected" — two failures
+        # with different fixes that otherwise produce identical silence.
+        for cfg in configs:
+            beat_boot_sync(cfg["bot_name"])
 
         base_port = 4343
         for cfg in configs:

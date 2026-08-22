@@ -17,6 +17,7 @@ from .components.errors import ErrorHandler
 from .components.lizardbullets import LizardBullets
 from .components.lizardrecovery import LizardRecovery
 from .components.management import ManagementCommands
+from .heartbeat import beat_liveness
 from .router import CommandRouter
 
 logger = logging.getLogger("bot")
@@ -172,6 +173,15 @@ class BotClient(commands.Bot):
                         for info in self._channel_map.values()
                     }
                     missing = expected - active_channels
+
+                    # Beat here, before the early return below. Walking
+                    # self._websockets is the only recurring proof the chat
+                    # plumbing is real — TwitchIO logs session_keepalive and
+                    # dispatches nothing, so there is no connection event to
+                    # hang this on. Placing it after the `continue` would mean
+                    # only unhealthy bots ever beat.
+                    if active_channels:
+                        await beat_liveness(self.bot_name)
 
                     if not missing:
                         continue

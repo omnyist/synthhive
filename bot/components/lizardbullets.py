@@ -13,6 +13,8 @@ from bot import state
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
+from ..heartbeat import beat_live
+
 logger = logging.getLogger("bot")
 
 TICK_INTERVAL = 30  # seconds
@@ -102,6 +104,10 @@ class LizardBullets(commands.Component):
 
         if not await self._is_live(channel, broadcaster_id):
             return
+
+        # Same free observation as accrual's, on a 30s tick rather than 5min,
+        # so the live gate stays fresh for channels running this skill.
+        await beat_live(self.bot.bot_name)
 
         if random.randint(1, BULLET_ODDS) != 1:
             return

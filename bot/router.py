@@ -11,6 +11,7 @@ from django.db.models import F
 from twitchio.ext import commands
 
 from . import state
+from .heartbeat import beat_work
 from .skills import SKILL_REGISTRY
 from .skills import discover_skills
 from .variables import VariableContext
@@ -231,6 +232,11 @@ class CommandRouter(commands.Component):
             await send_reply(
                 payload, response, bot_id=self.bot.bot_id, me=use_me
             )
+            # Everything that broke on 2026-08-21 has now demonstrably worked:
+            # the command was found in Postgres, use_count was written back,
+            # and the reply reached Twitch. A beat earlier in this function
+            # would have kept ticking through that entire outage.
+            await beat_work(self.bot.bot_name)
             return
 
         # 6. Skill handler fallback

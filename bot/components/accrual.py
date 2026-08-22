@@ -12,6 +12,8 @@ from core.synthfunc import accrue_wallets
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
+from ..heartbeat import beat_live
+
 logger = logging.getLogger("bot")
 
 TICK_INTERVAL = 300  # 5 minutes
@@ -125,6 +127,11 @@ class CurrencyAccrual(commands.Component):
 
         if not await self._is_live(channel, broadcaster_id):
             return
+
+        # This tick already asked Twitch the question, so recording the answer
+        # is free. It gates work-staleness alerting: a bot that handles no
+        # commands is only suspicious while someone is actually streaming.
+        await beat_live(self.bot.bot_name)
 
         chatters = await self._fetch_chatters(channel, broadcaster_id)
         if not chatters:
