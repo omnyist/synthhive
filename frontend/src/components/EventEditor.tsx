@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/Dialog'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -234,9 +235,17 @@ function MilestoneEditor({
   onError: (message: string | null) => void
 }) {
   const { update: updateMutation, remove: deleteMutation } = useGoalMutations(channelSlug, onError)
+  const [pendingGoal, setPendingGoal] = useState<Milestone | null>(null)
 
   return (
     <div className="flex flex-col gap-1.5">
+      <ConfirmDialog
+        open={pendingGoal !== null}
+        onClose={() => setPendingGoal(null)}
+        onConfirm={() => pendingGoal && deleteMutation.mutate(pendingGoal.id)}
+        title="Delete goal?"
+        body={<>“{pendingGoal?.title}” will be removed from this event.</>}
+      />
       <h4 className="text-xs font-medium tracking-wide text-hive-muted uppercase">Goals</h4>
       {campaign.milestones.length === 0 && <p className="text-xs text-hive-muted">No goals yet.</p>}
       {campaign.milestones.map((m) => (
@@ -245,9 +254,7 @@ function MilestoneEditor({
           milestone={m}
           disabled={updateMutation.isPending || deleteMutation.isPending}
           onSave={(changes) => updateMutation.mutate({ id: m.id, ...changes })}
-          onDelete={() => {
-            if (window.confirm(`Delete goal "${m.title}"?`)) deleteMutation.mutate(m.id)
-          }}
+          onDelete={() => setPendingGoal(m)}
         />
       ))}
       <AddMilestoneRow channelSlug={channelSlug} campaign={campaign} onError={onError} />

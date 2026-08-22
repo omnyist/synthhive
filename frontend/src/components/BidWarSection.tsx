@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/Dialog'
 import { Input, Select } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -118,6 +119,7 @@ function ActiveWar({
   onChanged: () => void
   onError: (message: string | null) => void
 }) {
+  const [confirmingClose, setConfirmingClose] = useState(false)
   const leader = Math.max(...war.options.map((o) => o.total))
 
   const { data: pendingGifts = [], isError: pendingFailed } = useQuery({
@@ -173,12 +175,20 @@ function ActiveWar({
 
   return (
     <div className="flex flex-col gap-4">
+      <ConfirmDialog
+        open={confirmingClose}
+        onClose={() => setConfirmingClose(false)}
+        onConfirm={() => closeMutation.mutate()}
+        title="Close this bid war?"
+        body={<>No further gift subs can be allocated to “{war.title}”.</>}
+        confirmLabel="Close war"
+      />
       <div className="flex items-center gap-3">
         <h4 className="text-lg font-semibold text-hive-text">{war.title}</h4>
         <Button
           variant="outline"
           className="ml-auto px-2.5"
-          onClick={() => window.confirm(`Close "${war.title}"?`) && closeMutation.mutate()}>
+          onClick={() => setConfirmingClose(true)}>
           Close war
         </Button>
       </div>

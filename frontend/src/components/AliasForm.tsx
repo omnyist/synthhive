@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 
@@ -39,6 +40,7 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormState>(() => initialState(alias))
   const [error, setError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isNew = !alias
 
   useEffect(() => {
@@ -95,9 +97,7 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
             <Button
               variant="danger"
               onClick={() => {
-                if (window.confirm(`Delete alias !${alias.name}?`)) {
-                  deleteMutation.mutate()
-                }
+                setConfirmingDelete(true)
               }}
               disabled={deleteMutation.isPending}>
               Delete
@@ -145,6 +145,18 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
           />
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Delete alias?"
+        body={
+          <>
+            The alias <span className="font-mono text-hive-text">!{alias.name}</span> will be
+            removed.
+          </>
+        }
+      />
     </div>
   )
 }

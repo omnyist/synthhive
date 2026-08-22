@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/Dialog'
 import { Field } from '@/components/ui/Field'
 import { Input } from '@/components/ui/Input'
 import { api } from '@/lib/api'
@@ -44,6 +45,7 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormState>(() => initialState(counter))
   const [error, setError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isNew = !counter
 
   useEffect(() => {
@@ -102,9 +104,7 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
             <Button
               variant="danger"
               onClick={() => {
-                if (window.confirm(`Delete counter "${counter.name}"?`)) {
-                  deleteMutation.mutate()
-                }
+                setConfirmingDelete(true)
               }}
               disabled={deleteMutation.isPending}>
               Delete
@@ -153,6 +153,18 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
           className="w-32"
         />
       </Field>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Delete counter?"
+        body={
+          <>
+            The counter <span className="font-mono text-hive-text">{counter.name}</span> and its
+            value will be removed.
+          </>
+        }
+      />
     </div>
   )
 }

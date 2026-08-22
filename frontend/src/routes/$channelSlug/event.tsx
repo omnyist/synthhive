@@ -13,6 +13,7 @@ import {
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { OverlayUrls } from '@/components/OverlayUrls'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/Dialog'
 import { Select } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { useCampaignStream } from '@/lib/useCampaignStream'
@@ -337,6 +338,7 @@ function GoalRow({
   onError: (message: string | null) => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const { update, remove } = useGoalMutations(channelSlug, onError)
 
   const isPoints = m.goal_unit === 'sub_points'
@@ -344,19 +346,24 @@ function GoalRow({
 
   if (editing) {
     return (
-      <GoalRowEditor
-        milestone={m}
-        pending={update.isPending || remove.isPending}
-        onSave={(changes) =>
-          update.mutate({ id: m.id, ...changes }, { onSuccess: () => setEditing(false) })
-        }
-        onDelete={() => {
-          if (window.confirm(`Delete goal "${m.title}"?`)) {
-            remove.mutate(m.id, { onSuccess: () => setEditing(false) })
+      <>
+        <ConfirmDialog
+          open={confirmingDelete}
+          onClose={() => setConfirmingDelete(false)}
+          onConfirm={() => remove.mutate(m.id, { onSuccess: () => setEditing(false) })}
+          title="Delete goal?"
+          body={<>“{m.title}” will be removed from this event.</>}
+        />
+        <GoalRowEditor
+          milestone={m}
+          pending={update.isPending || remove.isPending}
+          onSave={(changes) =>
+            update.mutate({ id: m.id, ...changes }, { onSuccess: () => setEditing(false) })
           }
-        }}
-        onCancel={() => setEditing(false)}
-      />
+          onDelete={() => setConfirmingDelete(true)}
+          onCancel={() => setEditing(false)}
+        />
+      </>
     )
   }
 

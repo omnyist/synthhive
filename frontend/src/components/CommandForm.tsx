@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/Dialog'
 import { Input, Select } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { CommandEditor } from './CommandEditor'
@@ -68,6 +69,7 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormState>(() => initialState(command))
   const [error, setError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isNew = !command
 
   useEffect(() => {
@@ -133,9 +135,7 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
             <Button
               variant="danger"
               onClick={() => {
-                if (window.confirm(`Delete !${command.name}?`)) {
-                  deleteMutation.mutate()
-                }
+                setConfirmingDelete(true)
               }}
               disabled={deleteMutation.isPending}>
               Delete
@@ -236,6 +236,18 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
           <span className="text-hive-text">Mod only</span>
         </label>
       </div>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Delete command?"
+        body={
+          <>
+            The command <span className="font-mono text-hive-text">!{command.name}</span> will be
+            removed.
+          </>
+        }
+      />
     </div>
   )
 }
