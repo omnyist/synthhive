@@ -416,3 +416,61 @@ class Alias(models.Model):
 
     def __str__(self):
         return f"!{self.name} → !{self.target} in #{self.channel.twitch_channel_name}"
+
+
+class TimedMessage(models.Model):
+    """A message the bot posts on a schedule while the channel is live.
+
+    Spoonee has wanted these back since Moobot, which sets the
+    expectations: an interval, and a chat-activity gate so the bot
+    doesn't talk to an empty room. `message` supports the same variables
+    as command responses.
+
+    Scheduling is deliberately simple. Each row carries its own
+    `last_sent_at`, so rows created at different times naturally
+    stagger, and the component sends at most one message per channel per
+    tick — a burst of due messages queues rather than dumping into chat
+    at once.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, related_name="timed_messages"
+    )
+    name = models.CharField(max_length=100)
+    message = models.TextField()
+
+    interval_seconds = models.PositiveIntegerField(
+        default=1800, help_text="Minimum seconds between sends."
+    )
+    # The gate that stops timed messages being annoying: if chat hasn't
+    # said anything since the last send, nobody is there to read it.
+    min_chat_lines = models.PositiveIntegerField(
+        default=5,
+        help_text="Chat messages required since the last send. 0 disables the gate.",
+    )
+
+    enabled = models.BooleanField(default=True)
+    last_sent_at = models.DateTimeField(null=True, blank=True)
+    use_count = models.PositiveIntegerField(default=0)
+
+    created_by = models.CharField(max_length=100, blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ["channel", "name"]
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} in #{self.channel.twitch_channel_name}"
+
+    def is_due(self, now, chat_lines: int) -> bool:
+        """Whether this message may be sent right now."""
+        if not self.enabled:
+            return False
+        if chat_lines < self.min_chat_lines:
+            return False
+        if self.last_sent_at is None:
+            return True
+        return (now - self.last_sent_at).total_seconds() >= self.interval_seconds

@@ -299,3 +299,49 @@ async def pending_timeouts_all() -> list[dict]:
         except (ValueError, KeyError):
             continue
     return out
+
+
+# ---------------------------------------------------------------------------
+# Chat activity — how many messages a channel has seen since the last timed
+# message went out. The gate that stops the bot talking to an empty room.
+#
+# Deliberately approximate: a lost counter (Redis restart, fail-open) means a
+# timed message is skipped once, never that one fires into silence. Skipping
+# is the safe direction.
+# ---------------------------------------------------------------------------
+
+
+def _chat_activity_key(channel_id: str) -> str:
+    return f"chat:activity:{channel_id}"
+
+
+async def chat_activity_incr(channel_id: str) -> None:
+    """Count one chat message. Called on the message hot path."""
+    try:
+        await get_client().incr(_chat_activity_key(channel_id))
+        _note_success()
+    except Exception as exc:
+        _note_failure("chat_activity_incr", exc)
+
+
+async def chat_activity_get(channel_id: str) -> int:
+    """Messages seen since the counter was last reset. 0 if unreadable."""
+    try:
+        value = await get_client().get(_chat_activity_key(channel_id))
+        _note_success()
+    except Exception as exc:
+        _note_failure("chat_activity_get", exc)
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+async def chat_activity_reset(channel_id: str) -> None:
+    """Clear the counter, after a timed message has been sent."""
+    try:
+        await get_client().delete(_chat_activity_key(channel_id))
+        _note_success()
+    except Exception as exc:
+        _note_failure("chat_activity_reset", exc)

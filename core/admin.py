@@ -14,6 +14,7 @@ from .models import Invite
 from .models import LizardPlay
 from .models import Skill
 from .models import SkillStat
+from .models import TimedMessage
 from .models import TwitchProfile
 
 
@@ -200,3 +201,19 @@ class InviteAdmin(admin.ModelAdmin):
     list_filter = ("created_at",)
     search_fields = ("code", "channel_name")
     readonly_fields = ("code", "created_at", "used_at", "completed_at")
+
+
+@admin.register(TimedMessage)
+class TimedMessageAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "channel",
+        "enabled",
+        "interval_seconds",
+        "min_chat_lines",
+        "last_sent_at",
+        "use_count",
+    )
+    list_filter = ("channel", "enabled")
+    search_fields = ("name", "message")
+    readonly_fields = ("id", "use_count", "last_sent_at", "created_at", "updated_at")

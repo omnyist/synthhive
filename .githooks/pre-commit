@@ -32,7 +32,7 @@ py=$(staged '*.py')
 if [ -n "$py" ]; then
     if command -v uv >/dev/null 2>&1; then
         # shellcheck disable=SC2086
-        if ! uv run --group dev ruff check $py; then
+        if ! uv run --group dev ruff check --force-exclude $py; then
             echo
             echo "ruff failed. Fix with:  uv run --group dev ruff check --fix ."
             fail=1
