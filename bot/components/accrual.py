@@ -13,6 +13,7 @@ from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
 from ..heartbeat import beat_live
+from ..heartbeat import beat_work
 
 logger = logging.getLogger("bot")
 
@@ -145,6 +146,22 @@ class CurrencyAccrual(commands.Component):
         )
 
         if result:
+            # A completed sweep just proved the whole pipeline — Twitch
+            # answered with chatters and the database accepted the writes —
+            # so it counts as work. Without this, a live chat where nobody
+            # types a command for half an hour reads as a dead bot: scope
+            # paged exactly that false positive on 2026-08-26, for a bot
+            # that was updating 93 wallets a cycle at the time.
+            #
+            # This does narrow what work-staleness catches: accrual polls
+            # Twitch directly, so it keeps beating even if EventSub delivery
+            # dies and no command could possibly be handled. That gap is
+            # covered — the liveness beat rides the subscription health
+            # sweep, which is what actually detects a dead command path.
+            # Work-staleness was only ever a coarse proxy for it, and a
+            # proxy that cries wolf on every quiet stream gets muted, which
+            # costs more than the coverage it was standing in for.
+            await beat_work(self.bot.bot_name)
             logger.info(
                 "[Accrual] #%s: %d chatters, %d wallets updated.",
                 tenant_slug,

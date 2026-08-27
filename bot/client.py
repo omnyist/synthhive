@@ -18,6 +18,7 @@ from .components.lizardbullets import LizardBullets
 from .components.lizardrecovery import LizardRecovery
 from .components.management import ManagementCommands
 from .heartbeat import beat_liveness
+from .heartbeat import refresh_boot_ttl
 from .router import CommandRouter
 
 logger = logging.getLogger("bot")
@@ -182,6 +183,13 @@ class BotClient(commands.Bot):
                     # only unhealthy bots ever beat.
                     if active_channels:
                         await beat_liveness(self.bot_name)
+                        # Keep the boot key alive without rewriting it.
+                        # Bots run for days between deploys, so a bare 24h
+                        # TTL let boot expire under a perfectly healthy
+                        # process — degrading the never-beat message from
+                        # "since boot Ns ago" to the vaguer "process never
+                        # started" on day two.
+                        await refresh_boot_ttl(self.bot_name)
 
                     if not missing:
                         continue
