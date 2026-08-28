@@ -1,6 +1,38 @@
 # IronMON local agent — build plan
 
-Status: proposed, nothing built. Written 2026-08-24.
+Status: the agent is still unbuilt. Written 2026-08-24; status updated
+2026-08-28 by the arbiter, after this document spent four days stranded on an
+unpushed branch while the work it describes moved without it.
+
+**Three things changed under this plan, and none of them are in the body
+below.**
+
+*A listener now exists on 8080, and it is not this one.* `synthfunc-ironmon`
+is deployed and published on `saya:8080`. The agent this plan describes binds
+`127.0.0.1:8080` on the streaming machine. Same number, different host,
+different component — no collision, but do not read the port as shared. Under
+phase 1 both exist at once: BizHawk → agent on `127.0.0.1:8080` → synthfunc on
+`saya:8080`.
+
+*The protocol premise is confirmed by observation, not just by reading source.*
+On 2026-08-28 Bryan's tracker connected and produced `Game initialized:
+FireRed/LeafGreen v2.2` and `New attempt started`, with state reaching Redis.
+So "we do not need Stream Connect — ironmon-connect is ours and already speaks
+JSON over BizHawk's socket" is now a measured fact.
+
+*The risk this plan exists to remove is live in production right now.* Today
+BizHawk holds blocking reads across the network to Saya, which is exactly the
+"a deploy restarting a container, a wifi blip → frame stutter mid-run" hazard
+named under Risks. It is already costing something: on 2026-08-28 a session
+held a finished commit rather than deploy it, because deploying synthfunc
+restarts `synthfunc-ironmon` and would drop the tracker mid-configuration.
+That is a point in this plan's favour, not against it.
+
+Open question #1 (does BizHawk's socket server work under Linux?) is **not**
+answered by that connection. OrbStack masquerades the source, so every client
+address in the container log reads as the bridge gateway and there is no way
+to tell Alys from the Windows PC. Bryan was still configuring the Linux side.
+
 
 Alys is moving to CachyOS, which retires Streamer.bot as the thing that
 administrates channel-point actions during IronMON runs. This is the
