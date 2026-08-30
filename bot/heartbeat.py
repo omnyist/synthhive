@@ -111,3 +111,19 @@ def beat_boot_sync(bot_name: str) -> None:
             client.close()
     except Exception as exc:  # noqa: BLE001
         logger.warning("[Heartbeat] Could not record boot for %s: %s", bot_name, exc)
+
+
+async def refresh_boot_ttl(bot_name: str) -> None:
+    """Keep the boot key alive without touching its value.
+
+    EXPIRE only — the timestamp stays the true process start. Bots run for
+    days between deploys, so a boot key that merely outlives TTL_SECONDS
+    reads as "process never started" from day two onward. Call from the same
+    sweep as beat_liveness: the key then lives exactly as long as the
+    process does.
+    """
+    try:
+        await get_client().expire(key(bot_name, "boot"), TTL_SECONDS)
+        _note_success()
+    except Exception as exc:  # noqa: BLE001 — see module docstring
+        _note_failure("heartbeat boot-ttl", exc)

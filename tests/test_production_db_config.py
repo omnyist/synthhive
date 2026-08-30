@@ -65,8 +65,23 @@ def test_pool_options_do_not_collide_with_djangos_own_kwargs():
         )
 
 
-def _db_reachable() -> bool:
+def _pooled_postgres_available() -> bool:
+    """Can this machine actually build the production pool?
+
+    Two conditions, and the engine is the one that matters. A local checkout
+    with no DATABASE_URL falls back to SQLite, for which
+    production_database_extras() correctly returns {} — no pool, by design.
+    An earlier version of this guard only probed a socket, so an empty
+    HOST/PORT resolved to localhost:5432, found whatever else was listening
+    there, and ran the test against a SQLite alias: it then failed on a pool
+    that was never supposed to exist. A guard that reports "your environment
+    is wrong" when the environment is fine is worse than no guard, because
+    the failure it invents is indistinguishable from the regression it was
+    written to catch.
+    """
     d = settings.DATABASES["default"]
+    if d["ENGINE"] != "django.db.backends.postgresql":
+        return False
     try:
         with socket.create_connection(
             (d.get("HOST") or "localhost", int(d.get("PORT") or 5432)), timeout=2
@@ -77,8 +92,8 @@ def _db_reachable() -> bool:
 
 
 @pytest.mark.skipif(
-    not _db_reachable(),
-    reason="no Postgres reachable — tier-2 pool check needs one (CI always has it)",
+    not _pooled_postgres_available(),
+    reason="not a pooled-Postgres environment — tier-2 pool check needs one (CI always has it)",
 )
 def test_the_production_pool_actually_opens_a_cursor(django_db_blocker):
     """Build the pool with the production OPTIONS through Django's own code

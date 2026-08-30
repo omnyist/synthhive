@@ -357,7 +357,7 @@ WhiteNoise does not work under ASGI/Daphne (sync-only middleware). Static files 
 Project-specific deltas (everything else is inherited from the import above and ~/.claude/CLAUDE.md):
 
 - **Commits:** No restriction (synthfunc/synthform are Dev-only; this isn't). Pushing to `main` deploys.
-- **Port:** 7177 (via Caddy). **Redis logical DB:** `/1`.
+- **Ports, Redis DB, container names:** not restated here. `recall("<project> port")` or `lookup` against `registry/allocations.md`, which is canonical and derived from what is actually listening. A copy in this file is a second place to be wrong.
 - **Two containers** share the codebase: `server` (Daphne API/admin/OAuth) and `bot` (`manage.py runbot`, one BotClient per active bot).
 - **Caddy** reverse-proxies API/admin/auth → `server`, else serves the SPA. No prod host ports (cloudflared ingress).
 - **Static under ASGI:** WhiteNoise is sync-only and doesn't work under Daphne — static is served via Django's `serve` route, not WhiteNoise middleware.

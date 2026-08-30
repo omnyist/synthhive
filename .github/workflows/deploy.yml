@@ -2,7 +2,17 @@ name: Deploy
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
+
+# The test job spins up fixed-name containers on fixed ports (see below), so
+# two runs of this workflow at once would have one `docker rm -f` the other's
+# database mid-test. Serialise per repo rather than per ref: a PR run and a
+# main run collide exactly as hard as two main runs.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -72,6 +82,9 @@ jobs:
   deploy:
     needs: [test, frontend]
     runs-on: self-hosted
+    # Never on a pull request. PRs get a verdict from the checks above; only
+    # a push to main is allowed to reach production.
+    if: github.event_name == 'push'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
