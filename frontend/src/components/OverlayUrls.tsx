@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
 
 interface OverlayUrlsResponse {
@@ -53,9 +52,12 @@ function WidgetUrlRow({ name, url }: { name: string; url: string }) {
       <code className="min-w-0 flex-1 truncate rounded bg-hive-dark px-2 py-1 font-mono text-xs text-hive-muted">
         {url}
       </code>
-      <Button variant="outline" className="shrink-0 px-2" onClick={copy}>
+      <button
+        type="button"
+        onClick={copy}
+        className="shrink-0 rounded border border-hive-border px-2 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
         {copied ? 'Copied!' : 'Copy'}
-      </Button>
+      </button>
     </div>
   )
 }

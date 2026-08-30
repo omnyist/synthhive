@@ -1,8 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { ConfirmDialog } from '@/components/ui/Dialog'
-import { Input, Select, Textarea } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +44,9 @@ export interface CampaignSummary {
   total_subs: number
   total_sub_points: number
 }
+
+const inputClass =
+  'rounded border border-hive-border bg-hive-dark px-2 py-1.5 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none'
 
 export function EventEditor({
   channelSlug,
@@ -110,47 +110,45 @@ export function EventEditor({
         <h3 className="text-sm font-semibold text-hive-text">
           {campaign ? `Edit ${campaign.name}` : 'New event'}
         </h3>
-        <Button className="ml-auto px-2" onClick={onClose}>
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-auto rounded px-2 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
           Cancel
-        </Button>
+        </button>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Input
-          inset
+        <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Event name (e.g. Awesome August)"
-          className="py-1.5"
+          className={inputClass}
         />
-        <Textarea
-          inset
-          mono
+        <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Description (optional) — shown on the public event page"
           rows={8}
-          className="py-1.5 resize-y text-xs leading-relaxed"
+          className={cn(inputClass, 'resize-y font-mono text-xs leading-relaxed')}
         />
         <p className="text-xs text-hive-muted">
           Markdown supported: paragraphs, **bold**, # headings, - lists, [links](url), tables.
         </p>
         <div className="flex items-center gap-2">
-          <Input
-            inset
+          <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="py-1.5"
+            className={inputClass}
           />
           <span className="text-xs text-hive-muted">to</span>
-          <Input
-            inset
+          <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="py-1.5"
+            className={inputClass}
           />
           <label className="ml-auto flex items-center gap-1.5 text-xs text-hive-text select-none">
             <input
@@ -177,14 +175,13 @@ export function EventEditor({
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <Button
+      <button
+        type="button"
         disabled={!ready || saveMutation.isPending}
         onClick={() => saveMutation.mutate()}
-        variant="solid"
-        size="sm"
-        className="self-start disabled:opacity-50">
+        className="self-start rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
         {saveMutation.isPending ? 'Saving…' : campaign ? 'Save changes' : 'Create event'}
-      </Button>
+      </button>
     </div>
   )
 }
@@ -235,17 +232,9 @@ function MilestoneEditor({
   onError: (message: string | null) => void
 }) {
   const { update: updateMutation, remove: deleteMutation } = useGoalMutations(channelSlug, onError)
-  const [pendingGoal, setPendingGoal] = useState<Milestone | null>(null)
 
   return (
     <div className="flex flex-col gap-1.5">
-      <ConfirmDialog
-        open={pendingGoal !== null}
-        onClose={() => setPendingGoal(null)}
-        onConfirm={() => pendingGoal && deleteMutation.mutate(pendingGoal.id)}
-        title="Delete goal?"
-        body={<>“{pendingGoal?.title}” will be removed from this event.</>}
-      />
       <h4 className="text-xs font-medium tracking-wide text-hive-muted uppercase">Goals</h4>
       {campaign.milestones.length === 0 && <p className="text-xs text-hive-muted">No goals yet.</p>}
       {campaign.milestones.map((m) => (
@@ -254,7 +243,9 @@ function MilestoneEditor({
           milestone={m}
           disabled={updateMutation.isPending || deleteMutation.isPending}
           onSave={(changes) => updateMutation.mutate({ id: m.id, ...changes })}
-          onDelete={() => setPendingGoal(m)}
+          onDelete={() => {
+            if (window.confirm(`Delete goal "${m.title}"?`)) deleteMutation.mutate(m.id)
+          }}
         />
       ))}
       <AddMilestoneRow channelSlug={channelSlug} campaign={campaign} onError={onError} />
@@ -315,13 +306,13 @@ function MilestoneRow({
         )}>
         Save
       </button>
-      <Button
+      <button
+        type="button"
         disabled={disabled}
         onClick={onDelete}
-        variant="danger"
-        className="shrink-0 px-2 disabled:opacity-40">
+        className="shrink-0 rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-40">
         Delete
-      </Button>
+      </button>
     </div>
   )
 }
@@ -379,13 +370,13 @@ export function AddMilestoneRow({
         onStretch={setIsStretch}
         placeholderTitle="New goal (e.g. Baiten Kaitos)"
       />
-      <Button
+      <button
+        type="button"
         disabled={createMutation.isPending || !parsed || !title.trim()}
         onClick={() => createMutation.mutate()}
-        variant="solid"
-        className="shrink-0 px-2 disabled:opacity-40">
+        className="shrink-0 rounded bg-hive-accent-dim px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-40">
         Add
-      </Button>
+      </button>
     </div>
   )
 }
@@ -411,33 +402,29 @@ export function MilestoneFields({
   onStretch: (v: boolean) => void
   placeholderTitle?: string
 }) {
+  const smallInput =
+    'rounded border border-hive-border bg-hive-dark px-2 py-1 text-xs text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none'
+
   return (
     <>
-      <Input
-        inset
-        mono
+      <input
         type="number"
         value={threshold}
         onChange={(e) => onThreshold(e.target.value)}
         placeholder="500"
-        className="w-20 text-xs"
+        className={cn(smallInput, 'w-20 font-mono')}
       />
-      <Input
-        inset
+      <input
         type="text"
         value={title}
         onChange={(e) => onTitle(e.target.value)}
         placeholder={placeholderTitle}
-        className="min-w-0 flex-1 text-xs"
+        className={cn(smallInput, 'min-w-0 flex-1')}
       />
-      <Select
-        inset
-        value={goalUnit}
-        onChange={(e) => onGoalUnit(e.target.value)}
-        className="text-xs">
+      <select value={goalUnit} onChange={(e) => onGoalUnit(e.target.value)} className={smallInput}>
         <option value="subs">subs</option>
         <option value="sub_points">sub points</option>
-      </Select>
+      </select>
       <label className="flex shrink-0 items-center gap-1 text-xs text-hive-muted select-none">
         <input type="checkbox" checked={isStretch} onChange={(e) => onStretch(e.target.checked)} />
         stretch

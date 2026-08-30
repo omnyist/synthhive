@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { List, ListEmpty, ListRow } from '@/components/ui/List'
+import { cn } from '@/lib/utils'
 
 interface Counter {
   id: string
@@ -25,32 +23,43 @@ export function CounterList({ counters, selectedId, onSelect, onNew }: CounterLi
   return (
     <div className="flex w-80 shrink-0 flex-col gap-2 overflow-hidden">
       <div className="flex items-center gap-2">
-        <Input
+        <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search counters..."
-          className="flex-1 px-3 py-1.5"
+          className="flex-1 rounded border border-hive-border bg-hive-surface px-3 py-1.5 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
         />
-        <Button variant="solid" size="sm" onClick={onNew}>
+        <button
+          type="button"
+          onClick={onNew}
+          className="rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80">
           + New
-        </Button>
+        </button>
       </div>
-      <List>
+      <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto">
         {filtered.map((counter) => (
-          <ListRow
+          <button
+            type="button"
             key={counter.id}
-            selected={selectedId === counter.id}
-            onClick={() => onSelect(counter.id)}>
+            onClick={() => onSelect(counter.id)}
+            className={cn(
+              'flex items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors',
+              selectedId === counter.id
+                ? 'bg-hive-accent-dim/20 text-hive-text'
+                : 'text-hive-muted hover:bg-hive-surface hover:text-hive-text',
+            )}>
             <span className="font-mono font-medium">{counter.name}</span>
             {counter.label && <span className="text-xs text-hive-muted">{counter.label}</span>}
             <span className="ml-auto font-mono text-xs text-hive-muted">{counter.value}</span>
-          </ListRow>
+          </button>
         ))}
         {filtered.length === 0 && (
-          <ListEmpty>{search ? 'No counters match your search.' : 'No counters yet.'}</ListEmpty>
+          <p className="px-3 py-4 text-center text-sm text-hive-muted">
+            {search ? 'No counters match your search.' : 'No counters yet.'}
+          </p>
         )}
-      </List>
+      </div>
     </div>
   )
 }

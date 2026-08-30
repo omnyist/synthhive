@@ -12,9 +12,6 @@ import {
 } from '@/components/EventEditor'
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { OverlayUrls } from '@/components/OverlayUrls'
-import { Button } from '@/components/ui/Button'
-import { ConfirmDialog } from '@/components/ui/Dialog'
-import { Select } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { useCampaignStream } from '@/lib/useCampaignStream'
 import { cn } from '@/lib/utils'
@@ -96,11 +93,10 @@ function EventPage() {
   const header = (
     <div className="flex items-center gap-2">
       {campaigns.length > 0 && (
-        <Select
+        <select
           value={viewingId ?? ''}
           onChange={(e) => e.target.value && selectCampaign(e.target.value)}
-          inset
-          className="text-xs">
+          className="rounded border border-hive-border bg-hive-dark px-2 py-1 text-xs text-hive-text focus:border-hive-accent focus:outline-none">
           {!viewingId && <option value="">Pick an event…</option>}
           {campaigns.map((c) => (
             <option key={c.id} value={c.id}>
@@ -108,18 +104,24 @@ function EventPage() {
               {c.is_active ? ' (active)' : ''}
             </option>
           ))}
-        </Select>
+        </select>
       )}
       <div className="ml-auto flex gap-1.5">
         {campaign && mode === 'view' && (
-          <Button variant="outline" className="px-2.5" onClick={() => setMode('edit')}>
+          <button
+            type="button"
+            onClick={() => setMode('edit')}
+            className="rounded border border-hive-border px-2.5 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
             Edit
-          </Button>
+          </button>
         )}
         {mode === 'view' && (
-          <Button variant="solid" className="px-2.5" onClick={() => setMode('create')}>
+          <button
+            type="button"
+            onClick={() => setMode('create')}
+            className="rounded bg-hive-accent-dim px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80">
             New event
-          </Button>
+          </button>
         )}
       </div>
     </div>
@@ -241,12 +243,12 @@ function DashboardDescription({ text }: { text: string }) {
         {text}
       </MarkdownContent>
       {isLong && (
-        <Button
-          variant="link"
-          className="mt-1 text-xs text-hive-accent"
-          onClick={() => setExpanded(!expanded)}>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="mt-1 text-xs text-hive-accent transition-colors hover:text-hive-text">
           {expanded ? 'Show less' : 'Show more'}
-        </Button>
+        </button>
       )}
     </div>
   )
@@ -309,14 +311,20 @@ function MilestoneBoard({
         (adding ? (
           <div className="flex flex-col gap-1.5 rounded border border-hive-border bg-hive-surface px-3 py-2">
             <AddMilestoneRow channelSlug={channelSlug} campaign={campaign} onError={onError} />
-            <Button variant="link" className="self-start text-xs" onClick={() => setAdding(false)}>
+            <button
+              type="button"
+              onClick={() => setAdding(false)}
+              className="self-start text-xs text-hive-muted transition-colors hover:text-hive-text">
               Done adding
-            </Button>
+            </button>
           </div>
         ) : (
-          <Button className="self-start px-1 py-0.5" onClick={() => setAdding(true)}>
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="self-start rounded px-1 py-0.5 text-xs text-hive-muted transition-colors hover:text-hive-text">
             + Add goal
-          </Button>
+          </button>
         ))}
     </div>
   )
@@ -338,7 +346,6 @@ function GoalRow({
   onError: (message: string | null) => void
 }) {
   const [editing, setEditing] = useState(false)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const { update, remove } = useGoalMutations(channelSlug, onError)
 
   const isPoints = m.goal_unit === 'sub_points'
@@ -346,24 +353,19 @@ function GoalRow({
 
   if (editing) {
     return (
-      <>
-        <ConfirmDialog
-          open={confirmingDelete}
-          onClose={() => setConfirmingDelete(false)}
-          onConfirm={() => remove.mutate(m.id, { onSuccess: () => setEditing(false) })}
-          title="Delete goal?"
-          body={<>“{m.title}” will be removed from this event.</>}
-        />
-        <GoalRowEditor
-          milestone={m}
-          pending={update.isPending || remove.isPending}
-          onSave={(changes) =>
-            update.mutate({ id: m.id, ...changes }, { onSuccess: () => setEditing(false) })
+      <GoalRowEditor
+        milestone={m}
+        pending={update.isPending || remove.isPending}
+        onSave={(changes) =>
+          update.mutate({ id: m.id, ...changes }, { onSuccess: () => setEditing(false) })
+        }
+        onDelete={() => {
+          if (window.confirm(`Delete goal "${m.title}"?`)) {
+            remove.mutate(m.id, { onSuccess: () => setEditing(false) })
           }
-          onDelete={() => setConfirmingDelete(true)}
-          onCancel={() => setEditing(false)}
-        />
-      </>
+        }}
+        onCancel={() => setEditing(false)}
+      />
     )
   }
 
@@ -389,11 +391,12 @@ function GoalRow({
         )}
         {isNext && <span className="text-xs text-hive-accent">next</span>}
         {editable && (
-          <Button
-            className="px-1.5 py-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-            onClick={() => setEditing(true)}>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded px-1.5 py-0.5 text-xs text-hive-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-hive-text">
             edit
-          </Button>
+          </button>
         )}
         <span className="ml-auto font-mono text-xs text-hive-muted">
           {current.toLocaleString()} / {m.threshold.toLocaleString()}
@@ -445,7 +448,8 @@ function GoalRowEditor({
         onGoalUnit={setGoalUnit}
         onStretch={setIsStretch}
       />
-      <Button
+      <button
+        type="button"
         disabled={pending || !parsed || !title.trim()}
         onClick={() =>
           onSave({
@@ -455,20 +459,23 @@ function GoalRowEditor({
             is_stretch: isStretch,
           })
         }
-        variant="solid"
-        className="shrink-0 px-2 disabled:opacity-40">
+        className="shrink-0 rounded bg-hive-accent-dim px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-40">
         Save
-      </Button>
-      <Button disabled={pending} onClick={onCancel} className="shrink-0 px-2 disabled:opacity-40">
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={onCancel}
+        className="shrink-0 rounded px-2 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text disabled:opacity-40">
         Cancel
-      </Button>
-      <Button
+      </button>
+      <button
+        type="button"
         disabled={pending}
         onClick={onDelete}
-        variant="danger"
-        className="shrink-0 px-2 disabled:opacity-40">
+        className="shrink-0 rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-40">
         Delete
-      </Button>
+      </button>
     </div>
   )
 }

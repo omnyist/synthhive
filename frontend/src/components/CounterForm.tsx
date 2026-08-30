@@ -1,9 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { ConfirmDialog } from '@/components/ui/Dialog'
-import { Field } from '@/components/ui/Field'
-import { Input } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 
 interface Counter {
@@ -45,7 +41,6 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormState>(() => initialState(counter))
   const [error, setError] = useState<string | null>(null)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isNew = !counter
 
   useEffect(() => {
@@ -101,72 +96,68 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
         </h3>
         <div className="flex items-center gap-2">
           {!isNew && (
-            <Button
-              variant="danger"
+            <button
+              type="button"
               onClick={() => {
-                setConfirmingDelete(true)
+                if (window.confirm(`Delete counter "${counter.name}"?`)) {
+                  deleteMutation.mutate()
+                }
               }}
-              disabled={deleteMutation.isPending}>
+              disabled={deleteMutation.isPending}
+              className="rounded px-3 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10">
               Delete
-            </Button>
+            </button>
           )}
-          <Button onClick={onClose}>Cancel</Button>
-          <Button
-            variant="solid"
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded px-3 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
+            Cancel
+          </button>
+          <button
+            type="button"
             onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}>
+            disabled={saveMutation.isPending}
+            className="rounded bg-hive-accent-dim px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
             {saveMutation.isPending ? 'Saving...' : 'Save'}
-          </Button>
+          </button>
         </div>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <Field label="Name">
-        <Input
-          mono
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-hive-muted">Name</label>
+        <input
           type="text"
           value={form.name}
           onChange={(e) => update('name', e.target.value)}
           placeholder="counter_name"
           pattern="[a-zA-Z0-9_]+"
-          className="w-48"
+          className="w-48 rounded border border-hive-border bg-hive-surface px-2 py-1 font-mono text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
         />
-      </Field>
+      </div>
 
-      <Field label="Label">
-        <Input
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-hive-muted">Label</label>
+        <input
           type="text"
           value={form.label}
           onChange={(e) => update('label', e.target.value)}
           placeholder="Display label (e.g. Death Count)"
-          className="w-64"
+          className="w-64 rounded border border-hive-border bg-hive-surface px-2 py-1 text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
         />
-      </Field>
+      </div>
 
-      <Field label="Value">
-        <Input
-          mono
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-hive-muted">Value</label>
+        <input
           type="number"
           value={form.value}
           onChange={(e) => update('value', parseInt(e.target.value, 10) || 0)}
-          className="w-32"
+          className="w-32 rounded border border-hive-border bg-hive-surface px-2 py-1 font-mono text-sm text-hive-text focus:border-hive-accent focus:outline-none"
         />
-      </Field>
-      {counter && (
-        <ConfirmDialog
-          open={confirmingDelete}
-          onClose={() => setConfirmingDelete(false)}
-          onConfirm={() => deleteMutation.mutate()}
-          title="Delete counter?"
-          body={
-            <>
-              The counter <span className="font-mono text-hive-text">{counter.name}</span> and its
-              value will be removed.
-            </>
-          }
-        />
-      )}
+      </div>
     </div>
   )
 }

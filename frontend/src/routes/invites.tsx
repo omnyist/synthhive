@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { ConfirmDialog } from '@/components/ui/Dialog'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -49,7 +47,6 @@ function InvitesPage() {
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Invite | null>(null)
 
   const { data: me } = useQuery<Me>({
     queryKey: ['me'],
@@ -108,32 +105,19 @@ function InvitesPage() {
           </p>
         </div>
         {isStaff && (
-          <Button
+          <button
+            type="button"
             onClick={() => createMutation.mutate()}
             disabled={createMutation.isPending}
-            variant="solid"
-            size="sm"
-            className="shrink-0 disabled:opacity-50">
+            className="shrink-0 rounded bg-hive-accent-dim px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
             {createMutation.isPending ? 'Creating…' : '+ New invite'}
-          </Button>
+          </button>
         )}
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-        <ConfirmDialog
-          open={pendingDelete !== null}
-          onClose={() => setPendingDelete(null)}
-          onConfirm={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
-          title="Delete invite?"
-          body={
-            <>
-              The code <span className="font-mono text-hive-text">{pendingDelete?.code}</span> will
-              stop working immediately.
-            </>
-          }
-        />
         {invites.map((inv) => {
           const shareable = inv.status === 'pending' || inv.status === 'awaiting_bot'
           return (
@@ -153,12 +137,14 @@ function InvitesPage() {
                   <span className="text-xs text-hive-muted">#{inv.channel_name}</span>
                 )}
                 {isStaff && (
-                  <Button
-                    onClick={() => setPendingDelete(inv)}
-                    variant="danger"
-                    className="ml-auto px-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.confirm(`Delete invite ${inv.code}?`) && deleteMutation.mutate(inv.id)
+                    }
+                    className="ml-auto rounded px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10">
                     Delete
-                  </Button>
+                  </button>
                 )}
               </div>
 
