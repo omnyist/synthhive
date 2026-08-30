@@ -82,9 +82,12 @@ jobs:
   deploy:
     needs: [test, frontend]
     runs-on: self-hosted
-    # Never on a pull request. PRs get a verdict from the checks above; only
-    # a push to main is allowed to reach production.
-    if: github.event_name == 'push'
+    # Never on a pull request. PRs get a verdict from the checks above.
+    # workflow_dispatch MUST reach here: the steps below already treat it as
+    # "full deploy", and it is the documented override when the guest-live
+    # check blocks a push. Gating this job on `== 'push'` silently disabled
+    # both — the run went green having deployed nothing.
+    if: github.event_name != 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
