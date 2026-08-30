@@ -35,12 +35,17 @@ def channel(transactional_db):
     )
 
 
+# The exact dict client.py puts in bot._channel_map. Written as a
+# constant because the first version of these tests invented a
+# {"name", "id"} shape: every test passed and the component raised
+# KeyError('id') on the first real tick in production.
+CHANNEL_INFO = {"name": "spoonee", "twitch_channel_id": "78238052"}
+
+
 def _component(live=True):
     bot = MagicMock()
     bot.bot_id = "149214941"
-    bot._channel_map = {
-        "spoonee": {"name": "spoonee", "id": "78238052"}
-    }
+    bot._channel_map = {"spoonee": CHANNEL_INFO}
     broadcaster = MagicMock()
     broadcaster.send_message = AsyncMock()
     bot.create_partialuser = MagicMock(return_value=broadcaster)
@@ -96,7 +101,7 @@ class TestTicking:
         component, broadcaster = _component()
         await state.chat_activity_incr("78238052")
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         broadcaster.send_message.assert_awaited_once()
         assert broadcaster.send_message.await_args.kwargs["message"] == "Follow me!"
@@ -107,7 +112,7 @@ class TestTicking:
         )
         component, broadcaster = _component(live=False)
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         broadcaster.send_message.assert_not_awaited()
 
@@ -119,7 +124,7 @@ class TestTicking:
             )
         component, broadcaster = _component()
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         assert broadcaster.send_message.await_count == 1
 
@@ -137,7 +142,7 @@ class TestTicking:
         )
         component, broadcaster = _component()
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         assert broadcaster.send_message.await_args.kwargs["message"] == "stale"
 
@@ -147,7 +152,7 @@ class TestTicking:
         )
         component, broadcaster = _component()
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         broadcaster.send_message.assert_not_awaited()
 
@@ -159,7 +164,7 @@ class TestTicking:
         for _ in range(5):
             await state.chat_activity_incr("78238052")
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         assert await state.chat_activity_get("78238052") == 0
 
@@ -173,7 +178,7 @@ class TestTicking:
         broadcaster.send_message.side_effect = RuntimeError("twitch down")
 
         with pytest.raises(RuntimeError):
-            await component._tick_channel({"name": "spoonee", "id": "78238052"})
+            await component._tick_channel(CHANNEL_INFO)
 
         tm.refresh_from_db()
         assert tm.last_sent_at is None
@@ -188,7 +193,7 @@ class TestTicking:
         )
         component, broadcaster = _component()
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         assert (
             broadcaster.send_message.await_args.kwargs["message"]
@@ -204,7 +209,7 @@ class TestTicking:
         )
         component, broadcaster = _component()
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         assert (
             broadcaster.send_message.await_args.kwargs["message"]
@@ -215,7 +220,7 @@ class TestTicking:
         """Don't spend a liveness check on a channel with nothing to say."""
         component, _ = _component()
 
-        await component._tick_channel({"name": "spoonee", "id": "78238052"})
+        await component._tick_channel(CHANNEL_INFO)
 
         component._is_live.assert_not_awaited()
 
@@ -240,3 +245,22 @@ async def test_router_counts_chat_towards_the_gate():
         await router.event_message(payload)
 
     incr.assert_awaited_once_with("78238052")
+
+
+def test_channel_info_shape_matches_what_the_client_builds():
+    """Pins the fixture to the real contract.
+
+    client.py builds _channel_map from dicts keyed by `name` and
+    `twitch_channel_id`; accrual.py and lizardbullets.py both read
+    `twitch_channel_id`. A test that invents its own shape proves
+    nothing, which is exactly how this shipped broken.
+    """
+    import inspect
+
+    from bot.components import accrual
+    from bot.components import timedmessages
+
+    for module in (accrual, timedmessages):
+        src = inspect.getsource(module)
+        assert 'channel_info["twitch_channel_id"]' in src, module.__name__
+        assert 'channel_info["id"]' not in src, module.__name__

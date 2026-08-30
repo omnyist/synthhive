@@ -94,7 +94,7 @@ class TimedMessages(commands.Component):
         from core.models import TimedMessage
 
         name = channel_info["name"]
-        broadcaster_id = str(channel_info["id"])
+        broadcaster_id = str(channel_info["twitch_channel_id"])
 
         # Cheapest check first: don't spend a Helix call on a channel
         # with nothing scheduled.
