@@ -153,18 +153,20 @@ export function CounterForm({ channelSlug, counter, onClose, onSaved }: CounterF
           className="w-32"
         />
       </Field>
-      <ConfirmDialog
-        open={confirmingDelete}
-        onClose={() => setConfirmingDelete(false)}
-        onConfirm={() => deleteMutation.mutate()}
-        title="Delete counter?"
-        body={
-          <>
-            The counter <span className="font-mono text-hive-text">{counter.name}</span> and its
-            value will be removed.
-          </>
-        }
-      />
+      {counter && (
+        <ConfirmDialog
+          open={confirmingDelete}
+          onClose={() => setConfirmingDelete(false)}
+          onConfirm={() => deleteMutation.mutate()}
+          title="Delete counter?"
+          body={
+            <>
+              The counter <span className="font-mono text-hive-text">{counter.name}</span> and its
+              value will be removed.
+            </>
+          }
+        />
+      )}
     </div>
   )
 }

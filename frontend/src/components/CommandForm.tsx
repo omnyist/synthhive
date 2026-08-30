@@ -236,18 +236,20 @@ export function CommandForm({ channelSlug, command, onClose, onSaved }: CommandF
           <span className="text-hive-text">Mod only</span>
         </label>
       </div>
-      <ConfirmDialog
-        open={confirmingDelete}
-        onClose={() => setConfirmingDelete(false)}
-        onConfirm={() => deleteMutation.mutate()}
-        title="Delete command?"
-        body={
-          <>
-            The command <span className="font-mono text-hive-text">!{command.name}</span> will be
-            removed.
-          </>
-        }
-      />
+      {command && (
+        <ConfirmDialog
+          open={confirmingDelete}
+          onClose={() => setConfirmingDelete(false)}
+          onConfirm={() => deleteMutation.mutate()}
+          title="Delete command?"
+          body={
+            <>
+              The command <span className="font-mono text-hive-text">!{command.name}</span> will be
+              removed.
+            </>
+          }
+        />
+      )}
     </div>
   )
 }

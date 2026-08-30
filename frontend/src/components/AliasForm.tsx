@@ -145,18 +145,20 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
           />
         </div>
       </div>
-      <ConfirmDialog
-        open={confirmingDelete}
-        onClose={() => setConfirmingDelete(false)}
-        onConfirm={() => deleteMutation.mutate()}
-        title="Delete alias?"
-        body={
-          <>
-            The alias <span className="font-mono text-hive-text">!{alias.name}</span> will be
-            removed.
-          </>
-        }
-      />
+      {alias && (
+        <ConfirmDialog
+          open={confirmingDelete}
+          onClose={() => setConfirmingDelete(false)}
+          onConfirm={() => deleteMutation.mutate()}
+          title="Delete alias?"
+          body={
+            <>
+              The alias <span className="font-mono text-hive-text">!{alias.name}</span> will be
+              removed.
+            </>
+          }
+        />
+      )}
     </div>
   )
 }
