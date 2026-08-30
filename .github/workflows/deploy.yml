@@ -29,7 +29,12 @@ jobs:
 
       - name: Start test services
         run: |
-          docker rm -f synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
+          # `docker rm -fv`, not `docker rm -f`. The postgres image declares an
+          # anonymous VOLUME, so removing the container without -v leaves its data
+          # directory behind -- roughly 65 MB abandoned on the runner per CI run. By
+          # 2026-08-30 Saya held 288 of them, about 18 GB, and nothing pointed at the
+          # cause because each individual run looked like it cleaned up after itself.
+          docker rm -fv synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
           docker run -d --name synthhive-ci-pg \
             -e POSTGRES_DB=synthhive -e POSTGRES_USER=synthhive -e POSTGRES_PASSWORD=synthhive \
             -p 5443:5432 postgres:16
@@ -49,7 +54,7 @@ jobs:
 
       - name: Stop test services
         if: always()
-        run: docker rm -f synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
+        run: docker rm -fv synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
 
   # The frontend was only ever checked at deploy time, so a build that
   # doesn't compile could reach main and fail during the deploy itself.
