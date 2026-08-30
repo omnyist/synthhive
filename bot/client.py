@@ -17,6 +17,7 @@ from .components.errors import ErrorHandler
 from .components.lizardbullets import LizardBullets
 from .components.lizardrecovery import LizardRecovery
 from .components.management import ManagementCommands
+from .components.timedmessages import TimedMessages
 from .heartbeat import beat_liveness
 from .heartbeat import refresh_boot_ttl
 from .router import CommandRouter
@@ -89,6 +90,7 @@ class BotClient(commands.Bot):
         await self.add_component(LizardBullets(self))
         await self.add_component(DungeonRecovery(self))
         await self.add_component(LizardRecovery(self))
+        await self.add_component(TimedMessages(self))
 
         self._health_task = asyncio.create_task(
             self._subscription_health_check()

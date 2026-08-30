@@ -1,5 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/Dialog'
+import { Input } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 
 interface Alias {
@@ -37,6 +40,7 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormState>(() => initialState(alias))
   const [error, setError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isNew = !alias
 
   useEffect(() => {
@@ -90,31 +94,22 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
         <h3 className="text-sm font-medium">{isNew ? 'New Alias' : `Editing: !${alias.name}`}</h3>
         <div className="flex items-center gap-2">
           {!isNew && (
-            <button
-              type="button"
+            <Button
+              variant="danger"
               onClick={() => {
-                if (window.confirm(`Delete alias !${alias.name}?`)) {
-                  deleteMutation.mutate()
-                }
+                setConfirmingDelete(true)
               }}
-              disabled={deleteMutation.isPending}
-              className="rounded px-3 py-1 text-xs text-red-400 transition-colors hover:bg-red-400/10">
+              disabled={deleteMutation.isPending}>
               Delete
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded px-3 py-1 text-xs text-hive-muted transition-colors hover:text-hive-text">
-            Cancel
-          </button>
-          <button
-            type="button"
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            variant="solid"
             onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="rounded bg-hive-accent-dim px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-hive-accent-dim/80 disabled:opacity-50">
+            disabled={saveMutation.isPending}>
             {saveMutation.isPending ? 'Saving...' : 'Save'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -124,13 +119,14 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
         <label className="text-xs text-hive-muted">Alias Name</label>
         <div className="flex items-center gap-1">
           <span className="text-hive-muted">!</span>
-          <input
+          <Input
+            mono
             type="text"
             value={form.name}
             onChange={(e) => update('name', e.target.value)}
             placeholder="alias_name"
             pattern="[a-zA-Z0-9_]+"
-            className="w-48 rounded border border-hive-border bg-hive-surface px-2 py-1 font-mono text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+            className="w-48"
           />
         </div>
       </div>
@@ -139,15 +135,28 @@ export function AliasForm({ channelSlug, alias, onClose, onSaved }: AliasFormPro
         <label className="text-xs text-hive-muted">Target</label>
         <div className="flex items-center gap-1">
           <span className="text-hive-muted">!</span>
-          <input
+          <Input
+            mono
             type="text"
             value={form.target}
             onChange={(e) => update('target', e.target.value)}
             placeholder="command_name args"
-            className="w-64 rounded border border-hive-border bg-hive-surface px-2 py-1 font-mono text-sm text-hive-text placeholder-hive-muted focus:border-hive-accent focus:outline-none"
+            className="w-64"
           />
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Delete alias?"
+        body={
+          <>
+            The alias <span className="font-mono text-hive-text">!{alias.name}</span> will be
+            removed.
+          </>
+        }
+      />
     </div>
   )
 }

@@ -95,6 +95,12 @@ class CommandRouter(commands.Component):
         if payload.chatter and str(payload.chatter.id) == str(self.bot.bot_id):
             return
 
+        # 2. Count the message for the timed-message activity gate. This
+        # runs BEFORE the prefix check because ordinary conversation is
+        # exactly what we're measuring — a room is alive whether or not
+        # anyone is typing commands.
+        await state.chat_activity_incr(str(payload.broadcaster.id))
+
         text = payload.text.strip()
         if not text.startswith("!"):
             return
