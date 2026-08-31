@@ -14,7 +14,7 @@ services:
       sh -c "uv run python manage.py migrate &&
              uv run python manage.py seed &&
              uv run python manage.py collectstatic --noinput &&
-             uv run daphne -b 0.0.0.0 -p 7177 synthhive.asgi:application"
+             uv run daphne -b 0.0.0.0 -p 7177 --application-close-timeout 60 synthhive.asgi:application"
 
   bot:
     build:
