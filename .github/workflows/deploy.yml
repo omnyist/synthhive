@@ -185,6 +185,64 @@ jobs:
       # breaking for reasons they can't see. Guests are "every tenant
       # that isn't the owner", so a new one is protected by default.
       # Deliberate override: re-run via workflow_dispatch.
+
+      - name: Verify the containers are actually running
+        run: |
+          # Thirty seconds. The longest boot chain here is the server's
+          # `migrate` then daphne; a container that is going to die on a bad
+          # setting has done it well inside that, and a restart loop has had
+          # time to be visible as one.
+          sleep 30
+
+          ids=$(docker compose -f docker-compose.prod.yml ps -aq)
+          if [ -z "$ids" ]; then
+            # An empty list here is not "nothing is wrong", it is "this check
+            # could not see what it is meant to verify" — the same shape as a
+            # search that returns nothing because it failed to run.
+            echo "No containers found for this compose project."
+            exit 1
+          fi
+
+          failed=""
+          for cid in $ids; do
+            info=$(docker inspect --format '{{.Name}} {{.State.Status}} {{.State.ExitCode}}' "$cid")
+            name=$(echo "$info" | cut -d' ' -f1 | sed 's|^/||')
+            state=$(echo "$info" | cut -d' ' -f2)
+            code=$(echo "$info" | cut -d' ' -f3)
+            case "$state" in
+              running|created)
+                echo "ok: $name ($state)"
+                ;;
+              exited)
+                # A one-shot that finished its job is not a failure. Read from
+                # the exit code rather than from a list of service names:
+                # frontend-build is the only one today, and an enumerated list
+                # is a promise to remember the next one.
+                if [ "$code" = "0" ]; then
+                  echo "ok: $name (exited 0, one-shot)"
+                else
+                  echo "FAILED: $name exited $code"
+                  failed="$failed $name"
+                fi
+                ;;
+              *)
+                # restarting, dead, paused — all of them mean this container is
+                # not doing its job right now.
+                echo "FAILED: $name is $state"
+                failed="$failed $name"
+                ;;
+            esac
+          done
+
+          if [ -n "$failed" ]; then
+            for name in $failed; do
+              echo "----- $name: last 30 log lines -----"
+              docker logs --tail 30 "$name" 2>&1 || true
+            done
+            echo "Deploy verification failed:$failed"
+            exit 1
+          fi
+
       - name: Rebuild images (backend changes)
         if: >-
           steps.changes.outputs.deps != 'true' && github.event_name != 'workflow_dispatch'
