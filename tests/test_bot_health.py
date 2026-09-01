@@ -133,3 +133,75 @@ def test_redis_down_is_unknown_not_every_bot_dead():
 
     assert "unknown" in status["services"]["bots"]
     assert status["status"] == "ok"
+
+
+# --- the roster, not only the beats -----------------------------------------
+#
+# Scanning `hb:*` can only find a bot that has beaten at least once, so a bot
+# enrolled in core_bot that has never beaten at all was invisible here — the
+# hole synthfunc fell into on 2026-08-31 (six workers running, /health/
+# speaking for four, `workers: ok` true the whole time). The other five
+# families check their roster against docker-compose in CI; synthhive's roster
+# is database rows resolved at runtime, so the check lives in the endpoint and
+# these tests exercise it against real rows.
+
+import pytest  # noqa: E402
+
+from core.models import Bot  # noqa: E402
+
+
+def _enrol(username: str, name: str | None = None) -> Bot:
+    return Bot.objects.create(
+        name=name or username,
+        twitch_user_id=f"id-{username}",
+        twitch_username=username,
+    )
+
+
+@pytest.mark.django_db
+def test_an_enrolled_bot_that_never_beat_is_reported():
+    """The whole point: no beats at all means discovery cannot see it, so the
+    roster has to. Absence of every beat is the strongest signal there is."""
+    _enrol(BOT)                                 # healthy and beating
+    _enrol("silentbot")                         # enrolled, never beat
+    # Past the grace window: the process has been up long enough that silence
+    # is a fault rather than a bot still starting.
+    with patch("synthhive.health._SERVER_STARTED", time.time() - LIVENESS_STALE_S - 60):
+        status = _run(FakeRedis(_beats()))      # beats for BOT only
+
+    assert "silentbot: enrolled but has never beat" in status["services"]["bots"]
+    assert status["status"] == "degraded"
+
+
+@pytest.mark.django_db
+def test_a_never_beaten_bot_is_not_a_fault_while_the_process_is_young():
+    """Right after a deploy this is a bot that has not come up yet. A monitor
+    that cannot stay quiet through a restart is one that gets muted."""
+    _enrol(BOT)
+    _enrol("silentbot")
+    with patch("synthhive.health._SERVER_STARTED", time.time()):
+        status = _run(FakeRedis(_beats()))
+
+    assert status["services"]["bots"] == "ok"
+    assert status["status"] == "ok"
+
+
+@pytest.mark.django_db
+def test_a_beating_bot_that_left_the_roster_is_reported():
+    """The other direction. Retiring a bot means deleting its beats; until
+    that happens this says so rather than counting it as healthy — questlog's
+    shed Celery, in synthhive's clothing."""
+    status = _run(FakeRedis(_beats(bot="ghostbot")))   # beats, but no core_bot row
+
+    assert "ghostbot: beating but not enrolled in core_bot" in status["services"]["bots"]
+    assert status["status"] == "degraded"
+
+
+@pytest.mark.django_db
+def test_an_enrolled_and_beating_bot_stays_quiet():
+    """Both halves agreeing must remain silent, or the check is noise."""
+    _enrol(BOT)
+    status = _run(FakeRedis(_beats()))
+
+    assert status["services"]["bots"] == "ok"
+    assert status["status"] == "ok"

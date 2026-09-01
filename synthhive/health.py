@@ -56,7 +56,34 @@ def _bot_health(status: dict) -> None:
             if len(parts) >= 4:
                 names.add(parts[2])
 
-        if not names:
+        # The ROSTER, not only the beats. Scanning `hb:*` can only ever find a
+        # bot that has beaten at least once, so a bot enrolled in the database
+        # that has never beaten at all is invisible to this check -- the hole
+        # synthfunc fell into on 2026-08-31, where six workers ran, /health/
+        # spoke for four, and `workers: ok` was true the whole time.
+        #
+        # The other five families check their roster against docker-compose in
+        # CI. synthhive cannot: its roster is rows in core_bot, resolved at
+        # runtime per tenant, so a static test would be asserting against the
+        # wrong file. The equivalent check therefore lives here.
+        #
+        # A database failure is NOT reported here -- the `database` service
+        # check owns that, and saying it twice sends someone to two places for
+        # one fault. Roster-unknown simply falls back to discovery.
+        enrolled: set[str] = set()
+        roster_known = True
+        try:
+            from core.models import Bot
+
+            enrolled = {
+                u.lower()
+                for u in Bot.objects.values_list("twitch_username", flat=True)
+                if u
+            }
+        except Exception:
+            roster_known = False
+
+        if not (names | enrolled):
             # No bot has ever beat. Benign right after a deploy, and a real
             # signal once the process has had time to come up.
             if now - _SERVER_STARTED > LIVENESS_STALE_S:
@@ -69,12 +96,28 @@ def _bot_health(status: dict) -> None:
         problems: list[str] = []
         detail: dict[str, dict] = {}
 
-        for name in sorted(names):
+        for name in sorted(names | enrolled):
             ages: dict[str, float | None] = {}
             for kind in ("boot", "liveness", "work", "live"):
                 raw = client.get(f"{KEY_PREFIX}:{name}:{kind}")
                 ages[kind] = round(now - float(raw), 1) if raw else None
             detail[name] = ages
+
+            # Enrolled and silent in every beat. Absence of ALL beats is the
+            # strongest signal there is, and the one discovery cannot produce.
+            # Still gated on process age: right after a deploy this is a bot
+            # that has not come up yet, not a bot that is gone.
+            if all(v is None for v in ages.values()):
+                if now - _SERVER_STARTED > LIVENESS_STALE_S:
+                    problems.append(f"{name}: enrolled but has never beat")
+                continue
+
+            # The other direction: beats from a bot no longer on the roster.
+            # Retiring a bot means deleting its beats, and until that happens
+            # this says so rather than quietly counting it as healthy —
+            # questlog's shed Celery, in synthhive's clothing.
+            if roster_known and name not in enrolled:
+                problems.append(f"{name}: beating but not enrolled in core_bot")
 
             boot = ages["boot"]
             running_for = boot if boot is not None else now - _SERVER_STARTED
