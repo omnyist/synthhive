@@ -52,6 +52,16 @@ jobs:
           UV_PYTHON: /opt/homebrew/bin/python3.14
         run: uv run --group dev pytest -q
 
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Audit async FK access
+        # Written after four production SynchronousOnlyOperation bugs
+        # from a cached-relation traversal inside async code, and until
+        # now only ever run by hand — a check nobody is forced to run is
+        # a declaration, not a gate. Exits 1 on a new violation.
+        run: uv run python scripts/audit_async_fk.py
+
       - name: Stop test services
         if: always()
         run: docker rm -fv synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
