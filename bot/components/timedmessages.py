@@ -103,7 +103,14 @@ class TimedMessages(commands.Component):
                 channel__twitch_channel_name=name,
                 channel__is_active=True,
                 enabled=True,
-            ).order_by("last_sent_at", "name")
+            # A never-sent row (last_sent_at IS NULL) must sort as the
+            # longest-waiting of all, but plain ascending NULL ordering
+            # is backend-dependent -- SQLite puts NULLs first, Postgres
+            # puts them last. asc(nulls_first=True) makes the intent
+            # explicit instead of relying on which database is running:
+            # this broke exactly that way, passing against local SQLite
+            # and failing in CI against real Postgres.
+            ).order_by(F("last_sent_at").asc(nulls_first=True), "name")
         )
         if not enabled:
             return
