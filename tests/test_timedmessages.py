@@ -156,8 +156,8 @@ class TestTicking:
 
         broadcaster.send_message.assert_not_awaited()
 
-    async def test_sending_resets_the_activity_counter(self, channel):
-        TimedMessage.objects.create(
+    async def test_sending_marks_that_messages_own_baseline(self, channel):
+        tm = TimedMessage.objects.create(
             channel=channel, name="social", message="hi", min_chat_lines=1
         )
         component, _ = _component()
@@ -166,7 +166,45 @@ class TestTicking:
 
         await component._tick_channel(CHANNEL_INFO)
 
-        assert await state.chat_activity_get("78238052") == 0
+        assert await state.chat_activity_since("78238052", str(tm.id)) == 0
+
+    async def test_one_messages_send_does_not_reset_anothers_gate(self, channel):
+        """Both reviewers in the 2026-09-03 adversarial audit found this
+        independently: a shared per-channel counter meant sending one
+        timed message reset the gate for every other, so whichever fired
+        first could starve the rest. Two messages, one already satisfied
+        and due to lose the tiebreak, must not have its count zeroed by
+        the other's unrelated send."""
+        TimedMessage.objects.create(
+            channel=channel,
+            name="eager",
+            message="eager message",
+            min_chat_lines=0,
+            interval_seconds=0,
+        )
+        TimedMessage.objects.create(
+            channel=channel,
+            name="patient",
+            message="patient message",
+            min_chat_lines=3,
+            interval_seconds=0,
+        )
+        component, broadcaster = _component()
+
+        for _ in range(3):
+            await state.chat_activity_incr("78238052")
+
+        # `eager` (alphabetically/creation-order first among equally-due
+        # rows) sends first and consumes this tick.
+        await component._tick_channel(CHANNEL_INFO)
+        assert broadcaster.send_message.await_args.kwargs["message"] == "eager message"
+
+        # `patient` had already seen its 3 required lines before `eager`
+        # sent. Its own baseline predates all of them, so it must be
+        # due immediately — not reset to zero by eager's send.
+        broadcaster.send_message.reset_mock()
+        await component._tick_channel(CHANNEL_INFO)
+        assert broadcaster.send_message.await_args.kwargs["message"] == "patient message"
 
     async def test_failed_send_does_not_consume_the_slot(self, channel):
         """A send that raised must retry next tick, not silently mark

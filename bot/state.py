@@ -302,17 +302,30 @@ async def pending_timeouts_all() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Chat activity — how many messages a channel has seen since the last timed
-# message went out. The gate that stops the bot talking to an empty room.
+# Chat activity — how many messages a channel has seen since a given timed
+# message last sent. The gate that stops the bot talking to an empty room.
 #
-# Deliberately approximate: a lost counter (Redis restart, fail-open) means a
-# timed message is skipped once, never that one fires into silence. Skipping
-# is the safe direction.
+# The channel counter never resets — it's a running sequence number, not a
+# per-send tally. Each TimedMessage row instead remembers where the count
+# stood the last time IT sent, and its gate is the difference. A shared
+# reset-on-send counter looked simpler but was wrong the moment a channel
+# had two timed messages: sending one zeroed the count for the other,
+# restarting a gate that may already have been satisfied, so whichever
+# message fired first could starve every other message on the channel.
+#
+# Deliberately approximate on failure: an unreadable count renders as 0
+# messages since (fail closed — a timed message never fires on an
+# uncertain read), so the worst case is a skipped send, never one into
+# silence.
 # ---------------------------------------------------------------------------
 
 
 def _chat_activity_key(channel_id: str) -> str:
     return f"chat:activity:{channel_id}"
+
+
+def _chat_baseline_key(channel_id: str, message_id: str) -> str:
+    return f"chat:activity:baseline:{channel_id}:{message_id}"
 
 
 async def chat_activity_incr(channel_id: str) -> None:
@@ -324,24 +337,29 @@ async def chat_activity_incr(channel_id: str) -> None:
         _note_failure("chat_activity_incr", exc)
 
 
-async def chat_activity_get(channel_id: str) -> int:
-    """Messages seen since the counter was last reset. 0 if unreadable."""
+async def chat_activity_since(channel_id: str, message_id: str) -> int:
+    """Messages seen since THIS message's own last send. 0 if unreadable."""
     try:
-        value = await get_client().get(_chat_activity_key(channel_id))
+        client = get_client()
+        total = await client.get(_chat_activity_key(channel_id))
+        baseline = await client.get(_chat_baseline_key(channel_id, message_id))
         _note_success()
     except Exception as exc:
-        _note_failure("chat_activity_get", exc)
+        _note_failure("chat_activity_since", exc)
         return 0
     try:
-        return int(value)
+        return max(0, int(total or 0) - int(baseline or 0))
     except (TypeError, ValueError):
         return 0
 
 
-async def chat_activity_reset(channel_id: str) -> None:
-    """Clear the counter, after a timed message has been sent."""
+async def chat_activity_mark_sent(channel_id: str, message_id: str) -> None:
+    """Record this message's own baseline as of now — its gate alone
+    starts counting fresh, leaving every other message's gate untouched."""
     try:
-        await get_client().delete(_chat_activity_key(channel_id))
+        client = get_client()
+        total = await client.get(_chat_activity_key(channel_id)) or "0"
+        await client.set(_chat_baseline_key(channel_id, message_id), total)
         _note_success()
     except Exception as exc:
-        _note_failure("chat_activity_reset", exc)
+        _note_failure("chat_activity_mark_sent", exc)

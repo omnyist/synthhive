@@ -113,11 +113,18 @@ class TimedMessages(commands.Component):
             return
 
         now = timezone.now()
-        chat_lines = await state.chat_activity_get(broadcaster_id)
 
-        # `last_sent_at` ascending means the longest-waiting message goes
-        # first, so a backlog drains fairly instead of one row starving.
-        due = next((m for m in enabled if m.is_due(now, chat_lines)), None)
+        # `last_sent_at` ascending means the longest-waiting message is
+        # checked first, so a backlog drains fairly instead of one row
+        # starving. Each row's activity is measured against ITS OWN
+        # last send, not a channel-wide count another message might
+        # have just reset.
+        due = None
+        for m in enabled:
+            chat_lines = await state.chat_activity_since(broadcaster_id, str(m.id))
+            if m.is_due(now, chat_lines):
+                due = m
+                break
         if due is None:
             return
 
@@ -153,7 +160,7 @@ class TimedMessages(commands.Component):
         await sync_to_async(
             TimedMessage.objects.filter(id=timed.id).update
         )(last_sent_at=now, use_count=F("use_count") + 1, updated_at=now)
-        await state.chat_activity_reset(broadcaster_id)
+        await state.chat_activity_mark_sent(broadcaster_id, str(timed.id))
 
         logger.info(
             "[TimedMessages] Sent %s to #%s", timed.name, channel_info["name"]
