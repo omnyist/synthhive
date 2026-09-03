@@ -156,6 +156,16 @@ class Channel(models.Model):
     # new uuid4 if a URL ever leaks on stream.
     overlay_key = models.UUIDField(default=uuid.uuid4)
 
+    # A tenant's own domain for hosting their public event pages (e.g.
+    # "spoonee.tv"), so they stop copy-pasting into Pastebin. Bare
+    # hostname, no scheme/path — the frontend resolves Host header to
+    # this field via /api/v1/public/domains/{host}/ and renders the
+    # matching channel's public routes. DNS/tunnel routing for the
+    # domain itself is a separate, out-of-band step (see docs).
+    custom_domain = models.CharField(
+        max_length=255, unique=True, null=True, blank=True
+    )
+
     class Meta:
         unique_together = ["bot", "twitch_channel_id"]
 

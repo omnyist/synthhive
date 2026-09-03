@@ -1050,6 +1050,28 @@ async def delete_milestone_api(request, channel_slug: str, milestone_id: str):
 # --- Public event page (no auth — a shareable link for chat) ---
 
 
+@v1_router.get("/public/domains/{host}/")
+async def resolve_public_domain(request, host: str):
+    """Map a tenant's own domain to the channel it serves.
+
+    A bare hostname in, lowercased and with any port stripped — a
+    browser's `location.hostname` never carries a port, but a curl/test
+    call might, and this must not become a lookup miss over it. No
+    scheme, no path: this answers "whose page is this domain", nothing
+    else, so the frontend can render the public routes it already has.
+
+    DNS and tunnel ingress for the domain are provisioned separately;
+    this endpoint only reflects what's been recorded on the Channel row.
+    """
+    host = host.split(":")[0].strip().lower()
+    channel = await sync_to_async(
+        Channel.objects.filter(custom_domain=host, is_active=True).first
+    )()
+    if channel is None:
+        raise HttpError(404, "No channel is configured for this domain.")
+    return {"channel_slug": channel.twitch_channel_name}
+
+
 @v1_router.get("/public/channels/{channel_slug}/campaigns/{campaign_slug}/")
 async def public_campaign_api(request, channel_slug: str, campaign_slug: str):
     """A campaign by slug, with its bid wars — everything on it is

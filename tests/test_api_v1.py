@@ -988,6 +988,47 @@ class TestPublicEventPage:
         assert response.status_code == 404
 
 
+class TestPublicDomainResolution:
+    """A tenant's own domain (spoonee.tv) maps to their channel so the
+    frontend can render the same public routes it already has."""
+
+    def test_resolves_a_configured_domain(self, unauthed_client, test_channel):
+        test_channel.custom_domain = "spoonee.tv"
+        test_channel.save(update_fields=["custom_domain"])
+
+        response = unauthed_client.get("/api/v1/public/domains/spoonee.tv/")
+
+        assert response.status_code == 200
+        assert response.json() == {"channel_slug": "testchannel"}
+
+    def test_unconfigured_domain_404s(self, unauthed_client, test_channel):
+        response = unauthed_client.get("/api/v1/public/domains/nobody.tv/")
+
+        assert response.status_code == 404
+
+    def test_lookup_is_case_insensitive_and_ignores_port(
+        self, unauthed_client, test_channel
+    ):
+        """A browser's location.hostname is always bare and lowercase,
+        but nothing should depend on the caller normalising it first."""
+        test_channel.custom_domain = "spoonee.tv"
+        test_channel.save(update_fields=["custom_domain"])
+
+        response = unauthed_client.get("/api/v1/public/domains/SPOONEE.TV:8443/")
+
+        assert response.status_code == 200
+        assert response.json() == {"channel_slug": "testchannel"}
+
+    def test_inactive_channel_is_not_resolvable(self, unauthed_client, test_channel):
+        test_channel.custom_domain = "spoonee.tv"
+        test_channel.is_active = False
+        test_channel.save(update_fields=["custom_domain", "is_active"])
+
+        response = unauthed_client.get("/api/v1/public/domains/spoonee.tv/")
+
+        assert response.status_code == 404
+
+
 class TestOverlayCampaignFallback:
     """With no active campaign, the overlay serves the nearest
     current-window or upcoming event so widgets render at zero instead
