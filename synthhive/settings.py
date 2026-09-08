@@ -117,7 +117,29 @@ def production_database_extras(engine: str, *, under_test: bool) -> dict:
         # connections, which a handful of concurrent requests can exhaust.
         # timeout keeps a starved pool failing fast instead of hanging
         # every request for 30s (the 2026-07-31 "constant Loading" outage).
-        "OPTIONS": {"pool": {"min_size": 2, "max_size": 20, "timeout": 10}},
+        #
+        # DISABLE_SERVER_SIDE_CURSORS: required ahead of the pgbouncer
+        # migration (rollout plan, ~/.claude/plans/fluffy-mapping-phoenix.md,
+        # Phase 7 -- synthhive is last on purpose, stream-critical). Server-
+        # side cursors are connection-local, and transaction pooling can hand
+        # this connection's next query to a different backend than its last
+        # one. prepare_threshold=None is explicit here but not load-bearing
+        # -- Django's own postgresql backend already defaults it to None for
+        # psycopg3 (base.py, "to keep connection poolers working"), verified
+        # against this rack's installed Django 6.1 during synthfunc's
+        # migration. Kept explicit anyway: states intent, survives a future
+        # default change.
+        #
+        # This module's own TickingComponent/before_invoke consumer-layer
+        # fix (2026-09-08, same session) already covers every long-lived
+        # worker correctly -- unlike synthfunc's twitch/correlator, synthhive
+        # has no known gap there. PgBouncer is additional defense here, not
+        # a substitute for anything unfinished.
+        "OPTIONS": {
+            "pool": {"min_size": 2, "max_size": 20, "timeout": 10},
+            "prepare_threshold": None,
+        },
+        "DISABLE_SERVER_SIDE_CURSORS": True,
     }
 
 
