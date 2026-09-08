@@ -18,9 +18,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from channels.db import aclose_old_connections
 from twitchio.ext import commands
-
-from core.db import release_connection
 
 logger = logging.getLogger("bot")
 
@@ -69,17 +68,24 @@ class TickingComponent(commands.Component):
             await asyncio.sleep(self.STARTUP_DELAY)
             while True:
                 try:
-                    # Once per tick, before any channel's ORM call -- see
-                    # core/db.py for why every independent loop needs its
-                    # own call rather than relying on some other loop's.
-                    # This is the one line the whole class exists to
-                    # guarantee, and it is inside this try -- a transient
-                    # DB error here must not kill the tick loop permanently
-                    # any more than a bad channel does (questlog's
-                    # run_worker_loop already treats a whole-tick failure
-                    # this way; adversarial review, 2026-09-08 pass 2,
-                    # caught the asymmetry).
-                    await release_connection()
+                    # Once per tick, before any channel's ORM call. Django
+                    # keeps one connection per thread, released only at the
+                    # end of a request -- runbot has no request cycle, so
+                    # nothing else ever returns it (2026-08-21: a Postgres
+                    # restart left every bot holding a dead connection for
+                    # hours). aclose_old_connections is Channels' own async
+                    # wrapper for exactly this, documented as "call before
+                    # the first query in a while" in a long-lived consumer --
+                    # this class had a hand-copied version of the same thing
+                    # (2026-09-08) before checking whether Channels, already
+                    # a dependency, shipped it. This is the one line the
+                    # whole class exists to guarantee, and it is inside this
+                    # try -- a transient DB error here must not kill the tick
+                    # loop permanently any more than a bad channel does
+                    # (questlog's run_worker_loop already treats a whole-tick
+                    # failure this way; adversarial review, 2026-09-08 pass
+                    # 2, caught the asymmetry).
+                    await aclose_old_connections()
                     for channel_info in self.bot._channel_map.values():
                         try:
                             await self._tick_channel(channel_info)

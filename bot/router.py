@@ -7,10 +7,9 @@ from dataclasses import dataclass
 
 import twitchio
 from asgiref.sync import sync_to_async
+from channels.db import aclose_old_connections
 from django.db.models import F
 from twitchio.ext import commands
-
-from core.db import release_connection
 
 from . import state
 from .heartbeat import beat_work
@@ -126,9 +125,9 @@ class CommandRouter(commands.Component):
         # any close_old_connections() call, so calling this unconditionally
         # per message would cost one extra round trip per actual command
         # instead of, as now, once per real ORM-touching invocation. See
-        # core/db.py and client.py's before_invoke for the other two entry
-        # points this same connection needs releasing at.
-        await release_connection()
+        # client.py's before_invoke for the other entry point this same
+        # connection needs releasing at.
+        await aclose_old_connections()
 
         broadcaster_id = str(payload.broadcaster.id)
 

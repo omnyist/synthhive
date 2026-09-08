@@ -5,12 +5,11 @@ import logging
 from datetime import timedelta
 
 import twitchio
+from channels.db import aclose_old_connections
 from django.utils import timezone
 from twitchio import eventsub
 from twitchio import web
 from twitchio.ext import commands
-
-from core.db import release_connection
 
 from .components.accrual import CurrencyAccrual
 from .components.ads import AdAnnounce
@@ -111,17 +110,16 @@ class BotClient(commands.Bot):
         handlers through `process_commands()` -- a SEPARATE `event_message`
         listener from `CommandRouter`'s, scheduled as its own
         `asyncio.create_task` by `Client.dispatch()` with no ordering
-        relative to CommandRouter's. Calling `release_connection()` only in
-        CommandRouter (router.py:105) therefore never runs on this path at
+        relative to CommandRouter's. Calling `aclose_old_connections()` only
+        in CommandRouter (router.py:105) therefore never runs on this path at
         all; a mod typing `!addcom` right after a synthcore Postgres recreate
         could still hit the dead connection CommandRouter was supposed to
         have already cleared. `before_invoke` is the framework's own
         single choke point for every registered command across every
         Component, present and future, so the fix belongs here once rather
-        than in each of ManagementCommands' handlers by hand -- see
-        core/db.py.
+        than in each of ManagementCommands' handlers by hand.
         """
-        await release_connection()
+        await aclose_old_connections()
 
     async def event_token_refreshed(
         self, payload: twitchio.TokenRefreshedPayload

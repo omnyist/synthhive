@@ -44,12 +44,12 @@ async def _run_one_tick(component: TickingComponent) -> None:
 @pytest.mark.asyncio
 async def test_tick_loop_releases_connection_before_ticking_any_channel():
     """The one guarantee this class exists to make structural rather than
-    remembered: release_connection() runs before _tick_channel, every tick,
-    for every subclass -- see bot/components/base.py.
+    remembered: aclose_old_connections() runs before _tick_channel, every
+    tick, for every subclass -- see bot/components/base.py.
     """
     component = _Recorder(_make_bot())
 
-    with patch("bot.components.base.release_connection", new=AsyncMock()) as released:
+    with patch("bot.components.base.aclose_old_connections", new=AsyncMock()) as released:
         released.side_effect = lambda: component.calls.append("release")
         await _run_one_tick(component)
 
@@ -90,7 +90,7 @@ async def test_subclass_missing_tick_channel_logs_loudly_every_tick_in_the_real_
 
     component = Incomplete(_make_bot())
 
-    with patch("bot.components.base.release_connection", new=AsyncMock()):
+    with patch("bot.components.base.aclose_old_connections", new=AsyncMock()):
         with caplog.at_level(logging.ERROR, logger="bot"):
             await _run_one_tick(component)
 
@@ -99,8 +99,8 @@ async def test_subclass_missing_tick_channel_logs_loudly_every_tick_in_the_real_
 
 
 @pytest.mark.asyncio
-async def test_a_failing_release_connection_does_not_kill_the_tick_loop():
-    """release_connection() sits outside the per-channel try/except, so a
+async def test_a_failing_aclose_old_connections_does_not_kill_the_tick_loop():
+    """aclose_old_connections() sits outside the per-channel try/except, so a
     naive reading suggests a transient DB error there would escape _tick_loop
     entirely and kill the task permanently -- the same failure shape as the
     missing-TICK_INTERVAL bug, just at a different line. It's wrapped in its
@@ -118,7 +118,7 @@ async def test_a_failing_release_connection_does_not_kill_the_tick_loop():
             raise RuntimeError("connection is closed")
         component.calls.append("release")
 
-    with patch("bot.components.base.release_connection", side_effect=flaky_release):
+    with patch("bot.components.base.aclose_old_connections", side_effect=flaky_release):
         task = asyncio.create_task(component._tick_loop())
         # TICK_INTERVAL=999 means only a live, un-killed loop could reach a
         # second iteration this fast -- there is no sleep long enough to
