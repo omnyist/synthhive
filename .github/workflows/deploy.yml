@@ -62,6 +62,23 @@ jobs:
         # a declaration, not a gate. Exits 1 on a new violation.
         run: uv run python scripts/audit_async_fk.py
 
+      - name: doctrine-grep
+        # This runner IS Saya (self-hosted, user Avalonstar) -- no SSH hop
+        # needed, unlike the Concourse modules (synthcore/ci/test.sh has the
+        # fuller rationale for the full-repo-scan-plus-HEAD-message shape,
+        # and the CI-environment fixes this depended on: doctrine-grep.sh
+        # itself now relativizes directory exclusions against ROOT, fixed
+        # 2026-09-08 after the same bug silently excluded every file in
+        # Concourse's /tmp/build/<id>/repo workspace).
+        run: |
+          STD=$(mktemp -d)
+          git clone --depth 1 -q ~/git/standards.git "$STD"
+          git log -1 --format=%B > /tmp/commit-msg
+          bash "$STD/checks/doctrine-grep.sh" "$PWD" /tmp/commit-msg
+          rc=$?
+          rm -rf "$STD"
+          exit $rc
+
       - name: Stop test services
         if: always()
         run: docker rm -fv synthhive-ci-pg synthhive-ci-redis 2>/dev/null || true
