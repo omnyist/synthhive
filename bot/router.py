@@ -97,13 +97,6 @@ class CommandRouter(commands.Component):
         if payload.chatter and str(payload.chatter.id) == str(self.bot.bot_id):
             return
 
-        # Every path below this point can touch Postgres (alias/command
-        # lookup, cooldowns, use_count), and this is the only place that
-        # runs once per real message rather than once per TICK_INTERVAL —
-        # see core/db.py for why this has to be at the top of every entry
-        # point rather than just this one.
-        await release_connection()
-
         # 2. Count the message for the timed-message activity gate. This
         # runs BEFORE the prefix check because ordinary conversation is
         # exactly what we're measuring — a room is alive whether or not
@@ -124,6 +117,18 @@ class CommandRouter(commands.Component):
         # 3. Skip built-in commands
         if cmd_name in BUILTIN_COMMANDS:
             return
+
+        # Everything below this point can touch Postgres (alias/command
+        # lookup, cooldowns, use_count). Placed here rather than at the top
+        # of event_message so ordinary chat -- the overwhelming majority of
+        # traffic -- doesn't pay for arming Django's health check on every
+        # line typed; CONN_HEALTH_CHECKS re-validates on the NEXT query after
+        # any close_old_connections() call, so calling this unconditionally
+        # per message would cost one extra round trip per actual command
+        # instead of, as now, once per real ORM-touching invocation. See
+        # core/db.py and client.py's before_invoke for the other two entry
+        # points this same connection needs releasing at.
+        await release_connection()
 
         broadcaster_id = str(payload.broadcaster.id)
 

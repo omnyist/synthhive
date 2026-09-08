@@ -10,6 +10,8 @@ from twitchio import eventsub
 from twitchio import web
 from twitchio.ext import commands
 
+from core.db import release_connection
+
 from .components.accrual import CurrencyAccrual
 from .components.ads import AdAnnounce
 from .components.dungeonrecovery import DungeonRecovery
@@ -100,6 +102,26 @@ class BotClient(commands.Bot):
 
     async def event_ready(self) -> None:
         logger.info("[%s] Bot is ready (ID: %s).", self.bot_name, self.bot_id)
+
+    async def before_invoke(self, ctx: commands.Context) -> None:
+        """Release this thread's DB connection before every framework command.
+
+        TwitchIO's own `commands.Bot.event_message` dispatches `!addcom`,
+        `!count`, and the rest of ManagementCommands' `@commands.command`
+        handlers through `process_commands()` -- a SEPARATE `event_message`
+        listener from `CommandRouter`'s, scheduled as its own
+        `asyncio.create_task` by `Client.dispatch()` with no ordering
+        relative to CommandRouter's. Calling `release_connection()` only in
+        CommandRouter (router.py:105) therefore never runs on this path at
+        all; a mod typing `!addcom` right after a synthcore Postgres recreate
+        could still hit the dead connection CommandRouter was supposed to
+        have already cleared. `before_invoke` is the framework's own
+        single choke point for every registered command across every
+        Component, present and future, so the fix belongs here once rather
+        than in each of ManagementCommands' handlers by hand -- see
+        core/db.py.
+        """
+        await release_connection()
 
     async def event_token_refreshed(
         self, payload: twitchio.TokenRefreshedPayload
