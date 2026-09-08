@@ -18,7 +18,6 @@ channel per tick.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from asgiref.sync import sync_to_async
@@ -26,53 +25,27 @@ from django.db.models import F
 from django.utils import timezone
 from twitchio.ext import commands
 
-from core.db import release_connection
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
 from .. import state
 from ..variables import VariableContext
 from ..variables import create_registry
+from .base import TickingComponent
 
 logger = logging.getLogger("bot")
 
-TICK_INTERVAL = 60
 
-
-class TimedMessages(commands.Component):
+class TimedMessages(TickingComponent):
     """Posts due timed messages while the broadcaster is live."""
 
+    TICK_INTERVAL = 60
+    STARTUP_DELAY = 20  # let the bot finish connecting
+
     def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
-        self._task: asyncio.Task | None = None
+        super().__init__(bot)
         self._registry = create_registry()
         self._channel_cache: dict[str, object] = {}
-
-    async def component_load(self) -> None:
-        self._task = asyncio.create_task(self._tick_loop())
-
-    async def component_teardown(self) -> None:
-        if self._task and not self._task.done():
-            self._task.cancel()
-
-    async def _tick_loop(self) -> None:
-        try:
-            await asyncio.sleep(20)  # let the bot finish connecting
-            while True:
-                # Once per tick — see core/db.py and accrual.py's identical
-                # comment for why this has to run here, not just in the router.
-                await release_connection()
-                for channel_info in self.bot._channel_map.values():
-                    try:
-                        await self._tick_channel(channel_info)
-                    except Exception:
-                        logger.exception(
-                            "[TimedMessages] Error processing #%s",
-                            channel_info["name"],
-                        )
-                await asyncio.sleep(TICK_INTERVAL)
-        except asyncio.CancelledError:
-            logger.info("[TimedMessages] Tick loop cancelled.")
 
     async def _get_channel(self, name: str):
         if name not in self._channel_cache:

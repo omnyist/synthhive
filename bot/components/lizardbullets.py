@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import random
 
@@ -10,20 +9,19 @@ from asgiref.sync import sync_to_async
 from twitchio.ext import commands
 
 from bot import state
-from core.db import release_connection
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
 from ..heartbeat import beat_live
+from .base import TickingComponent
 
 logger = logging.getLogger("bot")
 
-TICK_INTERVAL = 30  # seconds
 BULLET_ODDS = 651  # 1-in-651 per tick
 CHAMBER_COUNT = 6
 
 
-class LizardBullets(commands.Component):
+class LizardBullets(TickingComponent):
     """Silently loads the lizard's revolver on a background timer.
 
     Every 30 seconds, rolls a 1/651 chance per channel to load all 6
@@ -32,37 +30,11 @@ class LizardBullets(commands.Component):
     Only ticks while the channel is live.
     """
 
+    TICK_INTERVAL = 30  # seconds
+
     def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
-        self._task: asyncio.Task | None = None
+        super().__init__(bot)
         self._channel_cache: dict[str, object] = {}
-
-    async def component_load(self) -> None:
-        self._task = asyncio.create_task(self._tick_loop())
-
-    async def component_teardown(self) -> None:
-        if self._task and not self._task.done():
-            self._task.cancel()
-
-    async def _tick_loop(self) -> None:
-        """Roll for bullet loading forever, sleeping between ticks."""
-        try:
-            await asyncio.sleep(10)  # wait for bot to fully connect
-            while True:
-                # Once per tick — see core/db.py and accrual.py's identical
-                # comment for why this has to run here, not just in the router.
-                await release_connection()
-                for channel_info in self.bot._channel_map.values():
-                    try:
-                        await self._tick_channel(channel_info)
-                    except Exception:
-                        logger.exception(
-                            "[LizardBullets] Error processing #%s",
-                            channel_info["name"],
-                        )
-                await asyncio.sleep(TICK_INTERVAL)
-        except asyncio.CancelledError:
-            logger.info("[LizardBullets] Tick loop cancelled.")
 
     async def _get_channel(self, channel_info: dict) -> object:
         """Load and cache the Django Channel model for twitch_request."""
