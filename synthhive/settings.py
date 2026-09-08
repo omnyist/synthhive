@@ -6,6 +6,7 @@ from pathlib import Path
 import environ
 import sentry_sdk
 from django.utils.csp import CSP
+from synthlib.django.db import production_database_extras
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -94,57 +95,22 @@ DATABASES = {
 _UNDER_TEST = "pytest" in sys.modules
 
 
-def production_database_extras(engine: str, *, under_test: bool) -> dict:
-    """The DB config that ships to production — pure, so tests can see it.
-
-    Because the pool is off under pytest, the production branch below is
-    invisible to an ordinary test run: a fully green suite crash-looped prod
-    on 2026-08-22 (a `check` key colliding with the one Django passes
-    itself). tests/test_production_db_config.py asserts on this function's
-    output with under_test=False.
-
-    CONN_HEALTH_CHECKS is the pool's `check` callback (Django forwards it).
-    Left False, a Postgres restart leaves the pool serving dead connections
-    forever — 2026-08-21: every bot raised "the connection is closed" for
-    ~3h while the container read Up and the panel returned 200. Never put
-    `check` in the pool options yourself.
-    """
-    if engine == "django.db.backends.sqlite3" or under_test:
-        return {}
-    return {
-        "CONN_HEALTH_CHECKS": True,
-        # Explicit sizing: the bare `pool: True` default caps at 4
-        # connections, which a handful of concurrent requests can exhaust.
-        # timeout keeps a starved pool failing fast instead of hanging
-        # every request for 30s (the 2026-07-31 "constant Loading" outage).
-        #
-        # DISABLE_SERVER_SIDE_CURSORS: required ahead of the pgbouncer
-        # migration (rollout plan, ~/.claude/plans/fluffy-mapping-phoenix.md,
-        # Phase 7 -- synthhive is last on purpose, stream-critical). Server-
-        # side cursors are connection-local, and transaction pooling can hand
-        # this connection's next query to a different backend than its last
-        # one. prepare_threshold=None is explicit here but not load-bearing
-        # -- Django's own postgresql backend already defaults it to None for
-        # psycopg3 (base.py, "to keep connection poolers working"), verified
-        # against this rack's installed Django 6.1 during synthfunc's
-        # migration. Kept explicit anyway: states intent, survives a future
-        # default change.
-        #
-        # This module's own TickingComponent/before_invoke consumer-layer
-        # fix (2026-09-08, same session) already covers every long-lived
-        # worker correctly -- unlike synthfunc's twitch/correlator, synthhive
-        # has no known gap there. PgBouncer is additional defense here, not
-        # a substitute for anything unfinished.
-        "OPTIONS": {
-            "pool": {"min_size": 2, "max_size": 20, "timeout": 10},
-            "prepare_threshold": None,
-        },
-        "DISABLE_SERVER_SIDE_CURSORS": True,
-    }
-
-
+# Explicit sizing (min_size=2, max_size=20, timeout=10), not the other
+# modules' 1/4 -- this is the 2026-07-31 pool-exhaustion fix ("constant
+# Loading" outage under a handful of concurrent requests), a deliberate
+# per-module choice, not drift. Pool sizing moved to synthlib
+# (2026-09-08, synthlib plan, last of 7 modules on purpose --
+# stream-critical) -- required kwargs, not a default, so this module's own
+# numbers stay visible at its own call site. See synthlib.django.db's own
+# docstring for CONN_HEALTH_CHECKS/DISABLE_SERVER_SIDE_CURSORS reasoning.
 DATABASES["default"].update(
-    production_database_extras(DATABASES["default"]["ENGINE"], under_test=_UNDER_TEST)
+    production_database_extras(
+        DATABASES["default"]["ENGINE"],
+        under_test=_UNDER_TEST,
+        pool_min_size=2,
+        pool_max_size=20,
+        pool_timeout=10,
+    )
 )
 
 # Auth

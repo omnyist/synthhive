@@ -7,6 +7,7 @@ from datetime import timedelta
 import twitchio
 from channels.db import aclose_old_connections
 from django.utils import timezone
+from synthlib.django.heartbeat import abeat_liveness as beat_liveness
 from twitchio import eventsub
 from twitchio import web
 from twitchio.ext import commands
@@ -19,9 +20,9 @@ from .components.lizardbullets import LizardBullets
 from .components.lizardrecovery import LizardRecovery
 from .components.management import ManagementCommands
 from .components.timedmessages import TimedMessages
-from .heartbeat import beat_liveness
-from .heartbeat import refresh_boot_ttl
+from .heartbeat import worker_id
 from .router import CommandRouter
+from .state import get_client
 
 logger = logging.getLogger("bot")
 
@@ -204,14 +205,13 @@ class BotClient(commands.Bot):
                     # hang this on. Placing it after the `continue` would mean
                     # only unhealthy bots ever beat.
                     if active_channels:
-                        await beat_liveness(self.bot_name)
-                        # Keep the boot key alive without rewriting it.
-                        # Bots run for days between deploys, so a bare 24h
-                        # TTL let boot expire under a perfectly healthy
-                        # process — degrading the never-beat message from
-                        # "since boot Ns ago" to the vaguer "process never
-                        # started" on day two.
-                        await refresh_boot_ttl(self.bot_name)
+                        # synthlib's abeat_liveness already refreshes the
+                        # boot key's TTL internally (same "keep boot alive
+                        # without rewriting it" reasoning this replaces) —
+                        # one call now covers what used to be two.
+                        await beat_liveness(
+                            worker_id(self.bot_name), client=get_client()
+                        )
 
                     if not missing:
                         continue

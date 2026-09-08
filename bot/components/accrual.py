@@ -5,14 +5,16 @@ from __future__ import annotations
 import logging
 
 from asgiref.sync import sync_to_async
+from synthlib.django.heartbeat import abeat_work as beat_work
+from synthlib.django.heartbeat import awrite
 from twitchio.ext import commands
 
 from core.synthfunc import accrue_wallets
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
-from ..heartbeat import beat_live
-from ..heartbeat import beat_work
+from ..heartbeat import worker_id
+from ..state import get_client
 from .base import TickingComponent
 
 logger = logging.getLogger("bot")
@@ -109,7 +111,7 @@ class CurrencyAccrual(TickingComponent):
         # This tick already asked Twitch the question, so recording the answer
         # is free. It gates work-staleness alerting: a bot that handles no
         # commands is only suspicious while someone is actually streaming.
-        await beat_live(self.bot.bot_name)
+        await awrite(worker_id(self.bot.bot_name), "live", client=get_client())
 
         chatters = await self._fetch_chatters(channel, broadcaster_id)
         if not chatters:
@@ -138,7 +140,7 @@ class CurrencyAccrual(TickingComponent):
             # Work-staleness was only ever a coarse proxy for it, and a
             # proxy that cries wolf on every quiet stream gets muted, which
             # costs more than the coverage it was standing in for.
-            await beat_work(self.bot.bot_name)
+            await beat_work(worker_id(self.bot.bot_name), client=get_client())
             logger.info(
                 "[Accrual] #%s: %d chatters, %d wallets updated.",
                 tenant_slug,

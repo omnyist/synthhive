@@ -27,6 +27,33 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
 
+      # Mints a token scoped to synthlib alone (synthlib plan, last of 7
+      # modules) via the same App credential every Concourse pipeline's
+      # git-dev resource already trusts -- not a new one. `uv sync`
+      # (implicit in the "Run tests" step below) needs it to resolve
+      # synthlib, a private git dependency.
+      - name: Mint synthlib token
+        id: synthlib-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: "4831507"
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: omnyist
+          repositories: synthlib
+
+      # Env-var GIT_CONFIG form, never `git config --global` -- that writes
+      # to disk, and the same command gets reused in the Docker build below
+      # (the deploy job), where a disk write would leak into an image
+      # layer. $GITHUB_ENV persists these for every later step in this job,
+      # same as `export` would for the rest of a single shell script.
+      - name: Configure git for the synthlib token
+        env:
+          GH_TOKEN: ${{ steps.synthlib-token.outputs.token }}
+        run: |
+          echo "GIT_CONFIG_COUNT=1" >> "$GITHUB_ENV"
+          echo "GIT_CONFIG_KEY_0=url.https://x-access-token:${GH_TOKEN}@github.com/.insteadOf" >> "$GITHUB_ENV"
+          echo "GIT_CONFIG_VALUE_0=https://github.com/" >> "$GITHUB_ENV"
+
       - name: Start test services
         run: |
           # `docker rm -fv`, not `docker rm -f`. The postgres image declares an
@@ -165,6 +192,24 @@ jobs:
           SENTRY_DSN=${{ secrets.SENTRY_DSN }}
           EOF
 
+      # Minted here, not on Saya's own ambient credentials -- this runner IS
+      # Saya (self-hosted, user Avalonstar, credential.helper=osxkeychain),
+      # so uv might resolve the dependency ambiently today, but that's the
+      # same "depends on an unlocked interactive credential store" fragility
+      # already rejected for Concourse's Saya SSH agent. Minted unconditionally
+      # here (cheap if unused) and handed to whichever build step below
+      # actually runs, as a step-scoped env var -- never through .env, which
+      # env_file above already wires into every running container's
+      # environment indefinitely.
+      - name: Mint synthlib token
+        id: synthlib-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: "4831507"
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: omnyist
+          repositories: synthlib
+
       - name: Check for live guest channels
         id: guests
         if: >-
@@ -202,6 +247,8 @@ jobs:
       # Full deploy: rebuild all images and recreate all containers
       - name: Full deploy (dependencies or infra changed)
         if: steps.changes.outputs.deps == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ steps.synthlib-token.outputs.token }}
         run: |
           docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
           docker compose -f docker-compose.prod.yml restart caddy
@@ -274,6 +321,8 @@ jobs:
         if: >-
           steps.changes.outputs.deps != 'true' && github.event_name != 'workflow_dispatch'
           && steps.changes.outputs.backend == 'true'
+        env:
+          GH_TOKEN: ${{ steps.synthlib-token.outputs.token }}
         run: docker compose -f docker-compose.prod.yml build
 
       - name: Restart server and bot

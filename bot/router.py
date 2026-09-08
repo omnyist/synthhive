@@ -9,10 +9,11 @@ import twitchio
 from asgiref.sync import sync_to_async
 from channels.db import aclose_old_connections
 from django.db.models import F
+from synthlib.django.heartbeat import abeat_work as beat_work
 from twitchio.ext import commands
 
 from . import state
-from .heartbeat import beat_work
+from .heartbeat import worker_id
 from .skills import SKILL_REGISTRY
 from .skills import discover_skills
 from .variables import VariableContext
@@ -255,7 +256,7 @@ class CommandRouter(commands.Component):
             # the command was found in Postgres, use_count was written back,
             # and the reply reached Twitch. A beat earlier in this function
             # would have kept ticking through that entire outage.
-            await beat_work(self.bot.bot_name)
+            await beat_work(worker_id(self.bot.bot_name), client=state.get_client())
             return
 
         # 6. Skill handler fallback

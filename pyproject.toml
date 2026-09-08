@@ -14,8 +14,12 @@ dependencies = [
     "psycopg[pool]>=3.3.4",
     "redis>=8.0.1",
     "sentry-sdk[django]>=2.59.0",
+    "synthlib",
     "twitchio>=3.3.0",
 ]
+
+[tool.uv.sources]
+synthlib = { git = "https://github.com/omnyist/synthlib.git", tag = "v0.1.1" }
 
 [tool.ruff]
 exclude = [

@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      secrets:
+        - gh_token
     container_name: synthhive-server
     restart: unless-stopped
     env_file:
@@ -20,6 +22,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      secrets:
+        - gh_token
     container_name: synthhive-bot
     restart: unless-stopped
     depends_on:
@@ -65,3 +69,12 @@ volumes:
   frontend_dist:
   caddy_data:
   caddy_config:
+
+secrets:
+  # Sourced from the shell environment on the invocation that runs
+  # `docker compose build`/`up --build` (the Actions deploy job), never
+  # from .env -- env_file above already wires every service's runtime
+  # environment, and a token placed there would be readable via
+  # `docker inspect` indefinitely, not just present during the build.
+  gh_token:
+    environment: GH_TOKEN

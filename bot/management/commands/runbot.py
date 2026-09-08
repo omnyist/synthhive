@@ -7,8 +7,9 @@ import time
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from synthlib.django.heartbeat import beat_boot as beat_boot_sync
 
-from bot.heartbeat import beat_boot_sync
+from bot.heartbeat import worker_id
 
 logger = logging.getLogger("bot")
 
@@ -79,7 +80,7 @@ class Command(BaseCommand):
         # never started" from "it started and never connected" — two failures
         # with different fixes that otherwise produce identical silence.
         for cfg in configs:
-            beat_boot_sync(cfg["bot_name"])
+            beat_boot_sync(worker_id(cfg["bot_name"]))
 
         base_port = 4343
         for cfg in configs:

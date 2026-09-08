@@ -6,13 +6,14 @@ import logging
 import random
 
 from asgiref.sync import sync_to_async
+from synthlib.django.heartbeat import awrite
 from twitchio.ext import commands
 
 from bot import state
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
-from ..heartbeat import beat_live
+from ..heartbeat import worker_id
 from .base import TickingComponent
 
 logger = logging.getLogger("bot")
@@ -83,7 +84,7 @@ class LizardBullets(TickingComponent):
 
         # Same free observation as accrual's, on a 30s tick rather than 5min,
         # so the live gate stays fresh for channels running this skill.
-        await beat_live(self.bot.bot_name)
+        await awrite(worker_id(self.bot.bot_name), "live", client=state.get_client())
 
         if random.randint(1, BULLET_ODDS) != 1:
             return
