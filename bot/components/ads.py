@@ -11,6 +11,8 @@ from asgiref.sync import sync_to_async
 from django.conf import settings
 from twitchio.ext import commands
 
+from core.db import release_connection
+
 logger = logging.getLogger("bot")
 
 DEFAULT_MESSAGES = {
@@ -106,6 +108,9 @@ class AdAnnounce(commands.Component):
 
     async def _handle_event(self, redis_channel: bytes, raw_data: bytes) -> None:
         """Process a single Redis ad event."""
+        # Event-driven, not timer-ticked, but the risk is the same — this is
+        # the top of an entry point that queries the DB. See core/db.py.
+        await release_connection()
         slug = redis_channel.decode().split(":")[1]
         broadcaster_id = self._slug_map.get(slug)
         if not broadcaster_id:

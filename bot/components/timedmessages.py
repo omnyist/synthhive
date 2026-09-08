@@ -26,6 +26,7 @@ from django.db.models import F
 from django.utils import timezone
 from twitchio.ext import commands
 
+from core.db import release_connection
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
@@ -58,6 +59,9 @@ class TimedMessages(commands.Component):
         try:
             await asyncio.sleep(20)  # let the bot finish connecting
             while True:
+                # Once per tick — see core/db.py and accrual.py's identical
+                # comment for why this has to run here, not just in the router.
+                await release_connection()
                 for channel_info in self.bot._channel_map.values():
                     try:
                         await self._tick_channel(channel_info)

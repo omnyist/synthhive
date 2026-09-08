@@ -10,6 +10,7 @@ from asgiref.sync import sync_to_async
 from twitchio.ext import commands
 
 from bot import state
+from core.db import release_connection
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
 
@@ -48,6 +49,9 @@ class LizardBullets(commands.Component):
         try:
             await asyncio.sleep(10)  # wait for bot to fully connect
             while True:
+                # Once per tick — see core/db.py and accrual.py's identical
+                # comment for why this has to run here, not just in the router.
+                await release_connection()
                 for channel_info in self.bot._channel_map.values():
                     try:
                         await self._tick_channel(channel_info)

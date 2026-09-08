@@ -8,6 +8,7 @@ import logging
 from asgiref.sync import sync_to_async
 from twitchio.ext import commands
 
+from core.db import release_connection
 from core.synthfunc import accrue_wallets
 from core.twitch import TWITCH_API_BASE
 from core.twitch import twitch_request
@@ -42,6 +43,11 @@ class CurrencyAccrual(commands.Component):
         try:
             await asyncio.sleep(10)  # wait for bot to fully connect
             while True:
+                # Once per tick, not once per channel: every channel in this
+                # loop shares the one connection release_connection() returns
+                # (see core/db.py) — the point is to run it before this tick's
+                # first ORM call, not once per iteration of the inner loop.
+                await release_connection()
                 for channel_info in self.bot._channel_map.values():
                     try:
                         await self._tick_channel(channel_info)

@@ -10,6 +10,8 @@ from asgiref.sync import sync_to_async
 from django.db.models import F
 from twitchio.ext import commands
 
+from core.db import release_connection
+
 from . import state
 from .heartbeat import beat_work
 from .skills import SKILL_REGISTRY
@@ -94,6 +96,13 @@ class CommandRouter(commands.Component):
         # 1. Self-message guard
         if payload.chatter and str(payload.chatter.id) == str(self.bot.bot_id):
             return
+
+        # Every path below this point can touch Postgres (alias/command
+        # lookup, cooldowns, use_count), and this is the only place that
+        # runs once per real message rather than once per TICK_INTERVAL —
+        # see core/db.py for why this has to be at the top of every entry
+        # point rather than just this one.
+        await release_connection()
 
         # 2. Count the message for the timed-message activity gate. This
         # runs BEFORE the prefix check because ordinary conversation is

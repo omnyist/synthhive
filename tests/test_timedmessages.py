@@ -264,6 +264,7 @@ class TestTicking:
 
 
 @pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
 async def test_router_counts_chat_towards_the_gate():
     """Ordinary conversation counts, not just commands."""
     from bot.router import CommandRouter
