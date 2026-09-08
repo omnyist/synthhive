@@ -25,6 +25,7 @@ class CurrencyAccrual(TickingComponent):
     """Awards currency to chatters while the stream is live."""
 
     TICK_INTERVAL = 300  # 5 minutes
+    LOG_NAME = "Accrual"  # matches the pre-refactor log prefix exactly
 
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__(bot)

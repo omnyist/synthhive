@@ -35,8 +35,24 @@ class TickingComponent(commands.Component):
 
     TICK_INTERVAL: float
     STARTUP_DELAY: float = 10
+    # Preserves each component's pre-refactor log prefix exactly (adversarial
+    # review, 2026-09-08 pass 2) -- type(self).__name__ would silently rename
+    # CurrencyAccrual's "[Accrual]" to "[CurrencyAccrual]" in every log line,
+    # breaking any saved search or alert keyed on the old string. Override in
+    # a subclass only if a truly new component needs it; the default matches
+    # the class name for anything not migrated from a hand-rolled loop.
+    LOG_NAME: str | None = None
 
     def __init__(self, bot: commands.Bot) -> None:
+        # Fails at construction (bot startup), not 300s into the first tick:
+        # a subclass access TICK_INTERVAL is a bare annotation with no
+        # default, and an AttributeError raised from inside _tick_loop
+        # escapes its only except clause (CancelledError) uncaught, killing
+        # the task permanently with nothing logged. Adversarial review,
+        # 2026-09-08 pass 2 -- the exact silent-failure shape this class
+        # exists to prevent, reintroduced by the class itself.
+        if not hasattr(type(self), "TICK_INTERVAL"):
+            raise TypeError(f"{type(self).__name__} must set TICK_INTERVAL")
         self.bot = bot
         self._task: asyncio.Task | None = None
 
@@ -48,24 +64,33 @@ class TickingComponent(commands.Component):
             self._task.cancel()
 
     async def _tick_loop(self) -> None:
-        name = type(self).__name__
+        name = self.LOG_NAME or type(self).__name__
         try:
             await asyncio.sleep(self.STARTUP_DELAY)
             while True:
-                # Once per tick, before any channel's ORM call -- see
-                # core/db.py for why every independent loop needs its own
-                # call rather than relying on some other loop's. This is
-                # the one line the whole class exists to guarantee.
-                await release_connection()
-                for channel_info in self.bot._channel_map.values():
-                    try:
-                        await self._tick_channel(channel_info)
-                    except Exception:
-                        logger.exception(
-                            "[%s] Error processing #%s",
-                            name,
-                            channel_info["name"],
-                        )
+                try:
+                    # Once per tick, before any channel's ORM call -- see
+                    # core/db.py for why every independent loop needs its
+                    # own call rather than relying on some other loop's.
+                    # This is the one line the whole class exists to
+                    # guarantee, and it is inside this try -- a transient
+                    # DB error here must not kill the tick loop permanently
+                    # any more than a bad channel does (questlog's
+                    # run_worker_loop already treats a whole-tick failure
+                    # this way; adversarial review, 2026-09-08 pass 2,
+                    # caught the asymmetry).
+                    await release_connection()
+                    for channel_info in self.bot._channel_map.values():
+                        try:
+                            await self._tick_channel(channel_info)
+                        except Exception:
+                            logger.exception(
+                                "[%s] Error processing #%s",
+                                name,
+                                channel_info["name"],
+                            )
+                except Exception:
+                    logger.exception("[%s] Tick failed", name)
                 await asyncio.sleep(self.TICK_INTERVAL)
         except asyncio.CancelledError:
             logger.info("[%s] Tick loop cancelled.", name)
