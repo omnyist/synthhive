@@ -331,7 +331,20 @@ It runs biome over staged frontend files and ruff over staged Python — the sam
 
 ## Deployment
 
-Automated via GitHub Actions (`.github/workflows/deploy.yml`). Pushes to `main` trigger a deploy to the self-hosted runner on Saya. The `test` and `frontend` jobs both gate it.
+Concourse, not GitHub Actions — `synthci/pipelines/synthhive.yml`, cut over 2026-09-09 (the last of the nine Saya-runner modules to move, arbitration q0012). `.github/workflows/deploy.yml` is deleted outright, in the same commit that added the Concourse scaffolding — a prior migration (synthhome's) left a same-day gap where GHA's test job and Concourse's own auto-triggered test job raced for the same fixed-name ephemeral Postgres container on Saya and corrupted each other's database mid-migration; cutting over in one commit removes that window entirely rather than repeating it.
+
+A push to `main` auto-triggers Concourse's `test` job (pytest, ruff, `scripts/audit_async_fk.py`, doctrine-grep, plus a `check-frontend` task for the bun frontend). Every `deploy-*` job is manual-trigger (`fly -t synthci trigger-job -j synthhive/deploy-<full|backend|frontend|caddy>`) — a human decides when server/bot restart, same as every other Concourse module.
+
+Four path-scoped git resources (`repo-deps`, `repo-backend`, `repo-frontend`, `repo-caddy`) mirror the four categories the retired GHA workflow's `dorny/paths-filter` step used to gate selective restarts:
+
+- **deploy-full** — `pyproject.toml`/`uv.lock`/`Dockerfile`/`docker-compose.prod.yml` changed. Rebuilds and restarts everything, restarts caddy.
+- **deploy-backend** — `core/`, `bot/`, `synthhive/`, or `manage.py` changed. Rebuilds (server and bot share one Dockerfile) and restarts server+bot.
+- **deploy-frontend** — `frontend/` changed. Rebuilds the one-shot `frontend-build` container.
+- **deploy-caddy** — `Caddyfile` changed. Restarts caddy (bind-mounted, no rebuild).
+
+`deploy-full` and `deploy-backend` refuse to run while a non-owner tenant is live on Twitch (checks `stream:*:live` in Redis) — a full or backend restart drops the bot's connection to every channel it's in, and a guest's stream breaking for reasons they can't see is a worse cost than waiting. `deploy-frontend`/`deploy-caddy` touch neither server nor bot, so they carry no such check. Override for either gated job: there is no `workflow_dispatch`-style bypass in Concourse (matching synthfunc's own Concourse deploy, which never had one either) — wait until the channel is offline.
+
+The deploy rsyncs the repo to `~/ci/deploys/synthhive` on Saya and runs the matching `ci/deploy-*.sh` there, then `ci/verify.sh`. Retiring GHA also dropped inline PR checks — matches every other Concourse module; a human reviews the `test` job's result before deciding to deploy.
 
 - **Domain**: `bots.bardsaders.com` behind Cloudflare Zero Trust.
 - **Server access**: `ssh saya`. Use `docker exec` for container interaction, not `docker compose`.

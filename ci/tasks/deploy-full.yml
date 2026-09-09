@@ -1,0 +1,91 @@
+platform: linux
+
+image_resource:
+  type: registry-image
+  source:
+    repository: alpine
+    tag: "3.20"
+
+# `repo`, not the path-scoped `repo-deps`: this task rsyncs its input to Saya
+# with --delete, so the input IS the deployed tree. A scoped resource's
+# version is the last commit touching ITS paths, which strands behind HEAD
+# on any commit outside them, and deploying that would roll production back
+# to it (see synthfunc/ci/tasks/deploy-service.yml for the fuller account of
+# how this was found).
+inputs:
+  - name: repo
+
+params:
+  SSH_KEY: ((saya_ssh_key))
+  KNOWN_HOSTS: ((saya_known_hosts))
+  SECRET_KEY: ((synthhive_secret_key))
+  TWITCH_CLIENT_ID: ((synthhive_twitch_client_id))
+  TWITCH_CLIENT_SECRET: ((synthhive_twitch_client_secret))
+  FERNET_KEY: ((synthhive_fernet_key))
+  SYNTHFUNC_API_KEY: ((synthhive_synthfunc_api_key))
+  SENTRY_DSN: ((synthhive_sentry_dsn))
+  APP_ID: ((github_app_id))
+  PRIVATE_KEY: ((github_app_private_key))
+  INSTALLATION_ID: "159078769"
+
+run:
+  path: sh
+  args:
+    - -ec
+    - |
+      apk add --no-cache openssh-client rsync openssl curl jq bash git >/dev/null
+      mkdir -p ~/.ssh
+      echo "$SSH_KEY" > ~/.ssh/id_ed25519
+      chmod 600 ~/.ssh/id_ed25519
+      echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      SSH="ssh -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=10 Avalonstar@10.0.20.10"
+      RSYNC_SSH="ssh -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=10"
+
+      rsync -a --delete -e "$RSYNC_SSH" repo/ Avalonstar@10.0.20.10:~/ci/deploys/synthhive/
+
+      # Minted here, in the Concourse task -- deploy-full.sh runs ON Saya and
+      # has no access to the App private key. Carried to Saya as a shell env
+      # var on the SSH invocation below, never through the env-payload/.env
+      # mechanism below: env_file already wires .env into every service's
+      # runtime environment, and a token placed there would be readable via
+      # `docker inspect` on every running container indefinitely. docker
+      # compose's own `secrets: gh_token: environment: GH_TOKEN` picks this
+      # up automatically from deploy-full.sh's process environment --
+      # deploy-full.sh itself needs no changes.
+      GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=10" \
+        git clone --depth 1 -q Avalonstar@10.0.20.10:git/standards.git /tmp/standards
+      printf '%s' "$PRIVATE_KEY" > /tmp/app-key.pem
+      GH_TOKEN=$(bash /tmp/standards/ci/gh-app-token.sh "$APP_ID" "$INSTALLATION_ID" /tmp/app-key.pem synthlib)
+      rm -f /tmp/app-key.pem
+      rm -rf /tmp/standards
+
+      # Compose's own .env parser re-interpolates $-references when it reads
+      # this file back on Saya, so a literal $ inside a secret (SECRET_KEY's
+      # alphabet includes it) gets swallowed as a bogus variable reference
+      # and silently truncates the value. Escape every secret to $$ before
+      # it lands in the heredoc so Compose sees a literal dollar sign.
+      SECRET_KEY=$(printf '%s' "$SECRET_KEY" | sed 's/\$/$$/g')
+      TWITCH_CLIENT_ID=$(printf '%s' "$TWITCH_CLIENT_ID" | sed 's/\$/$$/g')
+      TWITCH_CLIENT_SECRET=$(printf '%s' "$TWITCH_CLIENT_SECRET" | sed 's/\$/$$/g')
+      FERNET_KEY=$(printf '%s' "$FERNET_KEY" | sed 's/\$/$$/g')
+      SYNTHFUNC_API_KEY=$(printf '%s' "$SYNTHFUNC_API_KEY" | sed 's/\$/$$/g')
+      SENTRY_DSN=$(printf '%s' "$SENTRY_DSN" | sed 's/\$/$$/g')
+
+      cat > env-payload <<ENVEOF
+      DEBUG=False
+      SECRET_KEY=$SECRET_KEY
+      ALLOWED_HOSTS=bots.bardsaders.com,localhost,saya
+      DATABASE_URL=postgresql://synthhive:synthhive@synthcore-pgbouncer:6432/synthhive
+      REDIS_URL=redis://synthcore-redis:6379/1
+      TWITCH_CLIENT_ID=$TWITCH_CLIENT_ID
+      TWITCH_CLIENT_SECRET=$TWITCH_CLIENT_SECRET
+      FERNET_KEY=$FERNET_KEY
+      SYNTHFUNC_API_URL=http://synthfunc-server:7178/api
+      SYNTHFUNC_API_KEY=$SYNTHFUNC_API_KEY
+      SENTRY_DSN=$SENTRY_DSN
+      ENVEOF
+
+      scp -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=~/.ssh/known_hosts env-payload Avalonstar@10.0.20.10:~/ci/deploys/synthhive/.env
+
+      $SSH "cd ~/ci/deploys/synthhive && OWNER=avalonstar GH_TOKEN='$GH_TOKEN' bash ci/deploy-full.sh && bash ci/verify.sh"

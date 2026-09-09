@@ -1,0 +1,35 @@
+platform: linux
+
+image_resource:
+  type: registry-image
+  source:
+    repository: python
+    # synthhive's own Dockerfile and uv.lock resolve against 3.14, unlike
+    # every other module here (3.13-slim) -- its GHA test job pinned the
+    # same interpreter for the same reason (a native dep's wheel availability
+    # tracks the resolved version, not just requires-python's floor).
+    tag: "3.14-slim"
+
+inputs:
+  - name: repo
+
+# SSH_KEY/KNOWN_HOSTS: read-only, only used to `git clone` standards over SSH
+# so doctrine-grep.sh runs against the real, current rules and so
+# gh-app-token.sh is available before `uv sync` needs it. Same creds every
+# deploy task carries. APP_ID/PRIVATE_KEY: mints a token scoped to synthlib
+# alone (synthlib plan, Phase 7, synthhive) -- same App credential every
+# pipeline's git-dev resource already trusts, not a new one.
+params:
+  SSH_KEY: ((saya_ssh_key))
+  KNOWN_HOSTS: ((saya_known_hosts))
+  APP_ID: ((github_app_id))
+  PRIVATE_KEY: ((github_app_private_key))
+  INSTALLATION_ID: "159078769"
+
+run:
+  path: sh
+  args:
+    - -ec
+    - |
+      cd repo
+      sh ci/test.sh

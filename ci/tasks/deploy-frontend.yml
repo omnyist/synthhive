@@ -1,0 +1,37 @@
+platform: linux
+
+image_resource:
+  type: registry-image
+  source:
+    repository: alpine
+    tag: "3.20"
+
+# `repo`, not the path-scoped `repo-frontend`: this task rsyncs its input to
+# Saya with --delete, so the input IS the deployed tree. See deploy-full.yml.
+inputs:
+  - name: repo
+
+params:
+  SSH_KEY: ((saya_ssh_key))
+  KNOWN_HOSTS: ((saya_known_hosts))
+
+run:
+  path: sh
+  args:
+    - -ec
+    - |
+      apk add --no-cache openssh-client rsync >/dev/null
+      mkdir -p ~/.ssh
+      echo "$SSH_KEY" > ~/.ssh/id_ed25519
+      chmod 600 ~/.ssh/id_ed25519
+      echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      SSH="ssh -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=10 Avalonstar@10.0.20.10"
+      RSYNC_SSH="ssh -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=10"
+
+      rsync -a --delete -e "$RSYNC_SSH" repo/ Avalonstar@10.0.20.10:~/ci/deploys/synthhive/
+
+      # frontend-build has no env_file -- no .env rewrite needed, unlike
+      # deploy-full/deploy-backend. No gh_token needed either: it's a plain
+      # bun install+build, no synthlib dependency to resolve.
+      $SSH "cd ~/ci/deploys/synthhive && bash ci/deploy-frontend.sh && bash ci/verify.sh"

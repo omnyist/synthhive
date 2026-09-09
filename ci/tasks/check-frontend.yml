@@ -1,0 +1,21 @@
+platform: linux
+
+image_resource:
+  type: registry-image
+  source:
+    repository: oven/bun
+    tag: latest
+
+inputs:
+  - name: repo
+
+run:
+  path: sh
+  args:
+    - -ec
+    - |
+      cd repo/frontend
+      bun install --frozen-lockfile
+      bun run lint
+      bun run typecheck
+      bun run build
