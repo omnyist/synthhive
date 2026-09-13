@@ -64,6 +64,8 @@ class BotClient(commands.Bot):
     async def setup_hook(self) -> None:
         await self.add_token(self._initial_token, self._initial_refresh)
 
+        subscribed = 0
+        total = len(self._channel_map)
         for channel_info in self._channel_map.values():
             broadcaster_id = channel_info["twitch_channel_id"]
             payload = eventsub.ChatMessageSubscription(
@@ -72,6 +74,7 @@ class BotClient(commands.Bot):
             )
             try:
                 await self.subscribe_websocket(payload=payload)
+                subscribed += 1
                 logger.info(
                     "[%s] Subscribed to chat in #%s",
                     self.bot_name,
@@ -98,7 +101,12 @@ class BotClient(commands.Bot):
             self._subscription_health_check()
         )
 
-        logger.info("[%s] Setup complete.", self.bot_name)
+        logger.info(
+            "[%s] Setup complete. subscribed=%d/%d",
+            self.bot_name,
+            subscribed,
+            total,
+        )
 
     async def event_ready(self) -> None:
         logger.info("[%s] Bot is ready (ID: %s).", self.bot_name, self.bot_id)
