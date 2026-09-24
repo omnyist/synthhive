@@ -179,11 +179,7 @@ class BotClient(commands.Bot):
             )
 
     async def _subscription_health_check(self) -> None:
-        """Periodically verify EventSub subscriptions and re-create missing ones.
-
-        TwitchIO silently drops subscriptions that fail to resubscribe after
-        a WebSocket reconnect. This task detects the loss and re-subscribes.
-        """
+        """Every minute, re-create any chat subscription Twitch says is gone."""
         try:
             await asyncio.sleep(30)
 
@@ -191,67 +187,7 @@ class BotClient(commands.Bot):
                 await asyncio.sleep(60)
 
                 try:
-                    active_channels: set[str] = set()
-                    for sockets in self._websockets.values():
-                        for ws in sockets.values():
-                            for sub_data in ws._subscriptions.values():
-                                condition = sub_data.get("condition", {})
-                                bid = condition.get("broadcaster_user_id")
-                                if bid:
-                                    active_channels.add(bid)
-
-                    expected = {
-                        info["twitch_channel_id"]
-                        for info in self._channel_map.values()
-                    }
-                    missing = expected - active_channels
-
-                    # Beat here, before the early return below. Walking
-                    # self._websockets is the only recurring proof the chat
-                    # plumbing is real — TwitchIO logs session_keepalive and
-                    # dispatches nothing, so there is no connection event to
-                    # hang this on. Placing it after the `continue` would mean
-                    # only unhealthy bots ever beat.
-                    if active_channels:
-                        # synthlib's abeat_liveness already refreshes the
-                        # boot key's TTL internally (same "keep boot alive
-                        # without rewriting it" reasoning this replaces) —
-                        # one call now covers what used to be two.
-                        await beat_liveness(
-                            worker_id(self.bot_name), client=get_client()
-                        )
-
-                    if not missing:
-                        continue
-
-                    # Close dead websockets (0 subscriptions) so
-                    # subscribe_websocket creates a fresh connection
-                    # instead of reusing the stale session.
-                    await self._close_dead_websockets()
-
-                    for channel_info in self._channel_map.values():
-                        bid = channel_info["twitch_channel_id"]
-                        if bid not in missing:
-                            continue
-
-                        payload = eventsub.ChatMessageSubscription(
-                            broadcaster_user_id=bid,
-                            user_id=self.bot_id,
-                        )
-                        try:
-                            await self.subscribe_websocket(payload=payload)
-                            logger.info(
-                                "[%s] Re-subscribed to chat in #%s",
-                                self.bot_name,
-                                channel_info["name"],
-                            )
-                        except Exception:
-                            logger.exception(
-                                "[%s] Failed to re-subscribe to #%s",
-                                self.bot_name,
-                                channel_info["name"],
-                            )
-
+                    await self._check_subscriptions_once()
                 except Exception:
                     logger.exception(
                         "[%s] Subscription health check error",
@@ -260,6 +196,88 @@ class BotClient(commands.Bot):
 
         except asyncio.CancelledError:
             pass
+
+    async def _enabled_chat_channels(self) -> set[str] | None:
+        """Broadcaster ids this bot has an enabled chat subscription for, per Twitch.
+
+        Asked of Twitch, not read from self._websockets. On a reconnect,
+        TwitchIO's welcome handler replaces the whole socket map with the
+        reconnecting socket, dropping the others without closing them. Those
+        sockets keep receiving chat, so the map could say "missing" while chat
+        was still arriving. Re-subscribing on that word opened another socket
+        each time. By 2026-09-23 Elsydeon held at least three sockets
+        re-creating the same #avalonstar subscription, and Twitch answered each
+        extra one with 429.
+
+        Only this process holds this bot's user token, so an enabled
+        subscription means some socket here is receiving. None when Twitch
+        can't be asked: unknown is not missing, and treating it as missing
+        would re-subscribe on an API blip.
+        """
+        try:
+            result = await self.fetch_eventsub_subscriptions(
+                token_for=self.bot_id, type="channel.chat.message"
+            )
+            enabled: set[str] = set()
+            async for sub in result.subscriptions:
+                condition = sub.condition or {}
+                ours = str(condition.get("user_id")) == str(self.bot_id)
+                if sub.status == "enabled" and ours:
+                    enabled.add(str(condition.get("broadcaster_user_id")))
+            return enabled
+        except Exception:
+            logger.warning(
+                "[%s] Could not list chat subscriptions from Twitch; skipping this check.",
+                self.bot_name,
+                exc_info=True,
+            )
+            return None
+
+    async def _check_subscriptions_once(self) -> None:
+        active = await self._enabled_chat_channels()
+        if active is None:
+            return
+
+        expected = {
+            str(info["twitch_channel_id"]) for info in self._channel_map.values()
+        }
+
+        # Beat only on Twitch's word that chat is subscribed. It used to beat
+        # on the in-memory socket map, which could hold a subscription Twitch
+        # had already dropped.
+        if active & expected:
+            await beat_liveness(worker_id(self.bot_name), client=get_client())
+
+        missing = expected - active
+        if not missing:
+            return
+
+        # Close dead websockets (0 subscriptions) so subscribe_websocket
+        # creates a fresh connection instead of reusing the stale session.
+        await self._close_dead_websockets()
+
+        for channel_info in self._channel_map.values():
+            bid = str(channel_info["twitch_channel_id"])
+            if bid not in missing:
+                continue
+
+            payload = eventsub.ChatMessageSubscription(
+                broadcaster_user_id=bid,
+                user_id=self.bot_id,
+            )
+            try:
+                await self.subscribe_websocket(payload=payload)
+                logger.info(
+                    "[%s] Re-subscribed to chat in #%s",
+                    self.bot_name,
+                    channel_info["name"],
+                )
+            except Exception:
+                logger.exception(
+                    "[%s] Failed to re-subscribe to #%s",
+                    self.bot_name,
+                    channel_info["name"],
+                )
 
     async def _close_dead_websockets(self) -> None:
         """Close websockets that lost all their subscriptions."""
